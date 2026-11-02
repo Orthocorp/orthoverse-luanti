@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Generate the whole Orthoverse surface once, render an overview, then exit.
+# Run as the service user with the service stopped:
+#   sudo systemctl stop orthoverse
+#   sudo -u orthoverse ./pregen.sh            # whole map (radius 58 lands)
+#   sudo -u orthoverse ./pregen.sh 3 0,0      # quick test: 7 x 7 lands round Orthohenge
+set -euo pipefail
+BASE="${BASE:-/mnt/ethereum/orthoverse}"
+RADIUS="${1:-58}"
+CENTRE="${2:-0,0}"
+SRC="$BASE/luanti"
+WORLD="$SRC/worlds/orthoverse"
+TMPCONF="$(mktemp)"
+cat "$BASE/orthoverse.conf" > "$TMPCONF"
+cat >> "$TMPCONF" <<EOF
+port = 30099
+orthoverse_pregen_radius = $RADIUS
+orthoverse_pregen_centre = $CENTRE
+orthoverse_pregen_exit = true
+orthoverse_render_map = true
+EOF
+echo "Pre-generating radius $RADIUS around land $CENTRE (log: $WORLD/debug.txt)"
+taskset -c 0-11,24-35 "$SRC/bin/luantiserver" --config "$TMPCONF" --world "$WORLD" \
+	--logfile "$WORLD/debug.txt"
+rm -f "$TMPCONF"
+grep "orthoverse_admin" "$WORLD/debug.txt" | tail -3
+echo "Overview image: $WORLD/orthomap.ppm (convert with: convert orthomap.ppm orthomap.png)"
