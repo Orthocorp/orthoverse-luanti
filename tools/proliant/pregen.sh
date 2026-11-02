@@ -20,7 +20,10 @@ orthoverse_pregen_exit = true
 orthoverse_render_map = true
 EOF
 echo "Pre-generating radius $RADIUS around land $CENTRE (log: $WORLD/debug.txt)"
-taskset -c 0-11,24-35 "$SRC/bin/luantiserver" --config "$TMPCONF" --world "$WORLD" \
+# Pin to NUMA node 0 on the ProLiant (skipped on machines with fewer CPUs)
+PIN=()
+if [[ $(nproc) -ge 36 ]]; then PIN=(taskset -c 0-11,24-35); fi
+"${PIN[@]}" "$SRC/bin/luantiserver" --config "$TMPCONF" --world "$WORLD" \
 	--logfile "$WORLD/debug.txt"
 rm -f "$TMPCONF"
 grep "orthoverse_admin" "$WORLD/debug.txt" | tail -3
