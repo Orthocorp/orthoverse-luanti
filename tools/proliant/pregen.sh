@@ -27,4 +27,8 @@ if [[ $(nproc) -ge 36 ]]; then PIN=(taskset -c 0-11,24-35); fi
 	--logfile "$WORLD/debug.txt"
 rm -f "$TMPCONF"
 grep "orthoverse_admin" "$WORLD/debug.txt" | tail -3
-echo "Overview image: $WORLD/orthomap.ppm (convert with: convert orthomap.ppm orthomap.png)"
+if [[ $RADIUS -le 10 ]]; then
+	echo "Overview image: $WORLD/orthomap.ppm"
+else
+	echo "For an overview of the whole map: tools/render_map.py $WORLD/map.sqlite orthomap.png"
+fi

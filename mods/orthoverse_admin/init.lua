@@ -58,6 +58,9 @@ local function colour(name)
 	return col
 end
 
+-- In-game rendering loads every block it reads into the server, so keep it small.
+local MAX_RENDER = 10
+
 -- Top-down overview, north at the top. Read in tiles of one land row by up to
 -- ten lands so memory stays small; one pixel per 'step' nodes (4 for big maps).
 local function render(radius, path)
@@ -167,10 +170,14 @@ core.register_chatcommand("pregen", {
 })
 
 core.register_chatcommand("orthomap", {
-	params = "<radius in lands>",
+	params = "<radius in lands, at most 10>",
 	privs = {server = true},
 	func = function(name, param)
 		local r = tonumber(param) or 1
+		if r > MAX_RENDER then
+			return false, "Too big to render in game (it loads every block); " ..
+				"use tools/render_map.py on map.sqlite instead."
+		end
 		local path = core.get_worldpath() .. "/orthomap.ppm"
 		local w, h = render(r, path)
 		return true, ("Wrote %dx%d map to %s"):format(w, h, path)
@@ -182,9 +189,14 @@ if radius > 0 then
 	core.after(1, function()
 		pregen(radius, function()
 			if core.settings:get_bool("orthoverse_render_map", false) then
-				local path = core.get_worldpath() .. "/orthomap.ppm"
-				render(radius, path)
-				core.log("action", "[orthoverse_admin] wrote " .. path)
+				if radius > MAX_RENDER then
+					core.log("action", "[orthoverse_admin] map too big to render in game; " ..
+						"use tools/render_map.py on map.sqlite instead")
+				else
+					local path = core.get_worldpath() .. "/orthomap.ppm"
+					render(radius, path)
+					core.log("action", "[orthoverse_admin] wrote " .. path)
+				end
 			end
 			if core.settings:get_bool("orthoverse_pregen_exit", false) then
 				core.request_shutdown("Pre-generation finished", false, 0)

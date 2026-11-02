@@ -35,6 +35,8 @@ mods/orthoverse_admin/       /pregen and /orthomap, plus startup pre-generation
 source-data/                 snapshot files the land data is built from
 tools/build_lands.py         rebuilds lands.json from source-data
 tools/assemble.sh            refreshes mods/mtg from Minetest Game
+tools/render_map.py          offline top-down render from map.sqlite
+tools/mapslice.py            offline node counts and vertical slices (debugging)
 tools/proliant/              install and pre-generation scripts for the ProLiant
 ```
 
@@ -82,7 +84,8 @@ orthoverse_render_map = true     # writes <world>/orthomap.ppm
 ```
 
 In game, with the server privilege: `/pregen <radius>`, `/orthomap <radius>`,
-and `/whereami` for anyone.
+and `/whereami` for anyone. For an overview of a big area, render offline:
+`tools/render_map.py <world>/map.sqlite orthomap.png` (whole map: about 3 minutes).
 
 ## On the ProLiant
 
