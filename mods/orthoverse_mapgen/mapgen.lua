@@ -78,6 +78,16 @@ local c = {
 	portal = id("orthoverse_nodes:henge_portal"),
 }
 
+-- Minetest Game tree schematics (path handed over by init.lua)
+local SCHEM_DIR = core.ipc_get("orthoverse:schematics")
+local SCHEM = {
+	apple = SCHEM_DIR .. "/apple_tree.mts",
+	aspen = SCHEM_DIR .. "/aspen_tree.mts",
+	pine = SCHEM_DIR .. "/pine_tree.mts",
+	small_pine = SCHEM_DIR .. "/small_pine_tree.mts",
+}
+local ROTS = {"0", "90", "180", "270"}
+
 local flowers = {}
 for _, n in ipairs({"flowers:rose", "flowers:tulip", "flowers:dandelion_yellow",
 		"flowers:geranium", "flowers:viola", "flowers:dandelion_white"}) do
@@ -241,6 +251,7 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 
 	-- Per-column surface results, used by the object pass
 	local tops = {}
+	local trees = {}
 	local sx = maxp.x - minp.x + 1
 	local function ti(x, z) return (z - minp.z) * sx + (x - minp.x) + 1 end
 
@@ -375,46 +386,35 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 								local s = (lx * 7919 + lz * 104729 + tx * 31 + tz * 17)
 
 								if realm == 0 then
-									-- Trees in woods
+									-- Trees in woods: queue Minetest Game's own tree schematics,
+									-- placed after the terrain is written (see below). Trees sit
+									-- on a jittered grid so trunks never share a spot, and stay
+									-- 4 nodes inside the land so crowns don't cross into the
+									-- neighbouring mapchunk.
 									if f == "4" or f == "c" or f == "f" or f == "7" then
-										for i = 1, 6 do
-											local a = 2 + floor(hash(s, i, 7) * 12)
-											local b = 2 + floor(hash(s, i, 8) * 12)
-											local u, v = u0 + a, v0 + b
-											if u >= 3 and u <= 92 and v >= 3 and v <= 92 then
-												local y = top_at(u, v)
-												if y and y >= G - 1 then
-													local ht = 4 + floor(hash(s, i, 9) * 3)
-													if f == "7" then
-														for k = 1, ht + 2 do put(u, v, y + k, c.pine) end
-														for k = 2, ht + 3 do
-															local rad = max(0, floor((ht + 3 - k) / 2))
-															for p = -rad, rad do for q = -rad, rad do
-																if (p ~= 0 or q ~= 0) and abs(p) + abs(q) <= rad + 1 then
-																	put(u + p, v + q, y + k, c.needles)
-																end
-															end end
+										for gi = 0, 2 do for gj = 0, 2 do
+											local i = gi * 3 + gj
+											if hash(s, i, 6) < 0.8 then
+												local a = 2 + gi * 5 + floor(hash(s, i, 7) * 3)
+												local b = 2 + gj * 5 + floor(hash(s, i, 8) * 3)
+												local u, v = u0 + a, v0 + b
+												if u >= 4 and u <= 91 and v >= 4 and v <= 91 then
+													local y, wx, wz = top_at(u, v)
+													if y and y >= G - 1 then
+														local kind
+														if f == "7" then
+															kind = hash(s, i, 9) < 0.4 and "small_pine" or "pine"
+														elseif f == "c" then
+															kind = "aspen"
+														else
+															kind = "apple"
 														end
-														put(u, v, y + ht + 4, c.needles)
-													else
-														local birch = f == "c"
-														local trunk = birch and c.aspen or c.tree
-														local leaf = birch and c.aspen_leaves or c.leaves
-														for k = 1, ht do put(u, v, y + k, trunk) end
-														for p = -2, 2 do for q = -2, 2 do for k = ht - 1, ht + 2 do
-															local dd = p * p + q * q + (k - ht) ^ 2
-															if dd <= 5 and (p ~= 0 or q ~= 0 or k > ht) and
-																	hash(u + p, v + q, k) > 0.15 then
-																put(u + p, v + q, y + k, leaf)
-															end
-														end end end
-														if not birch and hash(s, i, 10) > 0.6 then
-															put(u + 1, v, y + ht - 1, c.apple)
-														end
+														trees[#trees + 1] = {x = wx, y = y + 1, z = wz,
+															kind = kind, rot = ROTS[1 + floor(hash(s, i, 10) * 4)]}
 													end
 												end
 											end
-										end
+										end end
 									end
 									-- Plants
 									for a = 1, 14 do for b = 1, 14 do
@@ -545,29 +545,27 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 						end
 					end
 
-					-- Henge: a ring of standing stones with lintels and a portal at the centre
+					-- Henge: a sarsen circle. 16 uprights, each two stones wide,
+					-- under one continuous ring of lintels, round a portal stone.
 					if info.henge then
 						local y = G
-						local n = 16
-						local ring = {}
-						for i = 0, n - 1 do
-							local ang = 2 * pi * i / n
-							ring[i] = {floor(47.5 + 14 * cos(ang) + 0.5),
-								floor(47.5 + 14 * math.sin(ang) + 0.5)}
+						-- Uprights: 2 x 2 stones, 4 high, evenly round the circle
+						for i = 0, 15 do
+							local ang = 2 * pi * (i + 0.5) / 16
+							local cu = floor(47.5 + 14 * cos(ang))
+							local cv = floor(47.5 + 14 * math.sin(ang))
+							for a = cu, cu + 1 do for b = cv, cv + 1 do
+								for k = 1, 4 do put(a, b, y + k, c.stone) end
+							end end
 						end
-						for i = 0, n - 1 do
-							local p = ring[i]
-							for k = 1, 4 do put(p[1], p[2], y + k, c.stone) end
-							if i % 2 == 0 then
-								local q = ring[(i + 1) % n]
-								local steps = 4
-								for t = 0, steps do
-									local u = floor(p[1] + (q[1] - p[1]) * t / steps + 0.5)
-									local v = floor(p[2] + (q[2] - p[2]) * t / steps + 0.5)
-									put(u, v, y + 5, c.stone_block)
-								end
+						-- Lintels: one continuous ring resting on top of them
+						for a = 30, 65 do for b = 30, 65 do
+							local du, dv = a - 47.5, b - 47.5
+							local d = sqrt(du * du + dv * dv)
+							if d >= 13.2 and d < 15.3 then
+								put(a, b, y + 5, c.stone_block)
 							end
-						end
+						end end
 						for a = 46, 49 do for b = 46, 49 do put(a, b, y, c.stone_block) end end
 						put(47, 47, y + 1, c.portal)
 					end
@@ -577,5 +575,14 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 	end
 
 	vm:set_data(data)
+
+	-- Trees go on through the VoxelManip so they use the real schematics.
+	-- force_placement = false: a tree never overwrites another tree's trunk or
+	-- leaves, or anything else already there.
+	for _, t in ipairs(trees) do
+		core.place_schematic_on_vmanip(vm, {x = t.x, y = t.y, z = t.z},
+			SCHEM[t.kind], t.rot, nil, false, "place_center_x, place_center_z")
+	end
+
 	vm:calc_lighting(minp, maxp)
 end)

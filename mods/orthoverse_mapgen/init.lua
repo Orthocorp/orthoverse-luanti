@@ -23,6 +23,15 @@ core.register_biome({
 	humidity_point = 50,
 })
 
+-- Decorations are off (mg_flags nodecorations) and their biomes are gone; clear
+-- (mod.conf lists every Minetest Game mod that registers them, so this runs last)
+-- them too so the engine stops warning about missing biomes.
+core.clear_registered_decorations()
+
+-- Tree schematics live in Minetest Game's default mod; the mapgen threads cannot
+-- look up mod paths themselves.
+core.ipc_set("orthoverse:schematics", core.get_modpath("default") .. "/schematics")
+
 core.register_mapgen_script(modpath .. "/mapgen.lua")
 
 -- Sanity check: warn loudly if the world was created with the wrong map settings.

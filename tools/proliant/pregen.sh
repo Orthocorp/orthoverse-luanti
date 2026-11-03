@@ -2,8 +2,8 @@
 # Generate the whole Orthoverse surface once, render an overview, then exit.
 # Run as the service user with the service stopped:
 #   sudo systemctl stop orthoverse
-#   sudo -u orthoverse ./pregen.sh            # whole map (radius 58 lands)
-#   sudo -u orthoverse ./pregen.sh 3 0,0      # quick test: 7 x 7 lands round Orthohenge
+#   sudo -u ovserver ./pregen.sh            # whole map (radius 58 lands)
+#   sudo -u ovserver ./pregen.sh 3 0,0      # quick test: 7 x 7 lands round Orthohenge
 set -euo pipefail
 BASE="${BASE:-/mnt/ethereum/orthoverse}"
 RADIUS="${1:-58}"

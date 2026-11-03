@@ -90,8 +90,16 @@ and `/whereami` for anyone. For an overview of a big area, render offline:
 ## On the ProLiant
 
 See `tools/proliant/install.sh` (builds Luanti 5.18.0 with LuaJIT, creates the
-`orthoverse` user and world under `/mnt/ethereum/orthoverse`, installs a systemd
+`ovserver` user and world under `/mnt/ethereum/orthoverse`, installs a systemd
 service pinned to NUMA node 0) and `tools/proliant/pregen.sh`.
+
+After `git pull` on the ProLiant:
+
+- `sudo ./tools/proliant/update.sh` copies the new game in and restarts the server.
+  Changes to the generator only affect land generated afterwards.
+- `sudo ./tools/proliant/regen.sh` regenerates the whole map with the current
+  generator (about 25 minutes). Accounts survive; builds in the world do not, and
+  the old map is kept in `backups/`.
 
 ## Licences
 

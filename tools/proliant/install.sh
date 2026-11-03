@@ -21,7 +21,7 @@ LUANTI_TAG="${LUANTI_TAG:-5.18.0}"
 # from the LuaJIT v2.1 branch at a pinned commit (tested 3 Nov 2026).
 LUAJIT_COMMIT="${LUAJIT_COMMIT:-ea9eb7e}"
 BASE="${BASE:-/mnt/ethereum/orthoverse}"     # NVMe array
-SVC_USER="${SVC_USER:-orthoverse}"
+SVC_USER="${SVC_USER:-ovserver}"   # not "orthoverse": that account belongs to the old 2023 stack
 PORT="${PORT:-30000}"
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
@@ -150,6 +150,6 @@ systemctl daemon-reload
 
 echo
 echo "Done. Next:"
-echo "  sudo -u $SVC_USER $REPO_DIR/tools/proliant/pregen.sh   # generate the whole map once"
+echo "  sudo -u $SVC_USER $BASE/game/tools/proliant/pregen.sh   # generate the whole map once"
 echo "  sudo systemctl enable --now orthoverse"
 echo "Check UDP $PORT is free first:  sudo ss -ulpn | grep :$PORT"
