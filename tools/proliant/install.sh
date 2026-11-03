@@ -17,6 +17,9 @@
 set -euo pipefail
 
 LUANTI_TAG="${LUANTI_TAG:-5.18.0}"
+# Ubuntu 22.04's packaged LuaJIT (2017) is too old for Luanti 5.18, so build it
+# from the LuaJIT v2.1 branch at a pinned commit (tested 3 Nov 2026).
+LUAJIT_COMMIT="${LUAJIT_COMMIT:-ea9eb7e}"
 BASE="${BASE:-/mnt/ethereum/orthoverse}"     # NVMe array
 SVC_USER="${SVC_USER:-orthoverse}"
 PORT="${PORT:-30000}"
@@ -30,7 +33,7 @@ fi
 echo "== 1. Build dependencies"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-	git cmake g++ make libluajit-5.1-dev libsqlite3-dev zlib1g-dev libzstd-dev \
+	git cmake g++ make libsqlite3-dev zlib1g-dev libzstd-dev \
 	libcurl4-openssl-dev libgmp-dev libjsoncpp-dev libpq-dev libssl-dev sqlite3 rsync
 
 echo "== 2. Service user and directories under $BASE"
@@ -40,17 +43,33 @@ fi
 mkdir -p "$BASE" "$BASE/backups"
 chown "$SVC_USER:$SVC_USER" "$BASE" "$BASE/backups"
 
-echo "== 3. Build Luanti $LUANTI_TAG (server only, LuaJIT)"
+GIT=(sudo -u "$SVC_USER" git -c advice.detachedHead=false)
+
+echo "== 3a. Build LuaJIT $LUAJIT_COMMIT (static, linked into the server)"
+LJ_SRC="$BASE/luajit-src"
+LJ="$BASE/luajit"
+if [[ ! -d "$LJ_SRC/.git" ]]; then
+	"${GIT[@]}" clone -q -b v2.1 https://github.com/LuaJIT/LuaJIT.git "$LJ_SRC"
+else
+	"${GIT[@]}" -C "$LJ_SRC" fetch -q origin
+fi
+"${GIT[@]}" -C "$LJ_SRC" checkout -q "$LUAJIT_COMMIT"
+sudo -u "$SVC_USER" make -s -C "$LJ_SRC" clean >/dev/null
+sudo -u "$SVC_USER" make -s -C "$LJ_SRC" -j"$(nproc)" PREFIX="$LJ" amalg >/dev/null
+sudo -u "$SVC_USER" make -s -C "$LJ_SRC" PREFIX="$LJ" install >/dev/null
+
+echo "== 3b. Build Luanti $LUANTI_TAG (server only)"
 SRC="$BASE/luanti"
 if [[ ! -d "$SRC/.git" ]]; then
-	sudo -u "$SVC_USER" git clone -q --depth 1 -b "$LUANTI_TAG" \
+	"${GIT[@]}" clone -q --depth 1 -b "$LUANTI_TAG" \
 		https://github.com/luanti-org/luanti.git "$SRC"
 else
-	sudo -u "$SVC_USER" git -C "$SRC" fetch -q --depth 1 origin tag "$LUANTI_TAG"
-	sudo -u "$SVC_USER" git -C "$SRC" checkout -q "$LUANTI_TAG"
+	"${GIT[@]}" -C "$SRC" fetch -q --depth 1 origin tag "$LUANTI_TAG"
+	"${GIT[@]}" -C "$SRC" checkout -q "$LUANTI_TAG"
 fi
 sudo -u "$SVC_USER" cmake -S "$SRC" -B "$SRC/build" -DBUILD_CLIENT=0 -DBUILD_SERVER=1 \
 	-DRUN_IN_PLACE=1 -DENABLE_LUAJIT=1 -DENABLE_POSTGRESQL=1 -DENABLE_LEVELDB=0 \
+	-DLUA_INCLUDE_DIR="$LJ/include/luajit-2.1" -DLUA_LIBRARY="$LJ/lib/libluajit-5.1.a" \
 	-DENABLE_CURL=1 -DCMAKE_BUILD_TYPE=Release >/dev/null
 sudo -u "$SVC_USER" make -C "$SRC/build" -j"$(nproc)" >/dev/null
 "$SRC/bin/luantiserver" --version | head -2
