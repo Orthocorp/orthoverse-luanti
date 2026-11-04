@@ -1,0 +1,17 @@
+{
+  "name": "orthoverse-web-proxy",
+  "version": "1.0.0",
+  "description": "WebSocket proxy that lets the in-browser Luanti client reach the Orthoverse server, and nothing else",
+  "type": "module",
+  "main": "proxy.js",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node proxy.js",
+    "test": "node test/handshake.js"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  }
+}

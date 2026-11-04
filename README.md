@@ -101,8 +101,13 @@ After `git pull` on the ProLiant:
   generator (about 25 minutes). Accounts survive; builds in the world do not, and
   the old map is kept in `backups/`.
 
+## On the web
+
+`web/` holds orthoverse.land: a landing page, a world map, and Luanti running in the
+browser through a small WebSocket proxy. See `web/README.md`.
+
 ## Licences
 
 Minetest Game (mods/mtg) is LGPL-2.1-or-later for code and CC BY-SA 3.0 for media;
-see `mods/mtg/LICENSE-minetest_game.txt`. Licence for the Orthoverse mods: to be
-decided.
+see `mods/mtg/LICENSE-minetest_game.txt`. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
+mods and web code: to be decided.

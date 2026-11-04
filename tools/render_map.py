@@ -67,19 +67,23 @@ def decode(blob, dctx):
     return param0, names
 
 
-def main():
-    db, out = sys.argv[1], sys.argv[2]
-    step = int(sys.argv[3]) if len(sys.argv) > 3 else 4
+def render(db, step=1, quiet=False):
+    """Top-down colour image of the map, north at the top.
+
+    Returns (rgb uint8 array, x of the left column, z of the top row), in
+    nodes. With step > 1, every step-th node in each direction is sampled.
+    """
     con = sqlite3.connect(db)
     bylo, byhi = Y_LO >> 4, Y_HI >> 4
     xmin, xmax, zmin, zmax = con.execute(
         "SELECT min(x), max(x), min(z), max(z) FROM blocks WHERE y BETWEEN ? AND ?",
         (bylo, byhi)).fetchone()
     nx, nz = (xmax - xmin + 1) * 16, (zmax - zmin + 1) * 16
-    top_y = np.full((nz, nx), -10_000, dtype=np.int32)
-    top_name = np.zeros((nz, nx), dtype=np.int32)
+    top_y = np.full((nz, nx), -10_000, dtype=np.int16)
+    top_name = np.zeros((nz, nx), dtype=np.uint16)
     name_ids = {"": 0}
     dctx = zstandard.ZstdDecompressor()
+    zi, xi = np.meshgrid(np.arange(16), np.arange(16), indexing="ij")
     n = 0
     # Highest blocks first, so a column's first hit is its top
     for bx, by, bz, blob in con.execute(
@@ -97,34 +101,50 @@ def main():
         idx = 15 - np.argmax(solid[:, ::-1, :], axis=1)
         x0, z0 = (bx - xmin) * 16, (bz - zmin) * 16
         cur = top_y[z0:z0 + 16, x0:x0 + 16]
-        world_y = by * 16 + idx
+        world_y = (by * 16 + idx).astype(np.int16)
         better = has & (world_y > cur)
         if better.any():
-            local = np.zeros(max(names) + 1, dtype=np.int32)
+            local = np.zeros(max(names) + 1, dtype=np.uint16)
             for nid, nm in names.items():
                 if nm not in name_ids:
                     name_ids[nm] = len(name_ids)
                 local[nid] = name_ids[nm]
-            zi, xi = np.meshgrid(np.arange(16), np.arange(16), indexing="ij")
             top_ids = local[param0[zi, idx, xi]]
             tn = top_name[z0:z0 + 16, x0:x0 + 16]
             tn[better] = top_ids[better]
             cur[better] = world_y[better]
         n += 1
-        if n % 200000 == 0:
+        if not quiet and n % 200000 == 0:
             print("%d blocks" % n, flush=True)
 
     lut = np.zeros((len(name_ids), 3), dtype=np.float32)
+    flat = np.zeros(len(name_ids), dtype=bool)   # water: not shaded by height
     for nm, i in name_ids.items():
         lut[i] = colour(nm) if nm else (0, 0, 0)
-    # North (high z) at the top; sample every 'step' nodes before colouring
+        flat[i] = "water" in nm
+    # North (high z) at the top; sample every 'step' nodes before colouring.
     names_s = top_name[::-1][::step, ::step]
     ys = top_y[::-1][::step, ::step]
-    rgb = lut[names_s]
-    shade = np.clip(0.85 + (ys - G) * 0.025, 0.55, 1.3)[..., None]
-    rgb = np.clip(rgb * shade, 0, 255).astype(np.uint8)
+    del top_name, top_y
+    rgb = np.empty(names_s.shape + (3,), dtype=np.uint8)
+    for r in range(0, names_s.shape[0], 512):      # in strips, to save memory
+        c = lut[names_s[r:r + 512]]
+        shade = np.clip(0.85 + (ys[r:r + 512].astype(np.float32) - G) * 0.025, 0.55, 1.3)
+        shade[flat[names_s[r:r + 512]]] = 1.0
+        rgb[r:r + 512] = np.clip(c * shade[..., None], 0, 255).astype(np.uint8)
+    x_left = xmin * 16
+    z_top = (zmax + 1) * 16 - 1
+    if not quiet:
+        print("%d blocks rendered" % n, flush=True)
+    return rgb, x_left, z_top
+
+
+def main():
+    db, out = sys.argv[1], sys.argv[2]
+    step = int(sys.argv[3]) if len(sys.argv) > 3 else 4
+    rgb, _, _ = render(db, step)
     Image.fromarray(rgb).save(out)
-    print("%d blocks -> %s (%dx%d)" % (n, out, rgb.shape[1], rgb.shape[0]))
+    print("-> %s (%dx%d)" % (out, rgb.shape[1], rgb.shape[0]))
 
 
 if __name__ == "__main__":

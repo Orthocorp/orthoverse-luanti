@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Orthoverse</title>
+<meta name="description" content="The Orthoverse: every Orthoverse token is a land in a voxel world you can walk in your browser.">
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341; --line: #30363d; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 64px 16px 48px; }
+  h1 { font-size: 44px; line-height: 1.1; margin: 0 0 12px; letter-spacing: 0.01em; }
+  .lead { font-size: 20px; color: var(--quiet); margin: 0 0 32px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; font-weight: 600;
+    text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--panel); }
+  .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .preview { display: block; width: 100%; aspect-ratio: 1; border-radius: 10px;
+    border: 1px solid var(--line); background: #285abe; object-fit: cover; }
+  h2 { font-size: 20px; margin: 40px 0 8px; }
+  p { margin: 0 0 12px; }
+  a { color: var(--accent); }
+  footer { margin-top: 48px; color: var(--quiet); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The Orthoverse</h1>
+  <p class="lead">Every Ethereum address has an Orthoverse token. Every revealed token is a
+    land, shaped by its token ID, in a voxel world you can walk.</p>
+  <div class="actions">
+    <a class="btn primary" href="/play/">Play in your browser</a>
+    <a class="btn" href="/map/">Explore the map</a>
+  </div>
+  <a href="/map/" aria-label="Open the map of the Orthoverse">
+    <img class="preview" src="/map/tiles/0/0/0.png" alt="The whole Orthoverse from above: nine island kingdoms in the sea">
+  </a>
+
+  <h2>What is here</h2>
+  <p>Nine island kingdoms, one round each henge, with the lands of the tokens revealed so far.
+    A land's hills, lakes, woods and quarries come from its token ID; its level decides its castle,
+    and levels 8 and up flip it into the tarmac realm.</p>
+  <p>The world runs on <a href="https://www.luanti.org">Luanti</a>, the open-source voxel engine,
+    with Minetest Game: grow, dig, craft and build. Anyone may wander anywhere, as under the Finnish
+    everyman's right; building is for a land's owner.</p>
+
+  <h2>Playing</h2>
+  <p>The browser version needs a desktop or laptop with a recent Chrome, Edge or Firefox.
+    The desktop Luanti app will be able to join too, once the server is open to it.</p>
+
+  <footer>The Orthoverse is doomed. It always was.</footer>
+</main>
+</body>
+</html>

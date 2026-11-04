@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play the Orthoverse</title>
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341; --line: #30363d; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: 0.02em; }
+  .sub { color: var(--quiet); margin: 0 0 28px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  label { display: block; font-size: 14px; color: var(--quiet); margin: 14px 0 4px; }
+  input { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { margin-top: 20px; width: 100%; padding: 12px; font: inherit; font-weight: 600;
+    color: #111; background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
+  button:disabled { opacity: 0.45; cursor: progress; }
+  .status { margin-top: 14px; font-size: 14px; color: var(--quiet); min-height: 1.5em; }
+  .error { color: #ff7b72; white-space: pre-wrap; }
+  .notes { margin-top: 24px; font-size: 14px; color: var(--quiet); }
+  .notes li { margin: 4px 0; }
+  a { color: var(--accent); }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<main id="page">
+  <h1>The Orthoverse</h1>
+  <p class="sub">Every land is an Orthoverse token. Walk them in your browser.</p>
+  <div class="panel">
+    <form id="form" autocomplete="on">
+      <label for="name">Player name</label>
+      <input id="name" name="username" required maxlength="19" pattern="[A-Za-z0-9_\-]{1,19}"
+             title="Letters, digits, - and _, up to 19 characters" autocomplete="username">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password">
+      <button id="play" type="submit" disabled>Loading…</button>
+    </form>
+    <div id="status" class="status"></div>
+  </div>
+  <ul class="notes">
+    <li>The first time you use a name, you will be asked to confirm and register it.</li>
+    <li>Best on a desktop or laptop with a recent Chrome, Edge or Firefox. The first visit
+      downloads the game engine (tens of megabytes); later visits load it from your browser.</li>
+    <li>Walk with W A S D, jump with space, open your inventory with I, chat with T.
+      Type <code>/whereami</code> in chat to see whose land you are on.</li>
+    <li><a href="/map/">See the map of the Orthoverse</a></li>
+  </ul>
+</main>
+
+<script src="%__RELEASE_UUID__%/launcher.js"></script>
+<script>
+  // The address web players dial. It exists only inside the web proxy, which
+  // relays it to the Orthoverse server; it must match OV_VIRTUAL_IP there.
+  const SERVER_ADDRESS = '10.58.0.1';
+  const SERVER_PORT = 30000;
+  const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
+
+  const form = document.getElementById('form');
+  const nameInput = document.getElementById('name');
+  const passInput = document.getElementById('password');
+  const playBtn = document.getElementById('play');
+  const statusEl = document.getElementById('status');
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.className = 'status' + (isError ? ' error' : '');
+  }
+
+  try {
+    const saved = localStorage.getItem('orthoverse.name');
+    if (saved) nameInput.value = saved;
+  } catch (e) { /* storage unavailable: fine */ }
+
+  const progress = new Map();
+  const mtl = new LuantiLauncher();
+  mtl.onprogress = (name, fraction) => {
+    progress.set(name, fraction);
+    const parts = [...progress.entries()]
+      .filter(([, f]) => f < 1)
+      .map(([n, f]) => `${n} ${Math.round(f * 100)}%`);
+    setStatus(parts.length ? 'Downloading ' + parts.join(', ') : 'Starting…');
+  };
+  mtl.onready = () => {
+    playBtn.disabled = false;
+    playBtn.textContent = 'Enter the Orthoverse';
+    setStatus('');
+  };
+  mtl.onerror = (err) => {
+    playBtn.disabled = true;
+    setStatus('Something went wrong:\n' + err, true);
+  };
+  mtl.onexit = () => {
+    document.body.innerHTML = '';
+    const p = document.createElement('main');
+    p.innerHTML = '<h1>You have left the Orthoverse</h1><p class="sub">Reload the page to play again.</p>';
+    document.body.appendChild(p);
+  };
+
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!form.reportValidity() || !mtl.isReady()) return;
+    const name = nameInput.value.trim();
+    try { localStorage.setItem('orthoverse.name', name); } catch (e) { /* fine */ }
+
+    const args = new LuantiArgs();
+    args.address = SERVER_ADDRESS;
+    args.port = SERVER_PORT;
+    args.name = name;
+    args.password = passInput.value;
+    args.go = true;
+
+    mtl.setProxy(PROXY_URL);
+    try { mtl.setLang(getDefaultLanguage()); } catch (e) { /* keep English */ }
+    // A browser has less memory than a desktop client; keep the view modest.
+    mtl.setConf('viewing_range', 120);
+
+    document.getElementById('page').remove();
+    mtl.launch(args);
+  });
+</script>
+</body>
+</html>
