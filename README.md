@@ -21,6 +21,9 @@ First rough version of the world:
   or west one takes you to the centre of the next henge that way (wrapping round at
   the edge of the 3 × 3 grid, as the old Orthoverse did).
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
+- Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
+  cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
+  forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
 
 Not yet: natural-looking terrain, real castle schematics,
 ownership and protection, wallet binding, the chain indexer.
@@ -30,6 +33,8 @@ ownership and protection, wallet binding, the chain indexer.
 ```
 game.conf, minetest.conf     game definition and map defaults (flat mapgen, chunksize 6)
 mods/mtg/                    Minetest Game mods, vendored by tools/assemble.sh
+mods/animals/                Animalia and Creatura (animals), vendored by tools/assemble-animals.sh
+mods/orthoverse_animals/     which animals spawn where in the Orthoverse
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
 mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen threads)
 mods/orthoverse_nodes/       world edge, henge portal and gateway, tarmac
@@ -107,5 +112,5 @@ browser through a small WebSocket proxy. See `web/README.md`.
 ## Licences
 
 Minetest Game (mods/mtg) is LGPL-2.1-or-later for code and CC BY-SA 3.0 for media;
-see `mods/mtg/LICENSE-minetest_game.txt`. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
+see `mods/mtg/LICENSE-minetest_game.txt`. Animalia and Creatura (mods/animals) are MIT, by ElCeejo. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
 mods and web code: to be decided.
