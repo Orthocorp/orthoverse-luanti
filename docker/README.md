@@ -38,6 +38,7 @@ All commands from the repository directory (`~/orthoverse-luanti`).
 | --- | --- |
 | Update after a `git pull` | `docker compose up -d --build` |
 | Restart the game server (after editing `docker/luanti/orthoverse.conf`) | `docker compose restart luanti` |
+| Change the admin (`OV_ADMIN` in `.env`) | `docker compose up -d luanti` |
 | See what is running | `docker compose ps` |
 | Follow the logs | `docker compose logs -f luanti` (also `proxy`, `web`) |
 | Redraw the map | `docker compose run --rm --build map` |
@@ -66,6 +67,14 @@ docker compose start luanti
 docker compose run --rm --build map
 ```
 
+### The admin and privileges
+
+The player named in `OV_ADMIN` has every privilege. In the game (chat, T) the
+admin can give other players some of them, for example
+`/grant somebody fly,fast,noclip`, take them away with `/revoke somebody fly`,
+and see a player's with `/privs somebody`. In the game, fly is toggled with K,
+fast with J and noclip with H.
+
 ## Moving from the old setup
 
 The old setup (systemd services `orthoverse` and `orthoverse-webproxy`, the nginx
@@ -81,8 +90,8 @@ can go back at any point before that.
    cp .env.example .env
    id -u ovserver; id -g ovserver
    ```
-   Put the two numbers into `OV_UID` and `OV_GID` in `.env`. The other values are
-   right for the ProLiant.
+   Put the two numbers into `OV_UID` and `OV_GID` in `.env`, and your player name
+   into `OV_ADMIN`. The other values are right for the ProLiant.
 
 3. **Data directories**, with the map and the browser game copied over from the
    old setup, so nothing needs rebuilding yet:

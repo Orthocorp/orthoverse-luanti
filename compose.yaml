@@ -22,6 +22,7 @@ services:
       - ./docker/luanti/orthoverse.conf:/etc/orthoverse/orthoverse.conf:ro
     environment:
       OV_NUMA_NODE: ${OV_NUMA_NODE:-}
+      OV_ADMIN: ${OV_ADMIN:-}
     # numactl's memory binding needs this under Docker's default seccomp profile
     cap_add: [SYS_NICE]
     networks: [game]

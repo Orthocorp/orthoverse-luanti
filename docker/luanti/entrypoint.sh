@@ -38,6 +38,19 @@ cp "$CONF_SRC" "$CONF"
 sed -i '/^bind_address[ =]/d' "$CONF"
 echo "bind_address = 0.0.0.0" >> "$CONF"
 
+# The admin: the player with this name has every privilege (fly, noclip, fast,
+# teleport, give, ban, granting privileges to others, ...)
+sed -i '/^name[ =]/d' "$CONF"
+if [ -n "${OV_ADMIN:-}" ]; then
+	case "$OV_ADMIN" in
+		*[!A-Za-z0-9_-]*)
+			echo "OV_ADMIN must be a player name (letters, digits, - and _)" >&2
+			exit 1 ;;
+	esac
+	echo "name = $OV_ADMIN" >> "$CONF"
+	echo "Admin: $OV_ADMIN"
+fi
+
 mode="${1:-serve}"
 case "$mode" in
 	serve) ;;

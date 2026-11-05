@@ -1,4 +1,5 @@
 -- orthoverse_admin: pre-generation and an overview map renderer.
+-- The admin (setting "name") is given every privilege on joining.
 --
 -- Pre-generate on startup (then optionally shut down) with these settings:
 --   orthoverse_pregen_radius = 3        -- lands around the origin, 0 = off
@@ -204,3 +205,28 @@ if radius > 0 then
 		end)
 	end)
 end
+
+-- The admin (the server's "name" setting; OV_ADMIN with Docker) gets every
+-- privilege when joining. Luanti only gives the admin some automatically and
+-- leaves out fly, fast, noclip, teleport, give and others; they are granted
+-- for good here, so the admin can also see and pass them on with /privs and /grant.
+core.register_on_joinplayer(function(player)
+	local name = player:get_player_name()
+	local admin = core.settings:get("name")
+	if not admin or admin == "" or name ~= admin then
+		return
+	end
+	local privs = core.get_player_privs(name)
+	local added = {}
+	for priv in pairs(core.registered_privileges) do
+		if not privs[priv] then
+			privs[priv] = true
+			added[#added + 1] = priv
+		end
+	end
+	if #added > 0 then
+		core.set_player_privs(name, privs)
+		table.sort(added)
+		core.log("action", "[orthoverse_admin] admin " .. name .. " granted: " .. table.concat(added, ", "))
+	end
+end)
