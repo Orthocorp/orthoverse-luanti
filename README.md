@@ -21,6 +21,9 @@ First rough version of the world:
   or west one takes you to the centre of the next henge that way (wrapping round at
   the edge of the 3 × 3 grid, as the old Orthoverse did).
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
+- Player skins, chosen in the inventory's Skin tab with a 3D preview: Default, Wizard,
+  Elf, Borgo and Strider. To add one, put a 64 × 32 (or 64 × 64) skin in
+  `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild.
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
   cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
   forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
@@ -35,6 +38,7 @@ game.conf, minetest.conf     game definition and map defaults (flat mapgen, chun
 mods/mtg/                    Minetest Game mods, vendored by tools/assemble.sh
 mods/animals/                Animalia and Creatura (animals), vendored by tools/assemble-animals.sh
 mods/orthoverse_animals/     which animals spawn where in the Orthoverse
+mods/orthoverse_skins/       player skins and the Skin tab
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
 mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen threads)
 mods/orthoverse_nodes/       world edge, henge portal and gateway, tarmac
