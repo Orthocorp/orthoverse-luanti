@@ -37,8 +37,8 @@ Cloudflare tunnel, browser players need no port forwarding on the router.
 
 ## Installing on the ProLiant
 
-1. `git pull`, then `sudo ./tools/proliant/install-web.sh` (about 10 minutes, most of it
-   rendering the map).
+1. `git pull`, then `sudo ./tools/proliant/install-web.sh` (about 10 minutes the first
+   time, most of it rendering the map; later runs leave the map alone).
 2. Build the browser client (15 to 30 minutes the first time):
    `sudo -u ovserver /mnt/ethereum/orthoverse/game/web/client/build.sh`
 3. Check locally: `curl -sI http://127.0.0.1:8484/play/ | head -1` should say `200`.
@@ -73,7 +73,8 @@ WebSockets work through the tunnel with no extra settings.
 
 - Service: `systemctl status orthoverse-webproxy`, log with `journalctl -u orthoverse-webproxy`.
 - Refresh the map after building or regenerating: `sudo -u ovserver /mnt/ethereum/orthoverse/make-map.sh`.
-- Update site or proxy after a `git pull`: re-run `install-web.sh`.
+- Update site or proxy after a `git pull`: re-run `install-web.sh` (seconds; it does not
+  redraw the map unless run with `MAP=1`).
 - Rebuild the browser client: re-run `build.sh`. The newest two builds are kept, so
   players mid-load are not broken by an update.
 

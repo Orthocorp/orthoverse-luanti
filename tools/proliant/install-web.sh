@@ -9,7 +9,7 @@
 #   1. installs packages (nginx is already there; build tools for the client)
 #   2. puts Node 24 in /mnt/ethereum/orthoverse/node (system Node is untouched)
 #   3. copies the site and the proxy to /mnt/ethereum/orthoverse/web
-#   4. makes a Python venv and renders the map tiles from the world
+#   4. makes a Python venv and, the first time, renders the map tiles from the world
 #   5. installs and starts the orthoverse-webproxy service
 #   6. adds an nginx site on 127.0.0.1:8484 (localhost only) and reloads nginx
 #   7. game server settings: passwords required, and listening on 127.0.0.1
@@ -84,12 +84,20 @@ echo "== 4. Map tiles"
 if [[ ! -x "$BASE/venv/bin/python" ]]; then
 	as_svc python3 -m venv "$BASE/venv"
 fi
-as_svc "$BASE/venv/bin/pip" install -q --upgrade pip
-as_svc "$BASE/venv/bin/pip" install -q numpy zstandard pillow
+if ! as_svc "$BASE/venv/bin/python" -c "import numpy, zstandard, PIL" 2>/dev/null; then
+	as_svc "$BASE/venv/bin/pip" install -q --upgrade pip
+	as_svc "$BASE/venv/bin/pip" install -q numpy zstandard pillow
+fi
 cp "$REPO_DIR/tools/proliant/make-map.sh" "$BASE/make-map.sh"
 chown "$SVC_USER:$SVC_USER" "$BASE/make-map.sh"
 chmod +x "$BASE/make-map.sh"
-as_svc env BASE="$BASE" "$BASE/make-map.sh"
+# The map only changes when the world does, so it is drawn here only the first
+# time. Redraw it with make-map.sh, or run this script with MAP=1.
+if [[ "${MAP:-0}" == 1 || ! -f "$WEB/site/map/lands.json" ]]; then
+	as_svc env BASE="$BASE" "$BASE/make-map.sh"
+else
+	echo "Map already drawn; skipping (MAP=1 redraws it, or run $BASE/make-map.sh)."
+fi
 
 echo "== 5. Web proxy service"
 sed -e "s|@BASE@|$BASE|g" -e "s|@SVC_USER@|$SVC_USER|g" -e "s|@PROXY_PORT@|$PROXY_PORT|g" \
