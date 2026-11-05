@@ -33,20 +33,24 @@ core.register_node("orthoverse_nodes:tarmac", {
 	sounds = default.node_sound_stone_defaults(),
 })
 
--- The shimmer filling a henge gateway. Walking into it takes you to the next
--- henge (orthoverse_henges); it has no substance and cannot be dug or built on.
+-- The pane filling a henge gateway. Walking into the opening takes you to the
+-- next henge (orthoverse_henges). One thin sheet in a plain colour: a pattern,
+-- or several layers seen through each other, shimmers into moire as you move.
+-- param2 0 spans east-west, 1 north-south.
 core.register_node("orthoverse_nodes:henge_veil", {
 	description = "Henge Gateway",
-	-- Minetest Game's animated water, recoloured: a shimmering surface with no
-	-- block edges, so the opening reads as one gateway rather than as blocks
-	drawtype = "glasslike",
-	tiles = {{
-		name = "default_water_source_animated.png^[colorize:#40e080:190^[opacity:160",
-		backface_culling = false,
-		animation = {type = "vertical_frames", aspect_w = 16, aspect_h = 16, length = 2.0},
-	}},
+	drawtype = "nodebox",
+	node_box = {type = "fixed", fixed = {-0.5, -0.5, -1/32, 0.5, 0.5, 1/32}},
+	-- Only one face is drawn, seen from both sides; the box's thin edges and its
+	-- back are left blank, or they show as lines between the blocks of a gateway
+	tiles = {
+		"[fill:1x1:#00000000", "[fill:1x1:#00000000", "[fill:1x1:#00000000", "[fill:1x1:#00000000",
+		{name = "[fill:16x16:#4ee69a90", backface_culling = false},
+		"[fill:1x1:#00000000",
+	},
 	use_texture_alpha = "blend",
 	paramtype = "light",
+	paramtype2 = "facedir",
 	sunlight_propagates = true,
 	light_source = 11,
 	walkable = false,
@@ -54,7 +58,7 @@ core.register_node("orthoverse_nodes:henge_veil", {
 	diggable = false,
 	buildable_to = false,
 	is_ground_content = false,
-	post_effect_color = {a = 70, r = 48, g = 192, b = 96},
+	post_effect_color = {a = 60, r = 78, g = 230, b = 154},
 	on_blast = function() end,
 	groups = {not_in_creative_inventory = 1},
 	drop = "",

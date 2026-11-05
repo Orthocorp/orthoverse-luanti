@@ -32,48 +32,71 @@ local function gate_box(lx, lz, g)
 end
 
 ------------------------------------------------------------------------------
--- Gateways for henges generated before gateways existed: fill each opening
--- with the veil wherever it is still empty air. Nothing happens to land that
--- has not been generated yet (the generator draws gateways itself) or to
--- anything someone has put in an opening.
+-- The gateways' panes. The generator builds the stone circle; the panes are
+-- added here, both when a henge is generated and on start-up, so worlds made
+-- before gateways existed get them too. In each opening, one layer gets the
+-- pane (turned to face along the way through); anything else a player has put
+-- in an opening is left alone. Earlier versions filled both layers, so a
+-- gateway node outside the pane's layer is cleared.
 
-local function add_missing_gateways()
+local function place_panes(lx, lz)
 	local c_air = core.get_content_id("air")
 	local c_veil = core.get_content_id("orthoverse_nodes:henge_veil")
-	local added = 0
-	for key in pairs(HENGES) do
-		local lx, lz = henge_coords(key)
-		for _, g in pairs(HG.GATES) do
-			local minp, maxp = gate_box(lx, lz, g)
-			local vm = core.get_voxel_manip()
-			local e1, e2 = vm:read_from_map(minp, maxp)
-			local area = VoxelArea(e1, e2)
-			local data = vm:get_data()
-			local changed = false
-			for z = minp.z, maxp.z do
+	local changed_nodes = 0
+	for _, g in pairs(HG.GATES) do
+		local minp, maxp = gate_box(lx, lz, g)
+		local vm = core.get_voxel_manip()
+		local e1, e2 = vm:read_from_map(minp, maxp)
+		local area = VoxelArea(e1, e2)
+		local data = vm:get_data()
+		local p2 = vm:get_param2_data()
+		local changed = false
+		for z = minp.z, maxp.z do
+			for x = minp.x, maxp.x do
+				local u, v = C.local_uv(x, z)
+				local pane = HG.in_pane(g, u, v)
 				for y = minp.y, maxp.y do
-					for x = minp.x, maxp.x do
-						local i = area:index(x, y, z)
-						if data[i] == c_air then
-							data[i] = c_veil
-							changed = true
-							added = added + 1
-						end
+					local i = area:index(x, y, z)
+					local cid = data[i]
+					if pane and (cid == c_air or (cid == c_veil and p2[i] ~= g.param2)) then
+						data[i], p2[i] = c_veil, g.param2
+						changed = true
+					elseif not pane and cid == c_veil then
+						data[i], p2[i] = c_air, 0
+						changed = true
 					end
+					if data[i] ~= cid then changed_nodes = changed_nodes + 1 end
 				end
 			end
-			if changed then
-				vm:set_data(data)
-				vm:write_to_map(true)
-			end
+		end
+		if changed then
+			vm:set_data(data)
+			vm:set_param2_data(p2)
+			vm:write_to_map(true)
 		end
 	end
-	if added > 0 then
-		core.log("action", "[orthoverse_henges] added " .. added .. " gateway nodes to existing henges")
-	end
+	return changed_nodes
 end
 
-core.after(1, add_missing_gateways)
+-- On start-up, for every henge already generated (land not generated yet reads
+-- as "ignore" and is left alone)
+core.after(1, function()
+	local n = 0
+	for key in pairs(HENGES) do
+		n = n + place_panes(henge_coords(key))
+	end
+	if n > 0 then
+		core.log("action", "[orthoverse_henges] updated " .. n .. " gateway nodes")
+	end
+end)
+
+-- When a henge land is generated (one land is one mapchunk)
+core.register_on_generated(function(minp, maxp)
+	local lx, lz = C.land_of(minp.x + C.HALF, minp.z + C.HALF)
+	if minp.y <= G + 1 and maxp.y >= G + HG.GATE_HEIGHT and HENGES[C.key(lx, lz)] then
+		place_panes(lx, lz)
+	end
+end)
 
 ------------------------------------------------------------------------------
 -- Going through
