@@ -62,6 +62,22 @@ if [[ ! -d emsdk ]]; then
 	./install_emsdk.sh
 fi
 
+# Orthoverse changes to the engine itself (web/client/patches): the sources are
+# fetched first so they can be patched; build_all.sh then finds them in place.
+# reset --hard drops a previous run's patches without moving off the pinned
+# revision, which build_all.sh checks.
+echo "== Patching the engine"
+./fetch_sources.sh > "$WORK/fetch.log" 2>&1 || {
+	echo "Fetching sources failed; the last lines of $WORK/fetch.log:"
+	tail -n 20 "$WORK/fetch.log"
+	exit 1
+}
+git -C sources/luanti reset -q --hard
+for p in "$HERE"/patches/*.patch; do
+	echo "   $(basename "$p")"
+	git -C sources/luanti apply "$p"
+done
+
 echo "== Building (this is the long part)"
 ./build_all.sh > "$WORK/build.log" 2>&1 || {
 	echo "Build failed; the last lines of $WORK/build.log:"

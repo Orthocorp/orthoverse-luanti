@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Play the Orthoverse</title>
 <style>
-  :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341; --line: #30363d; }
+  :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341;
+    --line: #30363d; --bad: #ff7b72; --bad-bg: rgba(255, 123, 114, 0.08); }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -13,15 +14,28 @@
   h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: 0.02em; }
   .sub { color: var(--quiet); margin: 0 0 28px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .tabs { display: flex; gap: 4px; margin: -4px 0 8px; border-bottom: 1px solid var(--line); }
+  .tab { flex: 1; margin: 0; padding: 10px 8px; background: none; color: var(--quiet); border: 0;
+    border-bottom: 2px solid transparent; border-radius: 0; font: inherit; font-weight: 600; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   label { display: block; font-size: 14px; color: var(--quiet); margin: 14px 0 4px; }
   input { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  button { margin-top: 20px; width: 100%; padding: 12px; font: inherit; font-weight: 600;
+  .hint { font-size: 13px; color: var(--quiet); margin-top: 4px; }
+  .go { margin-top: 20px; width: 100%; padding: 12px; font: inherit; font-weight: 600;
     color: #111; background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
-  button:disabled { opacity: 0.45; cursor: progress; }
+  .go:disabled { opacity: 0.45; cursor: progress; }
   .status { margin-top: 14px; font-size: 14px; color: var(--quiet); min-height: 1.5em; }
-  .error { color: #ff7b72; white-space: pre-wrap; }
+  .problem { margin: 4px 0 8px; padding: 12px 14px; border: 1px solid var(--bad); border-radius: 8px;
+    background: var(--bad-bg); }
+  .problem[hidden] { display: none; }
+  .problem strong { display: block; color: var(--bad); margin-bottom: 2px; }
+  .problem p { margin: 0; font-size: 15px; }
+  .problem .raw { margin-top: 6px; font-size: 12px; color: var(--quiet); }
+  .problem button { margin-top: 8px; padding: 0; background: none; border: 0; color: var(--accent);
+    font: inherit; text-decoration: underline; cursor: pointer; }
   .notes { margin-top: 24px; font-size: 14px; color: var(--quiet); }
   .notes li { margin: 4px 0; }
   a { color: var(--accent); }
@@ -33,18 +47,35 @@
   <h1>The Orthoverse</h1>
   <p class="sub">Every land is an Orthoverse token. Walk them in your browser.</p>
   <div class="panel">
-    <form id="form" autocomplete="on">
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-login" role="tab" type="button" aria-selected="true">Log in</button>
+      <button class="tab" id="tab-register" role="tab" type="button" aria-selected="false">Register</button>
+    </div>
+
+    <div id="problem" class="problem" role="alert" hidden>
+      <strong id="problem-title"></strong>
+      <p id="problem-text"></p>
+      <button id="problem-action" type="button" hidden></button>
+      <div id="problem-raw" class="raw"></div>
+    </div>
+
+    <form id="form" autocomplete="on" novalidate>
       <label for="name">Player name</label>
-      <input id="name" name="username" required maxlength="19" pattern="[A-Za-z0-9_\-]{1,19}"
-             title="Letters, digits, - and _, up to 19 characters" autocomplete="username">
+      <input id="name" name="username" required maxlength="19" autocomplete="username"
+             autocapitalize="off" spellcheck="false">
+      <div class="hint" id="name-hint">Names are case sensitive.</div>
       <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password">
-      <button id="play" type="submit" disabled>Loading…</button>
+      <input id="password" name="password" type="password" required autocomplete="current-password">
+      <div id="confirm-row" hidden>
+        <label for="confirm">Password again</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password">
+      </div>
+      <button id="play" class="go" type="submit" disabled>Loading…</button>
     </form>
     <div id="status" class="status"></div>
   </div>
   <ul class="notes">
-    <li>The first time you use a name, you will be asked to confirm and register it.</li>
+    <li>New here? Choose <b>Register</b> to create your player. After that, use <b>Log in</b>.</li>
     <li>Best on a desktop or laptop with a recent Chrome, Edge or Firefox. The first visit
       downloads the game engine (tens of megabytes); later visits load it from your browser.</li>
     <li>Walk with W A S D, jump with space, open your inventory with I, chat with T.
@@ -60,22 +91,142 @@
   const SERVER_ADDRESS = '10.58.0.1';
   const SERVER_PORT = 30000;
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
+  const NAME_RE = /^[A-Za-z0-9_-]{1,19}$/;
+  const MIN_PASSWORD = 6;
+  const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
 
-  const form = document.getElementById('form');
-  const nameInput = document.getElementById('name');
-  const passInput = document.getElementById('password');
-  const playBtn = document.getElementById('play');
-  const statusEl = document.getElementById('status');
+  const $ = (id) => document.getElementById(id);
+  const form = $('form'), nameInput = $('name'), passInput = $('password'), confirmInput = $('confirm');
+  const playBtn = $('play'), statusEl = $('status');
+  let mode = 'login';
+  let ready = false;
 
-  function setStatus(text, isError) {
-    statusEl.textContent = text;
-    statusEl.className = 'status' + (isError ? ' error' : '');
+  function store(kind, key, value) {
+    try {
+      const s = kind === 'session' ? sessionStorage : localStorage;
+      if (value === undefined) return s.getItem(key);
+      if (value === null) s.removeItem(key); else s.setItem(key, value);
+    } catch (e) { /* storage unavailable: carry on without it */ }
+    return null;
   }
 
-  try {
-    const saved = localStorage.getItem('orthoverse.name');
-    if (saved) nameInput.value = saved;
-  } catch (e) { /* storage unavailable: fine */ }
+  // ------------------------------------------------------------------
+  // Log in / Register
+
+  function setMode(m) {
+    mode = m;
+    $('tab-login').setAttribute('aria-selected', String(m === 'login'));
+    $('tab-register').setAttribute('aria-selected', String(m === 'register'));
+    $('confirm-row').hidden = m !== 'register';
+    passInput.autocomplete = m === 'register' ? 'new-password' : 'current-password';
+    $('name-hint').textContent = m === 'register'
+      ? 'Letters, digits, - and _, up to 19 characters. Names are case sensitive.'
+      : 'Names are case sensitive.';
+    updateButton();
+  }
+
+  function updateButton() {
+    playBtn.disabled = !ready;
+    playBtn.textContent = !ready ? 'Loading…'
+      : mode === 'register' ? 'Create player and enter' : 'Enter the Orthoverse';
+  }
+
+  $('tab-login').addEventListener('click', () => { setMode('login'); hideProblem(); });
+  $('tab-register').addEventListener('click', () => { setMode('register'); hideProblem(); });
+
+  // ------------------------------------------------------------------
+  // Explaining what went wrong
+
+  function showProblem(title, text, action, raw) {
+    $('problem-title').textContent = title;
+    $('problem-text').textContent = text;
+    const btn = $('problem-action');
+    if (action) {
+      btn.textContent = action.label;
+      btn.onclick = action.run;
+      btn.hidden = false;
+    } else {
+      btn.hidden = true;
+    }
+    $('problem-raw').textContent = raw ? 'The game said: ' + raw : '';
+    $('problem').hidden = false;
+  }
+
+  function hideProblem() { $('problem').hidden = true; }
+
+  const toRegister = { label: 'Register this name instead', run: () => { setMode('register'); hideProblem(); passInput.focus(); } };
+  const toLogin = { label: 'Log in instead', run: () => { setMode('login'); hideProblem(); passInput.focus(); } };
+
+  // The engine's reason (English) -> what to tell the player. First match wins.
+  function explain(reason, m, name) {
+    const r = reason || '';
+    const who = name ? '"' + name + '"' : 'that name';
+    const rules = [
+      [/Name is not registered/i, () => ['No player called ' + who,
+        'There is no player with that name. Check the spelling and the capital letters, ' +
+        'or register it if you are new.', toRegister]],
+      [/Name is taken/i, () => ['The name ' + who + ' is taken',
+        'Someone has already registered that name. Choose another one, or log in if it is yours.', toLogin]],
+      [/Another account called/i, () => ['Too close to an existing name',
+        'A player with the same name in different capital letters already exists. ' +
+        'Choose another name, or log in with the existing spelling if it is yours.', toLogin]],
+      [/Invalid password/i, () => ['Wrong password',
+        'That password does not match the one ' + who + ' registered with. ' +
+        'Passwords are case sensitive.', null]],
+      [/Empty passwords/i, () => ['A password is needed', 'Enter a password and try again.', null]],
+      [/disallowed characters/i, () => ['That name cannot be used',
+        'Player names may only contain letters, digits, - and _.', null]],
+      [/name not allowed|too long|choose a name/i, () => ['That name cannot be used',
+        'Choose a different name of 1 to 19 letters, digits, - or _.', null]],
+      [/Another client is connected with this name/i, () => ['Already playing',
+        who + ' is already in the Orthoverse, perhaps in another tab or window. ' +
+        'Close it, or if the game closed unexpectedly, wait a minute and try again.', null]],
+      [/Too many users/i, () => ['The Orthoverse is full',
+        'The most players allowed at once are already in. Try again in a little while.', null]],
+      [/shutting down/i, () => ['The server is restarting',
+        'The Orthoverse is restarting, usually for an update. Try again in a minute.', null]],
+      [/version is not supported|didn't expect/i, () => ['Your game needs updating',
+        'Reload the page (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) to get the current version, then try again.', null]],
+      [/timed out|Connection failed|resolve address|Connection error|connect to/i, () => ['Could not reach the Orthoverse',
+        'The game server did not answer. It may be down for maintenance, or too many players ' +
+        'from your network are connected at once. Try again in a few minutes.', null]],
+      [/internal error|Internal server error/i, () => ['The server had a problem',
+        'Something went wrong on the server while you were joining. Try again in a minute.', null]],
+      [/Kicked|kicked/i, () => ['You were removed from the game', r.replace(/^Access denied\. Reason:\s*/, ''), null]],
+    ];
+    for (const [re, make] of rules) {
+      if (re.test(r)) return make();
+    }
+    return ['Could not join the Orthoverse', r.replace(/^Access denied\. Reason:\s*/, '') ||
+      'Something went wrong. Try again in a minute.', null];
+  }
+
+  // ------------------------------------------------------------------
+  // Back from a failed attempt: the engine exits, the page reloads, and the
+  // reason is shown above the form.
+
+  (function restore() {
+    const savedName = store('local', 'orthoverse.name');
+    if (savedName) nameInput.value = savedName;
+    let retry = null;
+    try { retry = JSON.parse(store('session', RETRY_KEY) || 'null'); } catch (e) { retry = null; }
+    store('session', RETRY_KEY, null);
+    setMode(retry && retry.mode === 'register' ? 'register' : 'login');
+    if (retry) {
+      if (retry.name) nameInput.value = retry.name;
+      const [title, text, action] = explain(retry.reason, retry.mode, retry.name);
+      const known = text && retry.reason && !/^Could not join/.test(title);
+      showProblem(title, text, action, known ? '' : retry.reason);
+      (retry.name ? passInput : nameInput).focus();
+    }
+  })();
+
+  let joinError = null;
+  // Called by the engine (patched) when a join fails, just before it exits
+  globalThis.orthoverseJoinError = (reason) => { joinError = String(reason || ''); };
+
+  // ------------------------------------------------------------------
+  // The engine
 
   const progress = new Map();
   const mtl = new LuantiLauncher();
@@ -84,40 +235,94 @@
     const parts = [...progress.entries()]
       .filter(([, f]) => f < 1)
       .map(([n, f]) => `${n} ${Math.round(f * 100)}%`);
-    setStatus(parts.length ? 'Downloading ' + parts.join(', ') : 'Starting…');
+    statusEl.textContent = parts.length ? 'Downloading ' + parts.join(', ') : 'Starting…';
   };
   mtl.onready = () => {
-    playBtn.disabled = false;
-    playBtn.textContent = 'Enter the Orthoverse';
-    setStatus('');
+    ready = true;
+    updateButton();
+    statusEl.textContent = '';
   };
   mtl.onerror = (err) => {
-    playBtn.disabled = true;
-    setStatus('Something went wrong:\n' + err, true);
+    ready = false;
+    updateButton();
+    showProblem('The game could not start', 'Your browser could not run the game engine. ' +
+      'Try a recent Chrome, Edge or Firefox on a desktop or laptop.', null, String(err));
   };
+  let attempt = null;
   mtl.onexit = () => {
+    if (joinError !== null && attempt) {
+      store('session', RETRY_KEY, JSON.stringify({ mode: attempt.mode, name: attempt.name, reason: joinError }));
+      if (store('session', RETRY_KEY)) {
+        location.reload();
+        return;
+      }
+    }
     document.body.innerHTML = '';
     const p = document.createElement('main');
-    p.innerHTML = '<h1>You have left the Orthoverse</h1><p class="sub">Reload the page to play again.</p>';
+    const h = document.createElement('h1');
+    const s = document.createElement('p');
+    s.className = 'sub';
+    if (joinError !== null) {
+      const [title, text] = explain(joinError, attempt && attempt.mode, attempt && attempt.name);
+      h.textContent = title;
+      s.textContent = text;
+    } else {
+      h.textContent = 'You have left the Orthoverse';
+      s.textContent = 'Come back soon.';
+    }
+    const again = document.createElement('button');
+    again.className = 'go';
+    again.textContent = 'Back to the Orthoverse';
+    again.onclick = () => location.reload();
+    p.append(h, s, again);
     document.body.appendChild(p);
   };
 
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
-    if (!form.reportValidity() || !mtl.isReady()) return;
+    if (!ready || !mtl.isReady()) return;
     const name = nameInput.value.trim();
-    try { localStorage.setItem('orthoverse.name', name); } catch (e) { /* fine */ }
+    const password = passInput.value;
+    if (!NAME_RE.test(name)) {
+      showProblem('That name cannot be used',
+        'Player names are 1 to 19 letters, digits, - and _, with no spaces.', null, '');
+      nameInput.focus();
+      return;
+    }
+    if (!password) {
+      showProblem('A password is needed', 'Enter your password.', null, '');
+      passInput.focus();
+      return;
+    }
+    if (mode === 'register') {
+      if (password.length < MIN_PASSWORD) {
+        showProblem('Password too short', 'Use at least ' + MIN_PASSWORD + ' characters.', null, '');
+        passInput.focus();
+        return;
+      }
+      if (password !== confirmInput.value) {
+        showProblem('Passwords do not match', 'Type the same password in both boxes.', null, '');
+        confirmInput.focus();
+        return;
+      }
+    }
+    hideProblem();
+    store('local', 'orthoverse.name', name);
+    attempt = { mode, name };
 
     const args = new LuantiArgs();
     args.address = SERVER_ADDRESS;
     args.port = SERVER_PORT;
     args.name = name;
-    args.password = passInput.value;
+    args.password = password;
     args.go = true;
+    // Log in never creates a player; Register never logs in to an existing one
+    args.extra = [mode === 'register' ? '--register' : '--login'];
 
     mtl.setProxy(PROXY_URL);
-    try { mtl.setLang(getDefaultLanguage()); } catch (e) { /* keep English */ }
-    // A browser has less memory than a desktop client; keep the view modest.
+    // English, set explicitly because an earlier visit may have saved another
+    // language: the explanations above match the engine's English messages.
+    mtl.setLang('en');
     mtl.setConf('viewing_range', 120);
 
     document.getElementById('page').remove();

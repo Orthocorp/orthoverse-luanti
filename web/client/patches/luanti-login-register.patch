@@ -1,0 +1,59 @@
+diff --git a/src/client/clientlauncher.cpp b/src/client/clientlauncher.cpp
+index 3aba122..5855380 100644
+--- a/src/client/clientlauncher.cpp
++++ b/src/client/clientlauncher.cpp
+@@ -26,6 +26,9 @@
+ #include <IGUISpriteBank.h>
+ #include <ICameraSceneNode.h>
+ #include <unordered_map>
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#endif
+ 
+ #if USE_SOUND
+ 	#include "sound/sound_openal.h"
+@@ -265,6 +268,16 @@ bool ClientLauncher::run(const GameParams &game_params, const Settings &cmd_args
+ 		}
+ 	} // Menu-game loop
+ 
++#ifdef __EMSCRIPTEN__
++	// With no main menu to show it in, hand the reason to the page
++	if (skip_main_menu && !errordata.message.empty()) {
++		MAIN_THREAD_EM_ASM({
++			if (globalThis.orthoverseJoinError)
++				globalThis.orthoverseJoinError(UTF8ToString($0));
++		}, errordata.message.c_str());
++	}
++#endif
++
+ 	// If profiler was enabled print it one last time
+ 	if (g_settings->getFloat("profiler_print_interval") > 0) {
+ 		infostream << "Profiler:" << std::endl;
+@@ -296,6 +309,12 @@ void ClientLauncher::init_args(GameStartData &start_data, const Settings &cmd_ar
+ 	if (cmd_args.exists("name"))
+ 		start_data.name = cmd_args.get("name");
+ 
++	// Same choice as the main menu's Login and Register buttons
++	if (cmd_args.getFlag("login"))
++		start_data.allow_login_or_register = ELoginRegister::Login;
++	else if (cmd_args.getFlag("register"))
++		start_data.allow_login_or_register = ELoginRegister::Register;
++
+ 	// If a world was commanded, select it
+ 	if (!start_data.world_path.empty()) {
+ 		if (!start_data.name.empty())
+diff --git a/src/main.cpp b/src/main.cpp
+index a935ded..3f6bee9 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -436,6 +436,10 @@ static void set_allowed_options(OptionList *allowed_options)
+ 			_("Set password from contents of file"))));
+ 	allowed_options->insert(std::make_pair("go", ValueSpec(VALUETYPE_FLAG,
+ 			_("Skip main menu, go directly in-game"))));
++	allowed_options->insert(std::make_pair("login", ValueSpec(VALUETYPE_FLAG,
++			_("With --go: only log in to an existing account, never create one"))));
++	allowed_options->insert(std::make_pair("register", ValueSpec(VALUETYPE_FLAG,
++			_("With --go: only create a new account, never log in to an existing one"))));
+ 	allowed_options->insert(std::make_pair("console", ValueSpec(VALUETYPE_FLAG,
+ 			_("Start with the console open (Windows only)"))));
+ #endif

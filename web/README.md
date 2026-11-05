@@ -28,7 +28,7 @@ Cloudflare tunnel, browser players need no port forwarding on the router.
 | Directory | Contents |
 | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` |
-| `web/client/` | `build.sh` builds luanti-wasm at a pinned commit; `play.html` is the Orthoverse play page it installs |
+| `web/client/` | `build.sh` builds luanti-wasm at a pinned commit, with the engine changes in `patches/`; `play.html` is the Orthoverse play page it installs |
 | `web/map/make_tiles.py` | Map tiles and the land list, from the world database |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) |
 | `web/nginx/`, `web/systemd/` | nginx site and proxy service, filled in by the installer |
@@ -87,6 +87,30 @@ Set in the service file (`/etc/systemd/system/orthoverse-webproxy.service`):
 | `OV_MAX_PER_IP` | 6 | Connections from one address |
 | `OV_VIRTUAL_IP` | 10.58.0.1 | Address the browser client dials; must match `play.html` |
 | `OV_IDLE_SECONDS` | 120 | Silent connections are closed after this |
+
+## Accounts
+
+The play page has two tabs. **Log in** only logs in to an existing player: an
+unknown name is refused, it never creates a player. **Register** only creates a
+new player: a name that is taken is refused. The page passes `--login` or
+`--register` to the engine (added by `patches/luanti-login-register.patch`; the
+engine already had both modes for its own main menu, but no way to choose them
+from the command line).
+
+When joining fails, the engine hands the reason to the page
+(`orthoverseJoinError`), the page reloads, and the form shows what went wrong
+and what to do: unknown name, name taken (or the same name in other capitals),
+wrong password, already playing, server full, server restarting, server not
+reachable, client out of date. The engine runs in English so the reasons can be
+recognised; anything unrecognised is shown as the engine's own text.
+
+The server requires a password for every player (`disallow_empty_password`), and
+the page asks for at least 6 characters when registering.
+
+The choice is enforced by the web client, not the server: someone who builds
+their own client could still create a player by logging in with a new name. The
+server cannot tell the two apart, because a Luanti client asks to register only
+after the server has told it the name is new.
 
 ## Web only
 

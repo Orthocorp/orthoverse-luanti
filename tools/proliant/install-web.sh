@@ -12,8 +12,8 @@
 #   4. makes a Python venv and renders the map tiles from the world
 #   5. installs and starts the orthoverse-webproxy service
 #   6. adds an nginx site on 127.0.0.1:8484 (localhost only) and reloads nginx
-#   7. makes the Luanti server listen on 127.0.0.1 only, so the web is the only
-#      way in (WEB_ONLY=0 skips this and leaves the server open on the network)
+#   7. game server settings: passwords required, and listening on 127.0.0.1
+#      only so the web is the only way in (WEB_ONLY=0 skips the second)
 #
 # It does not build the browser client (run web/client/build.sh after this),
 # and it does not touch Cloudflare: see web/README.md for the tunnel step.
@@ -105,22 +105,34 @@ ln -sfn /etc/nginx/sites-available/orthoverse-web.conf /etc/nginx/sites-enabled/
 nginx -t
 systemctl reload nginx
 
-echo "== 7. Game server reachable only through the web"
+echo "== 7. Game server settings for the web"
 CONF="$BASE/orthoverse.conf"
-if [[ "$WEB_ONLY" == 1 ]]; then
-	if grep -q '^bind_address = 127.0.0.1$' "$CONF"; then
-		echo "Already web only."
-	else
-		sed -i '/^bind_address *=/d' "$CONF"
-		echo 'bind_address = 127.0.0.1' >> "$CONF"
-		echo "Set bind_address = 127.0.0.1; restarting the game server (players are disconnected)."
-		systemctl restart orthoverse
+changed=0
+# set_conf KEY VALUE: make sure orthoverse.conf says KEY = VALUE
+set_conf() {
+	if ! grep -q "^$1 = $2\$" "$CONF"; then
+		sed -i "/^$1 *=/d" "$CONF"
+		echo "$1 = $2" >> "$CONF"
+		echo "Set $1 = $2"
+		changed=1
 	fi
-	sleep 3
-	ss -ulnH 'sport = :30000' | awk '{print "Luanti listens on " $4}'
+}
+# Every player needs a password (players register on the web page)
+set_conf disallow_empty_password true
+if [[ "$WEB_ONLY" == 1 ]]; then
+	# Listen on this machine only: the web proxy is the way in
+	set_conf bind_address 127.0.0.1
 else
-	echo "WEB_ONLY=0: leaving $CONF as it is."
+	echo "WEB_ONLY=0: bind_address left as it is."
 fi
+if [[ $changed == 1 ]]; then
+	echo "Restarting the game server (players are disconnected)."
+	systemctl restart orthoverse
+	sleep 3
+else
+	echo "Already set."
+fi
+ss -ulnH 'sport = :30000' | awk '{print "Luanti listens on " $4}'
 
 echo
 echo "Done. Check it locally:  curl -sI http://127.0.0.1:$WEB_PORT/ | head -1"

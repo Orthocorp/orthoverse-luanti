@@ -104,6 +104,8 @@ server_announce = false
 port = $PORT
 # Only the web proxy on this machine connects; nothing else can reach the server
 bind_address = 127.0.0.1
+# Players register on the web page, always with a password
+disallow_empty_password = true
 max_users = 50
 enable_damage = true
 creative_mode = false
