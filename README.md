@@ -40,7 +40,8 @@ tools/build_lands.py         rebuilds lands.json from source-data
 tools/assemble.sh            refreshes mods/mtg from Minetest Game
 tools/render_map.py          offline top-down render from map.sqlite
 tools/mapslice.py            offline node counts and vertical slices (debugging)
-tools/proliant/              install and pre-generation scripts for the ProLiant
+compose.yaml, docker/         running it all on Docker Compose (see docker/README.md)
+web/                         orthoverse.land: site, map, proxy, browser game (see web/README.md)
 ```
 
 ## Coordinates
@@ -90,25 +91,13 @@ In game, with the server privilege: `/pregen <radius>`, `/orthomap <radius>`,
 and `/whereami` for anyone. For an overview of a big area, render offline:
 `tools/render_map.py <world>/map.sqlite orthomap.png` (whole map: about 3 minutes).
 
-## On Docker Compose
+## Running it
 
-The whole Orthoverse (game server, web proxy, website, map drawing and the
-browser game build) runs from `compose.yaml`: `docker compose up -d --build`.
-See `docker/README.md`, including how to move over from the scripts below.
-
-## On the ProLiant (scripts, before Docker)
-
-See `tools/proliant/install.sh` (builds Luanti 5.18.0 with LuaJIT, creates the
-`ovserver` user and world under `/mnt/ethereum/orthoverse`, installs a systemd
-service pinned to NUMA node 0) and `tools/proliant/pregen.sh`.
-
-After `git pull` on the ProLiant:
-
-- `sudo ./tools/proliant/update.sh` copies the new game in and restarts the server.
-  Changes to the generator only affect land generated afterwards.
-- `sudo ./tools/proliant/regen.sh` regenerates the whole map with the current
-  generator (about 25 minutes). Accounts survive; builds in the world do not, and
-  the old map is kept in `backups/`.
+Everything (game server, web proxy, website, map drawing and the browser game
+build) runs on Docker Compose from `compose.yaml`; see `docker/README.md`. On the
+ProLiant, after a `git pull`: `docker compose up -d --build`. Changes to the
+generator only affect land generated afterwards; regenerating the whole map is
+described in `docker/README.md`.
 
 ## On the web
 

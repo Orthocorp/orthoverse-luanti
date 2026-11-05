@@ -75,72 +75,13 @@ admin can give other players some of them, for example
 and see a player's with `/privs somebody`. In the game, fly is toggled with K,
 fast with J and noclip with H.
 
-## Moving from the old setup
+## History: before Docker
 
-The old setup (systemd services `orthoverse` and `orthoverse-webproxy`, the nginx
-site on 8484) keeps running until step 6, and stays installed until step 9, so you
-can go back at any point before that.
-
-1. **Docker.** Check it is there with `docker compose version`. If not:
-   `sudo apt install docker.io docker-compose-v2`, then `sudo usermod -aG docker $USER`,
-   and log out and in again.
-
-2. **Settings.** In `~/orthoverse-luanti`:
-   ```
-   cp .env.example .env
-   id -u ovserver; id -g ovserver
-   ```
-   Put the two numbers into `OV_UID` and `OV_GID` in `.env`, and your player name
-   into `OV_ADMIN`. The other values are right for the ProLiant.
-
-3. **Data directories**, with the map and the browser game copied over from the
-   old setup, so nothing needs rebuilding yet:
-   ```
-   sudo mkdir -p /mnt/ethereum/orthoverse/data/map /mnt/ethereum/orthoverse/data/play
-   sudo cp -a /mnt/ethereum/orthoverse/web/site/map/tiles /mnt/ethereum/orthoverse/web/site/map/lands.json /mnt/ethereum/orthoverse/data/map/
-   sudo cp -a /mnt/ethereum/orthoverse/web/play/. /mnt/ethereum/orthoverse/data/play/
-   sudo chown -R ovserver:ovserver /mnt/ethereum/orthoverse/data
-   ```
-
-4. **Build the images** (the game server takes about 10 minutes):
-   ```
-   docker compose build
-   ```
-
-5. **Back up the world**, since two servers must never use it at once:
-   ```
-   sudo systemctl stop orthoverse
-   sudo cp -a /mnt/ethereum/orthoverse/luanti/worlds/orthoverse /mnt/ethereum/orthoverse/backups/world-before-docker
-   ```
-
-6. **Switch the game over.** Stop the old proxy and start the containers. Browser
-   play is down from here until step 8, a few minutes:
-   ```
-   sudo systemctl stop orthoverse-webproxy
-   docker compose up -d
-   docker compose logs luanti | tail -5
-   ```
-   The log should end with `listening on 0.0.0.0:30000`, after `Pinned to NUMA node 0`.
-
-7. **Check it locally** through an SSH tunnel from your desktop:
-   `ssh -N -L 8485:127.0.0.1:8485 kf106@192.168.68.237`, then open
-   http://localhost:8485/play/ and log in.
-
-8. **Point the tunnel at it.** In `/etc/cloudflared/config.yml`, change both
-   orthoverse.land rules from `http://127.0.0.1:8484` to `http://127.0.0.1:8485`, then
-   `sudo systemctl restart cloudflared`. Check https://orthoverse.land/play/.
-
-9. **Retire the old setup** once you are happy:
-   ```
-   sudo systemctl disable orthoverse orthoverse-webproxy
-   sudo rm /etc/nginx/sites-enabled/orthoverse-web.conf && sudo systemctl reload nginx
-   ```
-   Later, once nothing points at them, `luanti/` (the source build, apart from
-   `worlds/`), `node/`, `venv/`, `build/`, `game/` and `web/` under
-   /mnt/ethereum/orthoverse can be deleted to free space.
-
-**Going back** before step 9: `docker compose down`, point the tunnel back at 8484,
-`sudo systemctl start orthoverse orthoverse-webproxy`.
-
-From then on, `docker compose run --rm --build client` replaces `web/client/build.sh`,
-and `docker compose run --rm --build map` replaces `make-map.sh`.
+Until 5 November 2026 the Orthoverse ran from systemd services and install
+scripts (removed from the repository since; see the git history). The old
+setup's leftovers under /mnt/ethereum/orthoverse can be deleted to free space:
+`luanti/` apart from `luanti/worlds/` (the world lives there), `node/`, `venv/`,
+`build/`, `game/`, `web/`, `orthoverse.conf` and `make-map.sh`. Keep `data/` and
+`backups/`. The systemd unit files `/etc/systemd/system/orthoverse.service` and
+`orthoverse-webproxy.service` and the nginx site
+`/etc/nginx/sites-available/orthoverse-web.conf` can go too.

@@ -9,92 +9,34 @@ Everything served at orthoverse.land:
 | `/play/` | Luanti running in the browser (paradust7/luanti-wasm), joined to the Orthoverse |
 | `/proxy` | WebSocket the browser client uses to reach the game server |
 
-```
-browser ── https://orthoverse.land ──► Cloudflare tunnel ──► nginx 127.0.0.1:8484
-                                                              ├─ /, /map/, /play/   static files
-                                                              └─ /proxy  ──► web proxy 127.0.0.1:8737
-                                                                               └─ UDP ──► Luanti 127.0.0.1:30000
-```
+It all runs on Docker Compose; how to run it is in `docker/README.md`. This file
+is about how the web parts work.
 
 Browsers cannot send UDP, which Luanti uses. The browser client wraps its UDP
 traffic in a WebSocket; `web/proxy/proxy.js` unwraps it and passes it to the
-Luanti server on the same machine. The proxy reaches nothing else: datagrams to
-any other address are dropped, it relays no TCP, and its name resolver only
-knows the Orthoverse's own names. Because the game traffic travels through the
-Cloudflare tunnel, browser players need no port forwarding on the router.
+game server. The proxy reaches nothing else: datagrams to any other address are
+dropped, it relays no TCP, and its name resolver only knows the Orthoverse's own
+names. Because the game traffic travels through the Cloudflare tunnel, players
+need no port forwarding on the router.
 
 ## Parts
 
-| Directory | Contents |
-| --- | --- |
-| `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` |
-| `web/client/` | `build.sh` builds luanti-wasm at a pinned commit, with the engine changes in `patches/`; `play.html` is the Orthoverse play page it installs |
-| `web/map/make_tiles.py` | Map tiles and the land list, from the world database |
-| `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) |
-| `web/nginx/`, `web/systemd/` | nginx site and proxy service, filled in by the installer |
-| `tools/proliant/install-web.sh` | Installs all of the above on the ProLiant |
-| `tools/proliant/make-map.sh` | Refreshes the map from the live world |
-
-## Installing on the ProLiant
-
-1. `git pull`, then `sudo ./tools/proliant/install-web.sh` (about 10 minutes the first
-   time, most of it rendering the map; later runs leave the map alone).
-2. Build the browser client (15 to 30 minutes the first time):
-   `sudo -u ovserver /mnt/ethereum/orthoverse/game/web/client/build.sh`
-3. Check locally: `curl -sI http://127.0.0.1:8484/play/ | head -1` should say `200`.
-4. Put orthoverse.land on the Cloudflare tunnel (below).
-
-### Cloudflare tunnel
-
-The site listens on 127.0.0.1:8484 only; the existing `home-web` tunnel brings it
-to the internet.
-
-1. Add a rule to `/etc/cloudflared/config.yml`, above the final catch-all rule:
-   ```yaml
-     - hostname: orthoverse.land
-       service: http://127.0.0.1:8484
-     - hostname: www.orthoverse.land
-       service: http://127.0.0.1:8484
-   ```
-   then `sudo systemctl restart cloudflared`.
-2. In the Cloudflare dashboard, zone **orthoverse.land**, DNS: replace any old
-   `orthoverse.land` and `www` records with proxied CNAMEs to
-   `<tunnel id>.cfargotunnel.com` (the tunnel id is the `tunnel:` line in
-   `config.yml`). Do this in the dashboard: `cloudflared tunnel route dns` on this
-   machine creates records in the blockchaingandalf.com zone.
-3. Optional but worth it: a Cache Rule for `orthoverse.land/play/*` set to
-   "Eligible for cache". Cloudflare does not cache `.wasm` and `.pack` files by
-   default, so without it every new player downloads the engine over the 5G link.
-   The release files are named per build, so caching them forever is safe.
-
-WebSockets work through the tunnel with no extra settings.
-
-## Running it
-
-- Service: `systemctl status orthoverse-webproxy`, log with `journalctl -u orthoverse-webproxy`.
-- Refresh the map after building or regenerating: `sudo -u ovserver /mnt/ethereum/orthoverse/make-map.sh`.
-- Update site or proxy after a `git pull`: re-run `install-web.sh` (seconds; it does not
-  redraw the map unless run with `MAP=1`).
-- Rebuild the browser client: re-run `build.sh`. It picks the quickest build that will do:
-  - **engine only** (a few minutes) once a full build exists: recompiles only what changed,
-    usually the engine patches in `web/client/patches/`;
-  - **full** (15 to 30 minutes): the first time, after the pinned luanti-wasm commit changes,
-    or with `FULL=1`;
-  - **page only** with `PAGE=1` (seconds, no compiling): when only `play.html` changed.
-
-  `build.sh` runs from the installed copy, so after a `git pull` run `install-web.sh` first.
-  The newest two builds are kept, so players mid-load are not broken by an update.
-
-## Limits and settings
-
-Set in the service file (`/etc/systemd/system/orthoverse-webproxy.service`):
-
-| Setting | Default | Meaning |
+| Directory | Contents | Image |
 | --- | --- | --- |
-| `OV_MAX_SOCKETS` | 100 | Browser players at once |
-| `OV_MAX_PER_IP` | 6 | Connections from one address |
-| `OV_VIRTUAL_IP` | 10.58.0.1 | Address the browser client dials; must match `play.html` |
-| `OV_IDLE_SECONDS` | 120 | Silent connections are closed after this |
+| `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
+| `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
+| `web/map/make_tiles.py` | Map tiles and the land list, from the world database | `map` |
+| `web/client/play.html` | The Orthoverse play page | `client` |
+| `web/client/patches/` | Orthoverse changes to the engine, applied when the browser game is built | `client` |
+
+## Web only
+
+The game server publishes no port and sits on an internal Compose network, so
+the web proxy is the only way in: a desktop Luanti client on the LAN or the
+internet cannot connect.
+
+Every browser player reaches the game server from the proxy's address, so the
+server cannot tell them apart by address: ban players by name, not by IP.
 
 ## Accounts
 
@@ -120,25 +62,30 @@ their own client could still create a player by logging in with a new name. The
 server cannot tell the two apart, because a Luanti client asks to register only
 after the server has told it the name is new.
 
-## Web only
+## Proxy settings
 
-`install-web.sh` sets `bind_address = 127.0.0.1` in `orthoverse.conf`, so the
-Luanti server listens on the ProLiant itself and nowhere else: the web proxy is
-the only way in. A desktop Luanti client on the LAN or the internet cannot
-connect, even if UDP 30000 were forwarded. To open it up again, delete that line
-and `sudo systemctl restart orthoverse` (or install with `WEB_ONLY=0`).
+Set in `.env` (the first two) or `compose.yaml`:
 
-Every browser player reaches the Luanti server from 127.0.0.1, so the server
-cannot tell them apart by address: ban browser players by name, not by IP.
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `OV_MAX_SOCKETS` | 100 | Browser players at once |
+| `OV_MAX_PER_IP` | 6 | Connections from one address |
+| `OV_VIRTUAL_IP` | 10.58.0.1 | Address the browser client dials; must match `play.html` |
+| `OV_IDLE_SECONDS` | 120 | Silent connections are closed after this |
 
-## Tested here, and not
+## Cloudflare
 
-- **Tested:** the proxy against a real Luanti 5.18 server, directly and through
-  nginx (`web/proxy/test/handshake.js`: a Luanti handshake gets the server's
-  reply; foreign addresses, foreign names and TCP are refused); `install-web.sh`
-  end to end in a container; the landing, map and play pages in Chromium through
-  nginx, including the headers that let the client use threads.
-- **Not tested:** building luanti-wasm itself, and so a real browser session. The
-  build downloads the Emscripten SDK and Node from sites this environment cannot
-  reach. The proxy speaks the protocol of the exact webshims revision the pinned
-  luanti-wasm commit uses, and the play page uses the launcher API of that commit.
+The `web` container listens on 127.0.0.1:8485; the host's `home-web` tunnel
+brings it to the internet.
+
+- `/etc/cloudflared/config.yml` has rules for `orthoverse.land` and
+  `www.orthoverse.land` pointing at `http://127.0.0.1:8485`, above the catch-all.
+- DNS (in the dashboard, zone orthoverse.land): proxied CNAMEs for `@` and `www`
+  to `<tunnel id>.cfargotunnel.com`. `cloudflared tunnel route dns` on the
+  ProLiant would put them in the blockchaingandalf.com zone instead.
+- A Cache Rule makes `orthoverse.land/play/*` eligible for cache, with the edge
+  TTL from the cache-control header. Cloudflare does not cache `.wasm` and `.pack`
+  files by default; the release files are named per build, so caching them for
+  good is safe, and the page itself is marked not to be cached.
+
+WebSockets work through the tunnel with no extra settings.
