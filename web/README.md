@@ -75,8 +75,15 @@ WebSockets work through the tunnel with no extra settings.
 - Refresh the map after building or regenerating: `sudo -u ovserver /mnt/ethereum/orthoverse/make-map.sh`.
 - Update site or proxy after a `git pull`: re-run `install-web.sh` (seconds; it does not
   redraw the map unless run with `MAP=1`).
-- Rebuild the browser client: re-run `build.sh`. The newest two builds are kept, so
-  players mid-load are not broken by an update.
+- Rebuild the browser client: re-run `build.sh`. It picks the quickest build that will do:
+  - **engine only** (a few minutes) once a full build exists: recompiles only what changed,
+    usually the engine patches in `web/client/patches/`;
+  - **full** (15 to 30 minutes): the first time, after the pinned luanti-wasm commit changes,
+    or with `FULL=1`;
+  - **page only** with `PAGE=1` (seconds, no compiling): when only `play.html` changed.
+
+  `build.sh` runs from the installed copy, so after a `git pull` run `install-web.sh` first.
+  The newest two builds are kept, so players mid-load are not broken by an update.
 
 ## Limits and settings
 
