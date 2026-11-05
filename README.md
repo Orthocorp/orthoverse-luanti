@@ -87,7 +87,13 @@ In game, with the server privilege: `/pregen <radius>`, `/orthomap <radius>`,
 and `/whereami` for anyone. For an overview of a big area, render offline:
 `tools/render_map.py <world>/map.sqlite orthomap.png` (whole map: about 3 minutes).
 
-## On the ProLiant
+## On Docker Compose
+
+The whole Orthoverse (game server, web proxy, website, map drawing and the
+browser game build) runs from `compose.yaml`: `docker compose up -d --build`.
+See `docker/README.md`, including how to move over from the scripts below.
+
+## On the ProLiant (scripts, before Docker)
 
 See `tools/proliant/install.sh` (builds Luanti 5.18.0 with LuaJIT, creates the
 `ovserver` user and world under `/mnt/ethereum/orthoverse`, installs a systemd

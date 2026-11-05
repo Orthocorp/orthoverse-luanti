@@ -29,7 +29,9 @@ import { WebSocketServer } from 'ws';
 const env = process.env;
 const LISTEN_HOST = env.OV_PROXY_HOST || '127.0.0.1';
 const LISTEN_PORT = parseInt(env.OV_PROXY_PORT || '8737', 10);
-// Where the Luanti server really is
+// Where the Luanti server really is: an address, or a name such as the
+// Compose service "luanti" (looked up again for each player, so a restarted
+// container with a new address is found)
 const TARGET_HOST = env.OV_TARGET_HOST || '127.0.0.1';
 const TARGET_PORT = parseInt(env.OV_TARGET_PORT || '30000', 10);
 // The address web players dial. It only exists inside the proxy.
@@ -228,7 +230,7 @@ class Connection {
         this.counted = true;
         a.expires = Date.now() + ADDR_TTL_MS;
 
-        const udp = dgram.createSocket(TARGET_HOST.includes(':') ? 'udp6' : 'udp4');
+        const udp = dgram.createSocket(isIPv6(TARGET_HOST) ? 'udp6' : 'udp4');
         this.udp = udp;
         udp.on('message', (msg, rinfo) => {
             if (rinfo.port !== TARGET_PORT) return;
@@ -291,8 +293,8 @@ if (!isIPv4(VIRTUAL_IP)) {
     console.error('OV_VIRTUAL_IP must be an IPv4 address');
     process.exit(1);
 }
-if (!isIPv4(TARGET_HOST) && !isIPv6(TARGET_HOST) && TARGET_HOST !== 'localhost') {
-    console.error('OV_TARGET_HOST must be an IP address');
+if (!isIPv4(TARGET_HOST) && !isIPv6(TARGET_HOST) && !/^[A-Za-z0-9.-]+$/.test(TARGET_HOST)) {
+    console.error('OV_TARGET_HOST must be an IP address or a host name');
     process.exit(1);
 }
 

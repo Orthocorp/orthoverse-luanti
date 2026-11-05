@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/__pycache__
+**/.venv
+*.ppm
+# The 2023 snapshot (including the database dump) is only needed to rebuild
+# lands.json, never inside an image
+source-data
+.env

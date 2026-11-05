@@ -1,0 +1,95 @@
+# The Orthoverse on Docker Compose. Settings: copy .env.example to .env.
+#
+#   docker compose up -d --build              start, or update after a git pull
+#   docker compose run --rm --build map       redraw the web map
+#   docker compose run --rm --build client    build and install the browser game
+#
+# See docker/README.md.
+
+name: orthoverse
+
+services:
+  # The game server. It publishes no port: the only way in is the web proxy,
+  # over the private "game" network.
+  luanti:
+    build:
+      context: .
+      dockerfile: docker/luanti/Dockerfile
+    image: orthoverse/luanti
+    user: "${OV_UID:?set OV_UID in .env}:${OV_GID:?set OV_GID in .env}"
+    volumes:
+      - ${OV_WORLD:?set OV_WORLD in .env}:/world
+      - ./docker/luanti/orthoverse.conf:/etc/orthoverse/orthoverse.conf:ro
+    environment:
+      OV_NUMA_NODE: ${OV_NUMA_NODE:-}
+    # numactl's memory binding needs this under Docker's default seccomp profile
+    cap_add: [SYS_NICE]
+    networks: [game]
+    restart: unless-stopped
+    # Time to save the world on shutdown
+    stop_grace_period: 60s
+
+  # Browser players' WebSocket to the game server's UDP
+  proxy:
+    build:
+      context: .
+      dockerfile: docker/proxy/Dockerfile
+    image: orthoverse/proxy
+    environment:
+      OV_PROXY_HOST: 0.0.0.0
+      OV_PROXY_PORT: "8737"
+      OV_TARGET_HOST: luanti
+      OV_TARGET_PORT: "30000"
+      OV_VIRTUAL_IP: 10.58.0.1
+      OV_MAX_SOCKETS: ${OV_MAX_SOCKETS:-100}
+      OV_MAX_PER_IP: ${OV_MAX_PER_IP:-6}
+    networks: [game, web]
+    read_only: true
+    restart: unless-stopped
+    depends_on: [luanti]
+
+  # orthoverse.land: the host's Cloudflare tunnel points at this port
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    image: orthoverse/web
+    ports:
+      - "127.0.0.1:${OV_WEB_PORT:-8485}:80"
+    volumes:
+      - ${OV_DATA:?set OV_DATA in .env}/map:/srv/map:ro
+      - ${OV_DATA}/play:/srv/play:ro
+    networks: [web]
+    restart: unless-stopped
+    depends_on: [proxy]
+
+  # Run on demand: docker compose run --rm --build map
+  map:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: docker/map/Dockerfile
+    image: orthoverse/map
+    user: "${OV_UID}:${OV_GID}"
+    volumes:
+      - ${OV_WORLD}:/world:ro
+      - ${OV_DATA}/map:/out
+    network_mode: none
+
+  # Run on demand: docker compose run --rm --build client
+  client:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: docker/client/Dockerfile
+    image: orthoverse/client
+    user: "${OV_UID}:${OV_GID}"
+    volumes:
+      - ${OV_DATA}/play:/out
+    network_mode: none
+
+networks:
+  # internal: no way out to the internet, and none in
+  game:
+    internal: true
+  web: {}
