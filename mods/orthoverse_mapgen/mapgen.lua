@@ -10,6 +10,7 @@
 
 local IPC = core.ipc_get("orthoverse:lands")
 local C = dofile(core.ipc_get("orthoverse:lands_path") .. "/coords.lua")
+local HG = dofile(core.ipc_get("orthoverse:lands_path") .. "/henges.lua")
 local LANDS, HENGES = IPC.lands, IPC.henges
 
 local G = tonumber(core.get_mapgen_setting("mgflat_ground_level")) or 8
@@ -76,6 +77,7 @@ local c = {
 	tarmac = id("orthoverse_nodes:tarmac"),
 	edge = id("orthoverse_nodes:world_edge"),
 	portal = id("orthoverse_nodes:henge_portal"),
+	veil = id("orthoverse_nodes:henge_veil"),
 }
 
 -- Minetest Game tree schematics (path handed over by init.lua)
@@ -568,6 +570,12 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 						end end
 						for a = 46, 49 do for b = 46, 49 do put(a, b, y, c.stone_block) end end
 						put(47, 47, y + 1, c.portal)
+						-- Gateways: the openings at north, south, east and west
+						for _, g in pairs(HG.GATES) do
+							for a = g.u0, g.u1 do for b = g.v0, g.v1 do
+								for k = 1, HG.GATE_HEIGHT do put(a, b, y + k, c.veil) end
+							end end
+						end
 					end
 				end
 			end

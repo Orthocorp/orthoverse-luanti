@@ -17,10 +17,12 @@ First rough version of the world:
   woods, plains, quarries, deserts, badlands, and the flipped-realm sculptures.
 - Sea for unrevealed land, the plains-and-mountains rim, and the world-edge wall.
 - Placeholder castles (natural realm) and rockets (flipped realm), scaled by level.
-- Henges as stone circles with a portal stone (teleporting not wired up yet).
+- Henges as stone circles with four gateways: going through the north, south, east
+  or west one takes you to the centre of the next henge that way (wrapping round at
+  the edge of the 3 × 3 grid, as the old Orthoverse did).
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
 
-Not yet: natural-looking terrain, real castle schematics, henge teleports,
+Not yet: natural-looking terrain, real castle schematics,
 ownership and protection, wallet binding, the chain indexer.
 
 ## Layout
@@ -30,7 +32,8 @@ game.conf, minetest.conf     game definition and map defaults (flat mapgen, chun
 mods/mtg/                    Minetest Game mods, vendored by tools/assemble.sh
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
 mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen threads)
-mods/orthoverse_nodes/       world edge, henge portal, tarmac
+mods/orthoverse_nodes/       world edge, henge portal and gateway, tarmac
+mods/orthoverse_henges/      henge gateways: teleporting between the nine henges
 mods/orthoverse_admin/       /pregen and /orthomap, plus startup pre-generation
 source-data/                 snapshot files the land data is built from
 tools/build_lands.py         rebuilds lands.json from source-data

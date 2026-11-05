@@ -12,7 +12,7 @@ core.register_node("orthoverse_nodes:world_edge", {
 	drop = "",
 })
 
--- Henge portal stone. Teleporting comes later; for now it marks the spot and glows.
+-- Henge portal stone, at the centre of each henge. It marks the spot and glows.
 core.register_node("orthoverse_nodes:henge_portal", {
 	description = "Henge Portal",
 	tiles = {"default_meselamp.png^[colorize:#30c060:110"},
@@ -31,4 +31,25 @@ core.register_node("orthoverse_nodes:tarmac", {
 	is_ground_content = false,
 	groups = {cracky = 2, stone = 1},
 	sounds = default.node_sound_stone_defaults(),
+})
+
+-- The shimmer filling a henge gateway. Walking into it takes you to the next
+-- henge (orthoverse_henges); it has no substance and cannot be dug or built on.
+core.register_node("orthoverse_nodes:henge_veil", {
+	description = "Henge Gateway",
+	drawtype = "glasslike",
+	tiles = {"default_glass.png^[colorize:#30c060:160^[opacity:110"},
+	use_texture_alpha = "blend",
+	paramtype = "light",
+	sunlight_propagates = true,
+	light_source = 9,
+	walkable = false,
+	pointable = false,
+	diggable = false,
+	buildable_to = false,
+	is_ground_content = false,
+	post_effect_color = {a = 70, r = 48, g = 192, b = 96},
+	on_blast = function() end,
+	groups = {not_in_creative_inventory = 1},
+	drop = "",
 })

@@ -5,6 +5,7 @@ local modpath = core.get_modpath(core.get_current_modname())
 orthoverse = rawget(_G, "orthoverse") or {}
 local C = dofile(modpath .. "/coords.lua")
 orthoverse.coords = C
+orthoverse.henge_gates = dofile(modpath .. "/henges.lua")
 
 local f = assert(io.open(modpath .. "/data/lands.json", "r"))
 local raw = f:read("*a")
