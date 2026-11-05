@@ -96,7 +96,9 @@ def main():
             entry["h"] = data["henges"][key]["name"]
         lands.append(entry)
     with open(os.path.join(out, "lands.json"), "w", encoding="utf-8") as f:
-        json.dump({"land_size": data["land_size"], "lands": lands}, f,
+        # Node area the tiles cover, so the page only asks for tiles that exist
+        drawn = {"west": x_left, "east": x_left + w, "north": z_top, "south": z_top - h}
+        json.dump({"land_size": data["land_size"], "drawn": drawn, "lands": lands}, f,
                   ensure_ascii=False, separators=(",", ":"))
     print("lands.json: %d lands" % len(lands))
 

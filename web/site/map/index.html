@@ -61,8 +61,10 @@
     crs, minZoom: 0, maxZoom: 8, zoomSnap: 0.5, zoomControl: false,
     maxBounds: worldBounds.pad(0.25), preferCanvas: true, attributionControl: false,
   });
-  L.tileLayer('tiles/{z}/{x}/{y}.png', {
+  const tiles = L.tileLayer('tiles/{z}/{x}/{y}.png', {
     maxNativeZoom: NATIVE, maxZoom: 8, minZoom: 0, noWrap: true, tileSize: 256,
+    // the whole pyramid until lands.json says where the world was drawn
+    bounds: L.latLngBounds([-HALF + 0.5, -HALF + 0.5], [HALF - 0.5, HALF - 0.5]),
   }).addTo(map);
   L.control.zoom({ position: 'topright' }).addTo(map);
   map.fitBounds(worldBounds);
@@ -207,6 +209,13 @@
   window.addEventListener('hashchange', followHash);
 
   fetch('lands.json').then(r => r.json()).then(d => {
+    // Tiles exist only where the world was drawn: don't ask for any others
+    if (d.drawn) {
+      // (half a node inside the edge: Leaflet counts touching as overlapping)
+      tiles.options.bounds = L.latLngBounds([d.drawn.south + 0.5, d.drawn.west + 0.5],
+                                            [d.drawn.north - 0.5, d.drawn.east - 0.5]);
+      tiles.redraw();
+    }
     lands = d.lands;
     for (const l of lands) byKey.set(landKey(l.x, l.z), l);
     followHash();
