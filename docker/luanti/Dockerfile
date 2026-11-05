@@ -47,7 +47,6 @@ RUN ! ldd /opt/luanti/bin/luantiserver | grep "not found" \
 # The game (not the tools, web or snapshot data, which the server never reads)
 ARG GAME=/opt/luanti/share/luanti/games/orthoverse
 COPY game.conf minetest.conf ${GAME}/
-COPY menu ${GAME}/menu
 COPY mods ${GAME}/mods
 
 COPY docker/luanti/entrypoint.sh /usr/local/bin/orthoverse-server
