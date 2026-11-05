@@ -39,7 +39,17 @@ if [[ ! -d "$SRC/.git" ]]; then
 	git clone -q "$LUANTI_WASM_REPO" "$SRC"
 fi
 git -C "$SRC" fetch -q origin
-git -C "$SRC" -c advice.detachedHead=false checkout -q "$LUANTI_WASM_COMMIT"
+# -f: drop the local changes below from a previous run, so they apply once
+git -C "$SRC" -c advice.detachedHead=false checkout -q -f "$LUANTI_WASM_COMMIT"
+
+# Emscripten 6 builds real shared libraries. zstd and libzip build a .so next
+# to their .a, the linker then prefers libzstd.so, and the test programs that
+# libarchive's configure runs fail to load it ("cannot compute sizeof
+# (wchar_t)"). Build those two as static libraries only.
+for f in build_zstd.sh build_libzip.sh; do
+	sed -i '/^emcmake cmake \\$/a\  -DBUILD_SHARED_LIBS=OFF -DZSTD_BUILD_SHARED=OFF \\' "$SRC/$f"
+	grep -q -- '-DBUILD_SHARED_LIBS=OFF' "$SRC/$f" || { echo "Could not patch $f" >&2; exit 1; }
+done
 
 # Our deploy hook: build_www.sh runs ./deploy.sh <release id> at the end.
 cp "$HERE/deploy.sh" "$SRC/deploy.sh"
