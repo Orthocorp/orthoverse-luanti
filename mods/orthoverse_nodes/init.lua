@@ -37,12 +37,18 @@ core.register_node("orthoverse_nodes:tarmac", {
 -- henge (orthoverse_henges); it has no substance and cannot be dug or built on.
 core.register_node("orthoverse_nodes:henge_veil", {
 	description = "Henge Gateway",
+	-- Minetest Game's animated water, recoloured: a shimmering surface with no
+	-- block edges, so the opening reads as one gateway rather than as blocks
 	drawtype = "glasslike",
-	tiles = {"default_glass.png^[colorize:#30c060:160^[opacity:110"},
+	tiles = {{
+		name = "default_water_source_animated.png^[colorize:#40e080:190^[opacity:160",
+		backface_culling = false,
+		animation = {type = "vertical_frames", aspect_w = 16, aspect_h = 16, length = 2.0},
+	}},
 	use_texture_alpha = "blend",
 	paramtype = "light",
 	sunlight_propagates = true,
-	light_source = 9,
+	light_source = 11,
 	walkable = false,
 	pointable = false,
 	diggable = false,
