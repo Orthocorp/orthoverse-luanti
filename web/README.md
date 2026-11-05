@@ -88,6 +88,14 @@ Set in the service file (`/etc/systemd/system/orthoverse-webproxy.service`):
 | `OV_VIRTUAL_IP` | 10.58.0.1 | Address the browser client dials; must match `play.html` |
 | `OV_IDLE_SECONDS` | 120 | Silent connections are closed after this |
 
+## Web only
+
+`install-web.sh` sets `bind_address = 127.0.0.1` in `orthoverse.conf`, so the
+Luanti server listens on the ProLiant itself and nowhere else: the web proxy is
+the only way in. A desktop Luanti client on the LAN or the internet cannot
+connect, even if UDP 30000 were forwarded. To open it up again, delete that line
+and `sudo systemctl restart orthoverse` (or install with `WEB_ONLY=0`).
+
 Every browser player reaches the Luanti server from 127.0.0.1, so the server
 cannot tell them apart by address: ban browser players by name, not by IP.
 

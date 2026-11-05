@@ -12,6 +12,8 @@
 #   4. makes a Python venv and renders the map tiles from the world
 #   5. installs and starts the orthoverse-webproxy service
 #   6. adds an nginx site on 127.0.0.1:8484 (localhost only) and reloads nginx
+#   7. makes the Luanti server listen on 127.0.0.1 only, so the web is the only
+#      way in (WEB_ONLY=0 skips this and leaves the server open on the network)
 #
 # It does not build the browser client (run web/client/build.sh after this),
 # and it does not touch Cloudflare: see web/README.md for the tunnel step.
@@ -22,6 +24,7 @@ SVC_USER="${SVC_USER:-ovserver}"
 WEB_PORT="${WEB_PORT:-8484}"
 PROXY_PORT="${PROXY_PORT:-8737}"
 NODE_VERSION="${NODE_VERSION:-v24.22.0}"
+WEB_ONLY="${WEB_ONLY:-1}"
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 WEB="$BASE/web"
 
@@ -101,6 +104,23 @@ sed -e "s|@BASE@|$BASE|g" -e "s|@PORT@|$WEB_PORT|g" -e "s|@PROXY_PORT@|$PROXY_PO
 ln -sfn /etc/nginx/sites-available/orthoverse-web.conf /etc/nginx/sites-enabled/orthoverse-web.conf
 nginx -t
 systemctl reload nginx
+
+echo "== 7. Game server reachable only through the web"
+CONF="$BASE/orthoverse.conf"
+if [[ "$WEB_ONLY" == 1 ]]; then
+	if grep -q '^bind_address = 127.0.0.1$' "$CONF"; then
+		echo "Already web only."
+	else
+		sed -i '/^bind_address *=/d' "$CONF"
+		echo 'bind_address = 127.0.0.1' >> "$CONF"
+		echo "Set bind_address = 127.0.0.1; restarting the game server (players are disconnected)."
+		systemctl restart orthoverse
+	fi
+	sleep 3
+	ss -ulnH 'sport = :30000' | awk '{print "Luanti listens on " $4}'
+else
+	echo "WEB_ONLY=0: leaving $CONF as it is."
+fi
 
 echo
 echo "Done. Check it locally:  curl -sI http://127.0.0.1:$WEB_PORT/ | head -1"

@@ -102,6 +102,8 @@ server_name = The Orthoverse
 server_description = Every land is an Orthoverse token.
 server_announce = false
 port = $PORT
+# Only the web proxy on this machine connects; nothing else can reach the server
+bind_address = 127.0.0.1
 max_users = 50
 enable_damage = true
 creative_mode = false
