@@ -96,11 +96,14 @@ fast with J and noclip with H.
   castle level into `OV_DATA/chain/`: `orthoverse-chain.sqlite` (tables `tokens`,
   `transfers`, `meta`), `tokens.json`, and `token-data.json` in the format of the
   old `scrape-tokenids-and-levels.js` (`[holder, level, tokenId, revealBlock]`).
-  The first run starts from the lands' 2023 snapshot and replays every event since
-  the Merge (September 2022; most nodes no longer keep older logs), which takes
-  some minutes; later runs read only the new blocks. Tokens revealed before the
-  Merge that have no land in the world are not in the index. `docker compose logs chain` shows each run
-  (`chain indexed to block ...`), and `docker compose restart chain` runs it now.
+  With an Alchemy endpoint it reads transfers with `alchemy_getAssetTransfers`,
+  the whole history since 2022 in a few calls. With any other endpoint it uses
+  `eth_getLogs` from the Merge (September 2022; most nodes no longer keep older
+  logs) on top of the lands' 2023 snapshot, which takes much longer on endpoints
+  that allow few blocks per call, and leaves out tokens revealed before the Merge
+  that have no land in the world. Later runs read only the new blocks.
+  `docker compose logs chain` shows each run (`chain indexed to block ...`), and
+  `docker compose restart chain` runs it now.
   The auth service checks each land's indexed holder, so `/whereami` names the
   real holder. Levels 0 to 7 are the fantasy realm, 8 to 15 the futuristic one.
   To look at the data: `sqlite3 /mnt/ethereum/orthoverse/data/chain/orthoverse-chain.sqlite

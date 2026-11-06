@@ -40,7 +40,14 @@ const LANDS_FILE = env.OV_LANDS || '/app/lands.json';
 // before the snapshot works; with a node that keeps full history, 14000000
 // reads everything since before V2 was deployed.
 const MERGE_BLOCK = 15537394;
-const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || String(MERGE_BLOCK), 10);
+// Alchemy endpoints: read transfers with alchemy_getAssetTransfers, which
+// takes any block range, 1000 transfers a call, and keeps the whole history.
+// (Alchemy's free plan allows eth_getLogs only a few blocks at a time.)
+// OV_CHAIN_METHOD=logs or =transfers overrides the choice.
+const METHOD = env.OV_CHAIN_METHOD ||
+	(/(^|\.)alchemy\.com$/.test((() => { try { return new URL(RPC_URL).hostname; } catch (e) { return ''; } })()) ? 'transfers' : 'logs');
+// With the transfers API, everything since before V2 was deployed
+const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || (METHOD === 'transfers' ? '14000000' : String(MERGE_BLOCK)), 10);
 const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '24') * 3600 * 1000;
 const CONFIRMATIONS = 64;       // stay this far behind the chain head (reorgs)
 const MAX_SPAN = 500000;        // blocks per eth_getLogs, at most
@@ -193,6 +200,60 @@ const landTokens = (() => {
 // the endpoint refuses a range (too many blocks or results) and grow again
 // while ranges come back nearly empty
 async function readEvents() {
+	return METHOD === 'transfers' ? readTransfers() : readLogs();
+}
+
+// Alchemy's transfers API: every transfer of the contract's tokens in the
+// range, oldest first, a page at a time
+async function readTransfers() {
+	const head = parseInt(await withRetries('eth_blockNumber', () => rpc('eth_blockNumber', [])), 16);
+	const to = head - CONFIRMATIONS;
+	const from = parseInt(getMeta('last_block') || String(FROM_BLOCK - 1), 10) + 1;
+	let found = 0;
+	if (from > to) return { found, block: to };
+	let pageKey;
+	let pages = 0;
+	do {
+		const params = {
+			fromBlock: '0x' + from.toString(16), toBlock: '0x' + to.toString(16),
+			contractAddresses: [CONTRACT], category: ['erc1155'],
+			withMetadata: false, excludeZeroValue: false, maxCount: '0x3e8', order: 'asc',
+		};
+		if (pageKey) params.pageKey = pageKey;
+		const result = await withRetries('alchemy_getAssetTransfers', () => rpc('alchemy_getAssetTransfers', [params]));
+		const perBlock = new Map();
+		db.exec('BEGIN');
+		try {
+			for (const t of result.transfers || []) {
+				const block = parseInt(t.blockNum, 16);
+				// uniqueId is "<tx hash>:log:<log index>"
+				const m = /:log:(\d+)$/.exec(t.uniqueId || '');
+				let index;
+				if (m) index = parseInt(m[1], 10);
+				else { index = 100000 + (perBlock.get(block) || 0); perBlock.set(block, index - 99999); }
+				const fromAddr = (t.from || ZERO).toLowerCase();
+				const toAddr = (t.to || ZERO).toLowerCase();
+				(t.erc1155Metadata || []).forEach((item, n) => {
+					insertTransfer.run(block, index, n, t.hash, tokenHex(item.tokenId), fromAddr, toAddr);
+					found++;
+				});
+			}
+			db.exec('COMMIT');
+		} catch (e) {
+			db.exec('ROLLBACK');
+			throw e;
+		}
+		pageKey = result.pageKey;
+		pages++;
+		if (pages % 10 === 0) log(`transfers: ${pages} pages, ${found} so far`);
+		await sleep(100);
+	} while (pageKey);
+	setMeta('last_block', to);
+	return { found, block: to };
+}
+
+// Plain eth_getLogs, for any other endpoint
+async function readLogs() {
 	const head = parseInt(await withRetries('eth_blockNumber', () => rpc('eth_blockNumber', [])), 16);
 	const to = head - CONFIRMATIONS;
 	let from = parseInt(getMeta('last_block') || String(FROM_BLOCK - 1), 10) + 1;
@@ -337,7 +398,7 @@ async function run() {
 }
 
 const once = process.argv.includes('--once');
-log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN}, data in ${DIR}` +
+log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN} (${METHOD === 'transfers' ? 'alchemy_getAssetTransfers' : 'eth_getLogs'}), data in ${DIR}` +
 	(once ? '' : `, every ${EVERY_MS / 3600000} h`));
 
 for (;;) {

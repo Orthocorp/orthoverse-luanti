@@ -41,7 +41,7 @@ single(14300000, ZERO, dave, dave);                // Dave reveals; no land in t
 batch(14400000, bob, carol, [bob]);                // Bob sells his to Carol, in a batch
 const levels = { [alice]: 3n, [bob]: 9n, [dave]: 0n };
 
-let getLogsCalls = 0, refused = 0, historyExpired = false;
+let getLogsCalls = 0, refused = 0, historyExpired = false, transferPages = 0;
 const rpc = http.createServer((req, res) => {
 	let body = '';
 	req.on('data', c => body += c);
@@ -65,6 +65,25 @@ const rpc = http.createServer((req, res) => {
 						logIndex: '0x' + i.toString(16), transactionHash: '0x' + String(i).padStart(64, '0'), removed: false });
 				});
 				return { result: logs };
+			}
+			if (r.method === 'alchemy_getAssetTransfers') {
+				// Alchemy's transfers API, two transfers a page
+				const q = r.params[0];
+				const from = parseInt(q.fromBlock, 16), to = parseInt(q.toBlock, 16);
+				if (q.contractAddresses[0].toLowerCase() !== CONTRACT || q.category[0] !== 'erc1155') return { result: { transfers: [] } };
+				const all = [];
+				events.forEach((e, i) => {
+					if (e.block < from || e.block > to) return;
+					const [f, t, ids] = e.single ? [e.single[0], e.single[1], [e.single[2]]] : e.batch;
+					const hash = '0x' + String(i).padStart(64, '0');
+					all.push({ blockNum: '0x' + e.block.toString(16), uniqueId: `${hash}:log:${i}`, hash,
+						from: f, to: t, category: 'erc1155',
+						erc1155Metadata: ids.map(x => ({ tokenId: '0x' + x.toString(16).padStart(64, '0'), value: '0x1' })) });
+				});
+				const startAt = parseInt(q.pageKey || '0', 10);
+				const page = all.slice(startAt, startAt + 2);
+				transferPages++;
+				return { result: { transfers: page, ...(startAt + 2 < all.length ? { pageKey: String(startAt + 2) } : {}) } };
 			}
 			if (r.method === 'eth_call') {
 				const tx = abi.parseTransaction({ data: r.params[0].data });
@@ -171,6 +190,16 @@ try {
 	const owners = JSON.parse(readFileSync(join(dir, 'auth', 'owners.json'), 'utf8'));
 	check(/2 of 2 held as the chain index \(block \d+\) says/.test(r.out), 'auth: holders come from the chain index');
 	check(owners.owners[alice] === dave && owners.owners[bob] === carol, 'auth: owners.json has the current holders');
+	// Alchemy: the transfers API, a page at a time, from before V2
+	r = await runNode(['chain.js', '--once'], { OV_CHAIN_FROM_BLOCK: '', OV_CHAIN_METHOD: 'transfers', OV_CHAIN_DIR: join(dir, 'chain4') });
+	const t4 = JSON.parse(readFileSync(join(dir, 'chain4', 'tokens.json'), 'utf8'));
+	const t1 = JSON.parse(readFileSync(join(dir, 'chain', 'tokens.json'), 'utf8'));
+	check(r.code === 0 && transferPages >= 3 && /alchemy_getAssetTransfers/.test(r.out),
+		`transfers API: read in pages (${transferPages})`);
+	check(JSON.stringify(Object.keys(t4.tokens).sort().map(k => [k, t4.tokens[k].holder, t4.tokens[k].revealed])) ===
+		JSON.stringify(Object.keys(t1.tokens).sort().map(k => [k, t1.tokens[k].holder, t1.tokens[k].revealed])),
+		'transfers API: the same holders and reveal blocks as eth_getLogs, batch transfer included');
+
 	// A node without pre-Merge history: start from the 2023 snapshot at the Merge
 	historyExpired = true;
 	head = 15700000;
