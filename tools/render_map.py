@@ -115,21 +115,25 @@ def decode(blob, dctx):
     return param0, names
 
 
-def render(db, step=1, quiet=False, heights=False):
+def render(db, step=1, quiet=False, heights=False, area=None):
     """Top-down colour image of the map, north at the top.
 
     Returns (rgb uint8 array, x of the left column, z of the top row), in
     nodes. With step > 1, every step-th node in each direction is sampled.
     With heights=True, also the height of each column (int16, same shape).
+    With area=(bx0, bx1, bz0, bz1), in blocks (inclusive), only that area.
     """
     # Read in short queries: a long one holds a read lock on the database for
     # minutes, and a running server cannot save meanwhile ("database has been
     # locked ... giving up")
     con = sqlite3.connect(db, timeout=30)
     bylo, byhi = Y_LO >> 4, Y_HI >> 4
-    xmin, xmax, zmin, zmax = con.execute(
-        "SELECT min(x), max(x), min(z), max(z) FROM blocks WHERE y BETWEEN ? AND ?",
-        (bylo, byhi)).fetchone()
+    if area:
+        xmin, xmax, zmin, zmax = area
+    else:
+        xmin, xmax, zmin, zmax = con.execute(
+            "SELECT min(x), max(x), min(z), max(z) FROM blocks WHERE y BETWEEN ? AND ?",
+            (bylo, byhi)).fetchone()
     nx, nz = (xmax - xmin + 1) * 16, (zmax - zmin + 1) * 16
     top_y = np.full((nz, nx), -10_000, dtype=np.int16)
     top_name = np.zeros((nz, nx), dtype=np.uint16)
@@ -143,8 +147,9 @@ def render(db, step=1, quiet=False, heights=False):
         for y in range(byhi, bylo - 1, -1):
             for x0 in range(xmin, xmax + 1, 8):
                 rows = con.execute(
-                    "SELECT x, y, z, data FROM blocks WHERE y = ? AND x BETWEEN ? AND ?",
-                    (y, x0, x0 + 7)).fetchall()
+                    "SELECT x, y, z, data FROM blocks WHERE y = ? AND x BETWEEN ? AND ?"
+                    " AND z BETWEEN ? AND ?",
+                    (y, x0, min(x0 + 7, xmax), zmin, zmax)).fetchall()
                 yield from rows
                 time.sleep(0.02)
 

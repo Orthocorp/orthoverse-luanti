@@ -127,16 +127,14 @@ services:
       - ${OV_DATA}/chain:/chain:ro
     network_mode: none
 
-  # Redraws the web map and the token pictures when the game has made the
-  # terrain of new lands, and every night
+  # Every 5 minutes, draws again the map tiles, land pictures and token cards
+  # of the lands that have changed
   mapwatch:
     build:
       context: .
       dockerfile: docker/map/Dockerfile
     image: orthoverse/map
     command: ["watch"]
-    environment:
-      OV_MAP_HOUR: ${OV_MAP_HOUR:-3}
     user: "${OV_UID}:${OV_GID}"
     volumes:
       - ${OV_WORLD}:/world:ro

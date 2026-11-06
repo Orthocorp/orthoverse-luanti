@@ -1,31 +1,40 @@
 #!/bin/sh
-# Draw the map from /world/map.sqlite into /out (tiles/, lands/ and lands.json),
-# then swap the new ones in at once. Safe while the server runs: it only reads.
+# The web map, the land pictures and the token cards, from /world/map.sqlite
+# into /out. Safe while the server runs: it only reads, a little at a time.
 #
-#   make-map          draw now
-#   make-map watch    redraw whenever the game has made the terrain of new lands
-#                     (it writes /world/orthoverse_new_lands_made.json), checking
-#                     every 5 minutes, and every night at OV_MAP_HOUR (UTC, default
-#                     3), so that the token pictures show what holders have built
+#   make-map          draw everything (about 10 minutes): after the world has
+#                     been generated again, or the card design has changed
+#   make-map update   draw again only the lands that changed: blocks placed or
+#                     dug, lands made again or added (the game lists them in
+#                     /world/orthoverse_changed_lands.json), and cards whose
+#                     level or crest changed on the chain. Seconds per land
+#   make-map watch    update every 5 minutes (the mapwatch service)
+#
+# Each drawing of the tiles is its own folder, tiles/<version>/, named in
+# lands.json: the map page asks for that version's tiles, so a redraw shows at
+# once whatever Cloudflare or a browser has cached. An update makes a new
+# version out of hard links to the current one, so it costs next to nothing.
 set -eu
 OUT=/out
 TMP="$OUT/.new"
-NEW_LANDS=/chain/new-lands.json
-MADE=/world/orthoverse_new_lands_made.json
+ARGS="/world/map.sqlite /app/data/lands.json /chain/new-lands.json /chain/tokens.json /app/heraldry"
+CHANGES=/world/orthoverse_changed_lands.json
 
-draw() {
+check_world() {
 	if [ ! -f /world/map.sqlite ]; then
 		echo "No map in the world yet (/world/map.sqlite): generate it first." >&2
 		return 1
 	fi
-	# Each drawing goes in its own folder, tiles/<version>/, named in
-	# lands.json: the map page asks for that version's tiles, so a redraw shows
-	# at once whatever Cloudflare or a browser has cached
+}
+
+draw() {
+	check_world || return 1
 	version=$(date -u +%Y%m%d%H%M%S)
 	rm -rf "$TMP"
 	mkdir -p "$TMP" "$OUT/tiles"
-	MAP_VERSION="$version" python /app/web/map/make_tiles.py /world/map.sqlite /app/data/lands.json "$TMP" "$NEW_LANDS" \
-		/chain/tokens.json /app/heraldry "$OUT/cards"
+	# shellcheck disable=SC2086
+	MAP_VERSION="$version" CARDS_DIR="$OUT/cards" STATE_DIR="$OUT" \
+		python /app/web/map/make_tiles.py draw $ARGS "$TMP"
 	mv "$TMP/tiles" "$OUT/tiles/$version"
 	mv "$TMP/lands.json" "$OUT/lands.json"
 	rm -rf "$OUT/lands.old"
@@ -41,27 +50,21 @@ draw() {
 	echo "$(date -u +%FT%TZ) Map updated (version $version)."
 }
 
-if [ "${1:-}" != watch ]; then
-	draw
-	exit
-fi
+update() {
+	check_world || return 1
+	# shellcheck disable=SC2086
+	python /app/web/map/make_tiles.py update $ARGS "$OUT" "$CHANGES"
+}
 
-HOUR="${OV_MAP_HOUR:-3}"
-NIGHTLY="$OUT/.nightly"
-echo "$(date -u +%FT%TZ) Watching for new lands; redrawing every night at $HOUR:00 UTC."
-while :; do
-	today=$(date -u +%F)
-	if [ "$(date -u +%-H)" -eq "$HOUR" ] && [ "$(cat "$NIGHTLY" 2>/dev/null || true)" != "$today" ]; then
-		echo "$(date -u +%FT%TZ) Nightly redraw."
-		draw || true
-		echo "$today" > "$NIGHTLY"
-	fi
-	# Newer than the map, and quiet for 2 minutes (the server saves blocks
-	# every few seconds)
-	if [ -f "$MADE" ] && { [ ! -f "$OUT/lands.json" ] || [ "$MADE" -nt "$OUT/lands.json" ]; } \
-			&& [ $(( $(date +%s) - $(stat -c %Y "$MADE") )) -ge 120 ]; then
-		echo "$(date -u +%FT%TZ) New lands have their terrain: redrawing the map."
-		draw || true
-	fi
-	sleep 300
-done
+case "${1:-}" in
+	"") draw ;;
+	update) update ;;
+	watch)
+		echo "$(date -u +%FT%TZ) Watching for changed lands every 5 minutes."
+		while :; do
+			update || true
+			sleep 300
+		done
+		;;
+	*) echo "make-map [update | watch]" >&2; exit 2 ;;
+esac

@@ -155,13 +155,34 @@ def card(land_img, name, level, key, crest, token):
     return canvas
 
 
-def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir):
-    """lands: {"x:z": land} (lands.json and new lands; henges left out);
-    tokens: the chain service's tokens.json "tokens" (level and crest), or {}."""
+def card_inputs(land, tokens):
+    """The level and crest a land's card shows: from the chain index, or the
+    lands file until the chain service has run."""
+    t = tokens.get(land["token"].lower()) or {}
+    level = t["level"] if isinstance(t.get("level"), int) else int(land.get("level") or 0)
+    crest_n = t.get("crest")
+    if not isinstance(crest_n, int):
+        c = land.get("crest") or ""
+        crest_n = int(c[:-4]) if c.endswith(".png") and c[:-4].isdigit() else None
+    return level, crest_n
+
+
+def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir, update=False):
+    """lands: {"x:z": land}; tokens: the chain service's tokens.json "tokens"
+    (level and crest), or {}. With update=True only these lands' cards are
+    replaced; otherwise these are all the cards there are.
+
+    Returns (cards, written, removed, {key: [level, crest]} drawn)."""
     os.makedirs(out_dir, exist_ok=True)
     heraldry = Heraldry(heraldry_dir)
     h_img, w_img = heights.shape
+    index_path = os.path.join(out_dir, "index.json")
+    old_index = {}
+    if update and os.path.exists(index_path):
+        with open(index_path, encoding="utf-8") as f:
+            old_index = json.load(f)
     index = {}
+    drawn = {}
     written = 0
     for key, land in lands.items():
         lx, lz = (int(v) for v in key.split(":"))
@@ -170,12 +191,8 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
         if col < 0 or row < 0 or col + SIZE > w_img or row + SIZE > h_img:
             continue
         token = land["token"].lower()
-        t = tokens.get(token) or {}
-        level = t["level"] if isinstance(t.get("level"), int) else int(land.get("level") or 0)
-        crest_n = t.get("crest")
-        if not isinstance(crest_n, int):
-            c = land.get("crest") or ""
-            crest_n = int(c[:-4]) if c.endswith(".png") and c[:-4].isdigit() else None
+        level, crest_n = card_inputs(land, tokens)
+        drawn[key] = [level, crest_n]
         crest = heraldry.crest(crest_n, level % 8) if level % 8 > 0 else None
         iso = isometric(rgb[row:row + SIZE, col:col + SIZE], heights[row:row + SIZE, col:col + SIZE])
         img = card(iso, land["name"], level, key, crest, token)
@@ -190,14 +207,27 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
             os.replace(path + ".tmp", path)
             written += 1
         index[key] = name
+    removed = 0
+    if update:
+        # Only these lands' old cards go
+        stale = [old_index[k] for k in index if k in old_index and old_index[k] != index[k]]
+        old_index.update(index)
+        index = old_index
     tmp = os.path.join(out_dir, "index.json.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(index, f, separators=(",", ":"))
-    os.replace(tmp, os.path.join(out_dir, "index.json"))
-    keep = set(index.values()) | {"index.json"}
-    removed = 0
-    for f in os.listdir(out_dir):
-        if f not in keep and f.endswith(".png"):
-            os.remove(os.path.join(out_dir, f))
-            removed += 1
-    return len(index), written, removed
+    os.replace(tmp, index_path)
+    if update:
+        for f in stale:
+            try:
+                os.remove(os.path.join(out_dir, f))
+                removed += 1
+            except FileNotFoundError:
+                pass
+    else:
+        keep = set(index.values()) | {"index.json"}
+        for f in os.listdir(out_dir):
+            if f not in keep and f.endswith(".png"):
+                os.remove(os.path.join(out_dir, f))
+                removed += 1
+    return len(index), written, removed, drawn

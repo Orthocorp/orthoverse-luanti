@@ -42,8 +42,9 @@ core.ipc_set("orthoverse:lands_path", modpath)
 -- Written by the chain service (OV_DATA/chain, mounted into the world folder)
 local NEW_LANDS = core.get_worldpath() .. "/orthoverse_chain/new-lands.json"
 local LAND_LEVELS = core.get_worldpath() .. "/orthoverse_chain/land-levels.json"
--- Which new lands have their terrain, for the web map's redraw
-local MADE_FILE = core.get_worldpath() .. "/orthoverse_new_lands_made.json"
+-- The lands that have changed, and when, for the web map and the token cards
+-- (the map service draws those again)
+local CHANGED_FILE = core.get_worldpath() .. "/orthoverse_changed_lands.json"
 local storage = core.get_mod_storage()
 
 -- {key = time} of the new lands whose terrain has been made
@@ -113,14 +114,45 @@ local function is_sea(lx, lz)
 		and not orthoverse.lands[key] and not orthoverse.henges[key]
 end
 
-local function record_made()
-	local made = made_lands()
-	local f = io.open(MADE_FILE .. ".tmp", "w")
-	if not f then return end
-	f:write(core.write_json({ updated = os.time(), lands = made }))
+-- {key = time of the last change}: blocks placed or dug, lands made again or
+-- added (and the sea around them), written out every 30 seconds
+local changed = (function()
+	local f = io.open(CHANGED_FILE, "r")
+	if not f then return {} end
+	local raw = f:read("*a")
 	f:close()
-	os.rename(MADE_FILE .. ".tmp", MADE_FILE)
+	local ok, parsed = pcall(core.parse_json, raw)
+	return ok and type(parsed) == "table" and type(parsed.lands) == "table" and parsed.lands or {}
+end)()
+local changes_unsaved = false
+
+local function note_changed(lx, lz)
+	if math.max(math.abs(lx), math.abs(lz)) > C.MAP_RADIUS then return end
+	changed[C.key(lx, lz)] = os.time()
+	changes_unsaved = true
 end
+
+local function write_changes()
+	if not changes_unsaved then return end
+	local f = io.open(CHANGED_FILE .. ".tmp", "w")
+	if not f then return end
+	f:write(core.write_json({ updated = os.time(), lands = changed }))
+	f:close()
+	os.rename(CHANGED_FILE .. ".tmp", CHANGED_FILE)
+	changes_unsaved = false
+end
+local function save_changes()
+	write_changes()
+	core.after(30, save_changes)
+end
+core.after(30, save_changes)
+core.register_on_shutdown(write_changes)
+
+local function note_node(pos)
+	note_changed(C.land_of(pos.x, pos.z))
+end
+core.register_on_placenode(note_node)
+core.register_on_dignode(note_node)
 
 local pending = {}   -- new lands whose terrain is being made
 
@@ -161,7 +193,7 @@ local function make_terrain(key)
 				storage:set_string("made", core.write_json(made))
 				made_level[key] = orthoverse.lands[key].level
 				storage:set_string("levels", core.write_json(made_level))
-				record_made()
+				for _, c2 in ipairs(cells) do note_changed(c2[1], c2[2]) end
 				pending[key] = nil
 				core.log("action", ("[orthoverse_lands] terrain made for new land %s (%s)")
 					:format(orthoverse.lands[key].name, key))
@@ -191,11 +223,8 @@ local function pump()
 			storage:set_string("levels", core.write_json(made_level))
 			core.log("action", ("[orthoverse_lands] %s (%s) made again at level %d")
 				:format(land.name, key, level))
-			if remaking == 0 and #remake_queue == 0 then
-				record_made()   -- the web map redraws
-			else
-				pump()
-			end
+			note_changed(tonumber(lx), tonumber(lz))
+			pump()
 		end)
 	end
 end

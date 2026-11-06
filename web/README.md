@@ -122,8 +122,13 @@ Pictures:
   are coloured as on the map: natural ones from the palette in
   `tools/render_map.py`, everything else (what players build with) from the
   average colour of its texture, worked out when the map image is built
-  (`tools/texture_colours.py`). The map service draws them whenever it draws the
-  map, and mapwatch every night (`OV_MAP_HOUR`, UTC), to `OV_DATA/map/cards/`,
+  (`tools/texture_colours.py`). The map service draws them all when it draws the
+  whole map, and mapwatch every 5 minutes draws again those of lands that
+  changed: the game lists the lands where blocks were placed or dug, or that
+  were made again or added (`orthoverse_changed_lands.json` in the world), and
+  a card is also drawn again when its level or crest changes on the chain. A
+  land is drawn again a minute after the last change to it. They go to
+  `OV_DATA/map/cards/`,
   each named after its content, so a changed picture gets a new address and
   marketplaces fetch it again; `cards/index.json` says which is current.
 - A token with no land to draw (revealed but not placed yet, or unrevealed) gets
@@ -166,6 +171,7 @@ brings it to the internet.
 Map tiles are in a folder per drawing of the map (`/map/tiles/<version>/`),
 and `lands.json` (never cached) names the current one, so a redrawn map shows at
 once and tiles can be cached for good; the previous drawing is kept for pages
-loaded a moment before.
+loaded a moment before. When only some lands are drawn again, the new version
+is made of hard links to the current one, with just their tiles replaced.
 
 WebSockets work through the tunnel with no extra settings.
