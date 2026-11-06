@@ -29,6 +29,8 @@ First rough version of the world:
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
   cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
   forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
+- The minimap for everyone, shown from the moment they join (no mapping kit needed);
+  V cycles through close, wide and off. The radar (caves) is for the admin only.
 
 Not yet: natural-looking terrain, real castle schematics.
 
@@ -40,6 +42,7 @@ mods/mtg/                    Minetest Game mods, vendored by tools/assemble.sh
 mods/animals/                Animalia and Creatura (animals), vendored by tools/assemble-animals.sh
 mods/orthoverse_animals/     which animals spawn where in the Orthoverse
 mods/orthoverse_skins/       player skins and the Skin tab
+mods/orthoverse_minimap/     the minimap for every player, on when they join
 mods/orthoverse_wallets/     who may join (wallet players, guests) and who may build where
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
 mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen threads)
