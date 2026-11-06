@@ -27,6 +27,9 @@ import { Interface } from 'ethers';
 
 const env = process.env;
 const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
+// The endpoint's host only: keyed endpoints (Alchemy, Infura) carry the API
+// key in the path, which must not reach logs or the public status page
+const RPC_SHOWN = (() => { try { return new URL(RPC_URL).host; } catch (e) { return '(endpoint)'; } })();
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
 const DIR = env.OV_CHAIN_DIR || '/chain';
 const LANDS_FILE = env.OV_LANDS || '/app/lands.json';
@@ -71,6 +74,11 @@ function writeJsonAtomic(path, value, indent) {
 // ---------------------------------------------------------------------------
 // JSON-RPC
 
+// What the endpoint said when it refused, briefly
+async function reason(res) {
+	try { return (await res.text()).replace(/\s+/g, ' ').trim().slice(0, 200); } catch (e) { return ''; }
+}
+
 let rpcId = 0;
 async function rpc(method, params) {
 	const res = await fetch(RPC_URL, {
@@ -79,7 +87,7 @@ async function rpc(method, params) {
 		body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
 		signal: AbortSignal.timeout(60000),
 	});
-	if (!res.ok) throw new Error(`${method}: HTTP ${res.status}`);
+	if (!res.ok) throw new Error(`${method}: HTTP ${res.status} ${await reason(res)}`);
 	const out = await res.json();
 	if (out.error) throw new Error(`${method}: ${out.error.message || JSON.stringify(out.error)}`);
 	return out.result;
@@ -93,7 +101,7 @@ async function rpcBatch(method, paramsList) {
 		body: JSON.stringify(body),
 		signal: AbortSignal.timeout(60000),
 	});
-	if (!res.ok) throw new Error(`${method} batch: HTTP ${res.status}`);
+	if (!res.ok) throw new Error(`${method} batch: HTTP ${res.status} ${await reason(res)}`);
 	const out = await res.json();
 	if (!Array.isArray(out)) throw new Error(`${method} batch: ${JSON.stringify(out).slice(0, 200)}`);
 	const byId = new Map(out.map(r => [r.id, r]));
@@ -329,7 +337,7 @@ async function run() {
 }
 
 const once = process.argv.includes('--once');
-log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_URL}, data in ${DIR}` +
+log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN}, data in ${DIR}` +
 	(once ? '' : `, every ${EVERY_MS / 3600000} h`));
 
 for (;;) {

@@ -38,6 +38,9 @@ const DATA_DIR = env.OV_DATA_DIR || '/data';
 const AUTH_DB = env.OV_AUTH_DB || '/world/auth.sqlite';
 const LANDS_FILE = env.OV_LANDS || '/app/lands.json';
 const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
+// The endpoint's host only: keyed endpoints (Alchemy, Infura) carry the API
+// key in the path, which must not reach logs or the public status page
+const RPC_SHOWN = (() => { try { return new URL(RPC_URL).host; } catch (e) { return '(endpoint)'; } })();
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
 const CHAIN_TOKENS = env.OV_CHAIN_TOKENS || '/chain/tokens.json';
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
@@ -182,7 +185,11 @@ async function rpcBatch(calls) {
 		body: JSON.stringify(body),
 		signal: AbortSignal.timeout(30000),
 	});
-	if (!res.ok) throw new Error('RPC HTTP ' + res.status);
+	if (!res.ok) {
+		let why = '';
+		try { why = (await res.text()).replace(/\s+/g, ' ').trim().slice(0, 200); } catch (e) { /* none */ }
+		throw new Error('RPC HTTP ' + res.status + ' ' + why);
+	}
 	const out = await res.json();
 	if (!Array.isArray(out)) throw new Error('RPC answered a batch with ' + JSON.stringify(out).slice(0, 200));
 	const byId = new Map(out.map(r => [r.id, r]));
@@ -255,7 +262,7 @@ async function refreshOwners() {
 	ownersError = null;
 	const source = index.holders ? `the chain index (block ${index.block})` : 'the 2023 snapshot';
 	log(`owners updated: ${byPlayers} lands held by ${wallets.length} player wallets; ` +
-		`${byKnown} of ${lands.length} held as ${source} says, from ${RPC_URL}`);
+		`${byKnown} of ${lands.length} held as ${source} says, from ${RPC_SHOWN}`);
 	if (byKnown === 0 && lands.length > 100) {
 		log('warning: no land is held by its known holder: is OV_CONTRACT the Orthoverse contract?');
 	}
@@ -527,7 +534,7 @@ const routes = {
 			lands: lands.length,
 			ownersUpdated: owners ? owners.updated : null,
 			ownersError,
-			rpc: RPC_URL,
+			rpc: RPC_SHOWN,
 			contract: CONTRACT,
 		});
 	},
@@ -547,7 +554,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
 	log(`Orthoverse auth on http://${HOST}:${PORT}: ${lands.length} lands, ` +
-		`${Object.keys(registry.players).length} players, contract ${CONTRACT} via ${RPC_URL}`);
+		`${Object.keys(registry.players).length} players, contract ${CONTRACT} via ${RPC_SHOWN}`);
 	checkContract().then(ownersLoop);
 });
 
