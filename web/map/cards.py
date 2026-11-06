@@ -104,6 +104,20 @@ class Heraldry:
         return img
 
 
+# The Midnight font (Lords of Midnight, TrueType conversion by Simon
+# Holdsworth): 8 x 8 pixels, crisp at multiples of 8 pixels
+FONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "midnight.ttf")
+
+
+def fitting(draw, texts, room, sizes):
+    """The largest of sizes at which every text fits in room pixels."""
+    for size in sizes:
+        font = ImageFont.truetype(FONT, size)
+        if all(draw.textlength(t, font=font) <= room for t in texts):
+            return font
+    return ImageFont.truetype(FONT, sizes[-1])
+
+
 def card(land_img, name, level, key, crest, token):
     realm = FUTURISTIC if level >= 8 else FANTASY
     bg, banner = (rgb_of(c) for c in realm[int(token[-2:], 16) % len(realm)])
@@ -119,16 +133,17 @@ def card(land_img, name, level, key, crest, token):
         canvas.paste(big, (28, 8), big)
         text_x = 28 + big.width + 24
     dark = (20, 20, 24)
-    big_font = ImageFont.load_default(size=52)
-    small_font = ImageFont.load_default(size=26)
-    size = 52
-    while draw.textlength(name, font=big_font) > CARD - text_x - 24 and size > 24:
-        size -= 4
-        big_font = ImageFont.load_default(size=size)
-    draw.text((text_x, 28), name, fill=dark, font=big_font)
+    draw.fontmode = "1"     # the font's pixels as they are, no smoothing
+    room = CARD - text_x - 24
     realm_name = "futuristic" if level >= 8 else "fantasy"
-    draw.text((text_x, 98), "%s of the %s realm  ·  %s" % (TITLES[level] if level < 16 else "Land", realm_name, key),
-              fill=dark, font=small_font)
+    lines = ["%s of the %s realm" % (TITLES[level] if level < 16 else "Land", realm_name), "Land " + key]
+    name_font = fitting(draw, [name], room, (48, 40, 32, 24, 16))
+    small_font = fitting(draw, lines, room, (24, 16, 8))
+    draw.text((text_x, 22), name, fill=dark, font=name_font)
+    y = 22 + name_font.size + 18
+    for line in lines:
+        draw.text((text_x, y), line, fill=dark, font=small_font)
+        y += small_font.size + 8
 
     # The land, as large as fits below the banner
     room_w, room_h = CARD - 32, CARD - 156 - 32

@@ -117,7 +117,8 @@ Pictures:
   isometrically from the world itself, with whatever its holder has built, on
   the old pictures' background colour for its realm, under a banner with its
   crest (a baron's cap at castle level 4, a coronet at 5 and 6, a crown at 7),
-  name, title and coordinates. The map service draws them whenever it draws the
+  name, title and coordinates, in the Midnight font (`web/map/fonts/`, the Lords
+  of Midnight 8 x 8 font, at multiples of 8 pixels so it stays sharp). The map service draws them whenever it draws the
   map, and mapwatch every night (`OV_MAP_HOUR`, UTC), to `OV_DATA/map/cards/`,
   each named after its content, so a changed picture gets a new address and
   marketplaces fetch it again; `cards/index.json` says which is current.
