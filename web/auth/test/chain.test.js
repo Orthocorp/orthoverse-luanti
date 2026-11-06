@@ -176,6 +176,8 @@ try {
 		'the log sums up tokens, holders and new lands');
 	const nl0 = JSON.parse(readFileSync(join(dir, 'chain', 'new-lands.json'), 'utf8')).lands;
 	check(nl0['0:0'] && nl0['0:0'].token === dave, 'a token without land gets one: the first free cell of the spiral');
+	const ll = JSON.parse(readFileSync(join(dir, 'chain', 'land-levels.json'), 'utf8')).levels;
+	check(ll['1:1'] === 3 && ll['2:2'] === 9 && ll['0:0'] === 0, 'land-levels.json: every land\'s current level, new lands included');
 	const old = JSON.parse(readFileSync(join(dir, 'chain', 'token-data.json'), 'utf8'));
 	check(old.length === 3 && old.some(t => t[0] === carol && t[1] === '3' && t[2] === alice && t[3] === '14100000'),
 		'token-data.json in the old [holder, level, tokenId, block] format');

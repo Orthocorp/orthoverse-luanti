@@ -1,6 +1,8 @@
 -- orthoverse_lands: loads the frozen land table and shares it with the mapgen threads.
 -- Lands placed later for newly revealed tokens (the chain service's
 -- new-lands.json) are added while the server runs, and their terrain is made.
+-- Lands are built from their current castle level (the chain service's
+-- land-levels.json); a land whose level changes is made again.
 
 local modpath = core.get_modpath(core.get_current_modname())
 
@@ -39,6 +41,7 @@ core.ipc_set("orthoverse:lands_path", modpath)
 
 -- Written by the chain service (OV_DATA/chain, mounted into the world folder)
 local NEW_LANDS = core.get_worldpath() .. "/orthoverse_chain/new-lands.json"
+local LAND_LEVELS = core.get_worldpath() .. "/orthoverse_chain/land-levels.json"
 -- Which new lands have their terrain, for the web map's redraw
 local MADE_FILE = core.get_worldpath() .. "/orthoverse_new_lands_made.json"
 local storage = core.get_mod_storage()
@@ -49,17 +52,23 @@ local function made_lands()
 	return s ~= "" and core.parse_json(s) or {}
 end
 
-local function read_new_lands()
-	local f = io.open(NEW_LANDS, "r")
+-- A table field of a JSON file from the chain service, or {} if it is not
+-- there (yet) or does not parse
+local function read_chain(path, field)
+	local f = io.open(path, "r")
 	if not f then return {} end
 	local raw = f:read("*a")
 	f:close()
 	local ok, parsed = pcall(core.parse_json, raw)
-	if not ok or type(parsed) ~= "table" or type(parsed.lands) ~= "table" then
-		core.log("warning", "[orthoverse_lands] new-lands.json did not parse; trying again later")
+	if not ok or type(parsed) ~= "table" or type(parsed[field]) ~= "table" then
+		core.log("warning", "[orthoverse_lands] " .. path .. " did not parse; trying again later")
 		return {}
 	end
-	return parsed.lands
+	return parsed[field]
+end
+
+local function read_new_lands()
+	return read_chain(NEW_LANDS, "lands")
 end
 
 local function valid(key, land)
@@ -115,6 +124,18 @@ end
 
 local pending = {}   -- new lands whose terrain is being made
 
+-- The castle level each land's terrain was last made with: the fixed lands
+-- were made with their level in lands.json, until made again
+local made_level = (function()
+	local s = storage:get_string("levels")
+	return s ~= "" and core.parse_json(s) or {}
+end)()
+local fixed_level = {}
+for key, land in pairs(data.lands) do fixed_level[key] = tonumber(land.level) or 0 end
+local function level_made(key)
+	return made_level[key] or fixed_level[key]
+end
+
 local function make_terrain(key)
 	pending[key] = true
 	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
@@ -138,6 +159,8 @@ local function make_terrain(key)
 				local made = made_lands()
 				made[key] = os.time()
 				storage:set_string("made", core.write_json(made))
+				made_level[key] = orthoverse.lands[key].level
+				storage:set_string("levels", core.write_json(made_level))
 				record_made()
 				pending[key] = nil
 				core.log("action", ("[orthoverse_lands] terrain made for new land %s (%s)")
@@ -147,11 +170,74 @@ local function make_terrain(key)
 	end
 end
 
+-- Lands whose level changed: made again, a few at a time
+local remake_queue, remaking, queued = {}, 0, {}
+local REMAKE_AT_ONCE = 4
+
+local function pump()
+	while remaking < REMAKE_AT_ONCE and #remake_queue > 0 do
+		local key = table.remove(remake_queue, 1)
+		local land = orthoverse.lands[key]
+		local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+		local p1, p2 = regen_area(tonumber(lx), tonumber(lz))
+		local level = land.level
+		remaking = remaking + 1
+		core.delete_area(p1, p2)
+		core.emerge_area(p1, p2, function(_, _, remaining)
+			if remaining > 0 then return end
+			remaking = remaking - 1
+			queued[key] = nil
+			made_level[key] = level
+			storage:set_string("levels", core.write_json(made_level))
+			core.log("action", ("[orthoverse_lands] %s (%s) made again at level %d")
+				:format(land.name, key, level))
+			if remaking == 0 and #remake_queue == 0 then
+				record_made()   -- the web map redraws
+			else
+				pump()
+			end
+		end)
+	end
+end
+
+-- Take the current levels; returns the keys whose level changed
+local function update_levels()
+	local changed = {}
+	for key, level in pairs(read_chain(LAND_LEVELS, "levels")) do
+		local land = orthoverse.lands[key]
+		level = tonumber(level)
+		if land and not orthoverse.henges[key] and level and level >= 0 and level < 16
+				and level ~= land.level then
+			core.log("action", ("[orthoverse_lands] %s (%s): level %d -> %d")
+				:format(land.name, key, land.level, level))
+			land.level = level
+			changed[#changed + 1] = key
+		end
+	end
+	return changed
+end
+
+local function remake_changed()
+	local made = made_lands()
+	for key, land in pairs(orthoverse.lands) do
+		-- (new lands not made yet are made below, with their current level)
+		local known = data.lands_fixed[key] or made[key]
+		if known and not orthoverse.henges[key] and not queued[key] and not pending[key]
+				and level_made(key) ~= land.level then
+			queued[key] = true
+			remake_queue[#remake_queue + 1] = key
+		end
+	end
+	pump()
+end
+
 local function check_new_lands()
 	local added = add_new_lands()
-	if #added > 0 then
+	local changed = update_levels()
+	if #added > 0 or #changed > 0 then
 		publish()
 	end
+	remake_changed()
 	-- Terrain for every new land that does not have it yet (also after a
 	-- restart part-way)
 	local made = made_lands()
@@ -168,6 +254,7 @@ data.lands_fixed = {}
 for key in pairs(data.lands) do data.lands_fixed[key] = true end
 
 add_new_lands()
+update_levels()
 publish()
 
 -- Terrain is made once the server runs (emerging needs the map); then every

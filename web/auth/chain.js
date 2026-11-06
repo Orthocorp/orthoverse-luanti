@@ -14,6 +14,8 @@
 //   orthoverse-chain.sqlite  tables tokens, transfers (since FROM_BLOCK) and meta
 //   tokens.json              { updated, block, contract, tokens: { id: {holder, level, realm, revealed} } }
 //   token-data.json          the old format: [[holder, level, tokenId, revealBlock], ...]
+//   land-levels.json         every land's current castle level: { levels: { "x:z": level } },
+//                            which the game builds the lands from
 //   new-lands.json           lands placed for tokens revealed after the world's lands
 //                            were fixed: { updated, lands: { "x:z": land } }, read by
 //                            the game, the auth service and the web map
@@ -201,7 +203,7 @@ const insertTransfer = db.prepare(`INSERT OR IGNORE INTO transfers
 	(block, log_index, item, tx, token_id, from_addr, to_addr) VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
 // The world's fixed lands (keys and names), its planned seas, and its radius
-const world = { keys: new Set(), names: new Set(), seas: new Set(), radius: 56, crests: new Map() };
+const world = { keys: new Set(), names: new Set(), seas: new Set(), radius: 56, crests: new Map(), keyOf: new Map() };
 
 // Land tokens, and their holders in the April 2023 snapshot
 const landTokens = (() => {
@@ -210,6 +212,7 @@ const landTokens = (() => {
 		for (const [key, l] of Object.entries(data.lands)) {
 			world.keys.add(key);
 			world.names.add(l.name);
+			if (l.token) world.keyOf.set(l.token.toLowerCase(), key);
 			const m = /^(\d+)\.png$/.exec(l.crest || '');
 			if (m && l.token) world.crests.set(l.token.toLowerCase(), parseInt(m[1], 10));
 		}
@@ -499,6 +502,15 @@ function writeNewLands() {
 		};
 	}
 	writeJsonAtomic(join(DIR, 'new-lands.json'), { format: 1, updated: new Date().toISOString(), lands }, 1);
+
+	// Every land's current level, fixed lands and new ones
+	const levels = {};
+	for (const r of db.prepare('SELECT token_id, level FROM tokens WHERE level IS NOT NULL').all()) {
+		const key = world.keyOf.get(r.token_id);
+		if (key) levels[key] = r.level;
+	}
+	for (const r of rows) if (r.level != null) levels[r.land_key] = r.level;
+	writeJsonAtomic(join(DIR, 'land-levels.json'), { format: 1, updated: new Date().toISOString(), levels });
 	return rows.length;
 }
 

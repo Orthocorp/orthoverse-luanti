@@ -91,6 +91,16 @@ by itself:
 3. The auth service adds it within 10 minutes, so its holder can build there.
 4. `mapwatch` redraws the web map a few minutes later.
 
+### Castle levels
+
+Lands are built from their current castle level, not the 2023 one in
+`lands.json`: the `chain` service writes every land's level to
+`OV_DATA/chain/land-levels.json` each day, and the game, checking every minute,
+makes a land again when its level has changed (a castle built up, or the realm
+flipped), four at a time (`docker compose logs luanti | grep "made again"`).
+Only that land's mapchunk is made again; anything built on it is lost, so tell
+holders that upgrading a castle or flipping the realm rebuilds the land.
+
 ### The admin and privileges
 
 The admin is a wallet player: sign in with your wallet on the play page, choose
