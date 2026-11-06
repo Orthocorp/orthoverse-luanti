@@ -52,7 +52,7 @@ services:
     depends_on: [luanti]
 
   # Wallet sign-in, player names, and land owners from the Ethereum contract.
-  # The only service that reaches the internet (an Ethereum RPC endpoint).
+  # With chain, the only services that reach the internet (an Ethereum RPC endpoint).
   auth:
     build:
       context: .
@@ -63,10 +63,33 @@ services:
       OV_AUTH_SECRET: ${OV_AUTH_SECRET:?set OV_AUTH_SECRET in .env (openssl rand -hex 32)}
       OV_ETH_RPC: ${OV_ETH_RPC:-https://ethereum-rpc.publicnode.com}
       OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
+      OV_CHAIN_TOKENS: /chain/tokens.json
     volumes:
       - ${OV_DATA}/auth:/data
       - ${OV_WORLD}:/world:ro
+      # Who holds every token, from the chain service
+      - ${OV_DATA}/chain:/chain:ro
     networks: [web]
+    read_only: true
+    restart: unless-stopped
+
+  # Every Orthoverse token, its holder, castle level and realm, read from the
+  # contract's events once a day into OV_DATA/chain (orthoverse-chain.sqlite,
+  # tokens.json, token-data.json). Index now: docker compose restart chain
+  chain:
+    build:
+      context: .
+      dockerfile: docker/auth/Dockerfile
+    image: orthoverse/auth
+    command: ["node", "chain.js"]
+    user: "${OV_UID}:${OV_GID}"
+    environment:
+      OV_ETH_RPC: ${OV_ETH_RPC:-https://ethereum-rpc.publicnode.com}
+      OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
+      OV_CHAIN_EVERY_HOURS: ${OV_CHAIN_EVERY_HOURS:-24}
+    volumes:
+      - ${OV_DATA}/chain:/chain
+    networks: [outside]
     read_only: true
     restart: unless-stopped
 
@@ -115,3 +138,5 @@ networks:
   game:
     internal: true
   web: {}
+  # The chain indexer's way to the RPC endpoint; nothing else is on it
+  outside: {}

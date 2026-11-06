@@ -16,7 +16,7 @@ browser ── https://orthoverse.land ──► Cloudflare tunnel (host) ──
   │  client  on demand: builds and installs the browser game                │
   └──────────────────────────────────────────────────────────────────────────┘
        world: /mnt/ethereum/orthoverse/luanti/worlds/orthoverse (plain files)
-       data:  /mnt/ethereum/orthoverse/data/{map,play}
+       data:  /mnt/ethereum/orthoverse/data/{map,play,auth,chain}
 ```
 
 The game server publishes no port, so the web proxy is the only way in, and the
@@ -26,7 +26,8 @@ The game server publishes no port, so the web proxy is the only way in, and the
 | --- | --- | --- |
 | `luanti` | `docker/luanti/` | Luanti 5.18.0 server with static LuaJIT, the Orthoverse game; settings in `docker/luanti/orthoverse.conf` |
 | `proxy` | `docker/proxy/` | `web/proxy/proxy.js` |
-| `auth` | `docker/auth/` | Wallet sign-in, player names, land owners from the Ethereum contract; the only service with internet access |
+| `auth` | `docker/auth/` | Wallet sign-in, player names, which player's wallet holds which land |
+| `chain` | `docker/auth/` | Once a day: every token, its holder, castle level and realm, from the contract (`web/auth/chain.js`) |
 | `web` | `docker/web/` | nginx with the landing and map pages; serves the map tiles and the browser game from `data/` |
 | `map` | `docker/map/` | `docker compose run --rm --build map` redraws the map (about 4 minutes) |
 | `client` | `docker/client/` | Builds luanti-wasm with `web/client/patches/` and installs it with `play.html` |
@@ -87,9 +88,21 @@ fast with J and noclip with H.
 - `curl -s http://127.0.0.1:8485/auth/status` shows how many players are signed
   up, when land ownership was last read, and any error reading it.
 - `docker compose logs auth` shows sign-ins, new names and each ownership update:
-  `owners updated: N lands held by W player wallets; M of 1943 still with their
-  2023 owner`. M should be in the hundreds; 0 means `OV_CONTRACT` or the RPC
-  endpoint is wrong.
+  `owners updated: N lands held by W player wallets; M of 1943 held as the chain
+  index says`. M should be nearly all of them (before the chain service's first
+  run it compares with the 2023 snapshot instead); 0 means `OV_CONTRACT` or the
+  RPC endpoint is wrong.
+- Each day the `chain` service reads the contract's new transfer events and every
+  castle level into `OV_DATA/chain/`: `orthoverse-chain.sqlite` (tables `tokens`,
+  `transfers`, `meta`), `tokens.json`, and `token-data.json` in the format of the
+  old `scrape-tokenids-and-levels.js` (`[holder, level, tokenId, revealBlock]`).
+  The first run reads the whole history since 2022 and takes some minutes; later
+  runs read only the new blocks. `docker compose logs chain` shows each run
+  (`chain indexed to block ...`), and `docker compose restart chain` runs it now.
+  The auth service checks each land's indexed holder, so `/whereami` names the
+  real holder. Levels 0 to 7 are the fantasy realm, 8 to 15 the futuristic one.
+  To look at the data: `sqlite3 /mnt/ethereum/orthoverse/data/chain/orthoverse-chain.sqlite
+  "SELECT holder, count(*) FROM tokens GROUP BY holder ORDER BY 2 DESC LIMIT 10"`.
 - Player names and wallets are in `OV_DATA/auth/registry.json`. Back it up with the
   world: without it, wallet players cannot join as their players.
 

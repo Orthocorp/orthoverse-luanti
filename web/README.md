@@ -25,7 +25,7 @@ need no port forwarding on the router.
 | Directory | Contents | Image |
 | --- | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
-| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`), and `test/auth.test.js` | `auth` |
+| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`); `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
 | `web/map/make_tiles.py` | Map tiles and the land list, from the world database | `map` |
 | `web/client/play.html` | The Orthoverse play page | `client` |
@@ -69,8 +69,11 @@ land, whose ID is the address that revealed it. An ERC-1155 cannot say who holds
 token, only whether a given wallet does (`balanceOf`, here always 0 or 1). So every
 10 minutes the auth service asks, with `balanceOfBatch` through a public RPC
 endpoint (`OV_ETH_RPC`), whether each player's wallet holds each land, and whether
-each land's 2023 owner (`owner_snapshot` in the lands file) still does, and writes
-`owners.json`. A land held by anyone else is "not held by a player here", and nobody
+each land's known holder still does, and writes `owners.json`. The known holder
+comes from the daily chain index (`web/auth/chain.js`, the `chain` service, which
+replays the contract's TransferSingle and TransferBatch events and reads every
+`castleLevel`), or before its first run from the 2023 snapshot (`owner_snapshot`
+in the lands file). A land held by anyone else is "not held by a player here", and nobody
 can build on it. A sale moves building rights within 10 minutes, and a wallet's
 lands are looked up at once when it signs in. If the endpoint is down, the last
 good list is kept. Check it with `curl -s http://127.0.0.1:8485/auth/status`.

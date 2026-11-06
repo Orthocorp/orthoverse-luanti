@@ -39,6 +39,7 @@ const AUTH_DB = env.OV_AUTH_DB || '/world/auth.sqlite';
 const LANDS_FILE = env.OV_LANDS || '/app/lands.json';
 const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
+const CHAIN_TOKENS = env.OV_CHAIN_TOKENS || '/chain/tokens.json';
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
 const CHAIN_ID = 1;
 
@@ -164,9 +165,10 @@ let ownersError = null;
 // the address that revealed it. ERC-1155 cannot say who holds a token, only
 // whether a given wallet does (balanceOf, here always 0 or 1). So for every
 // land we ask about the wallets that matter: every signed-up player's wallet,
-// and the land's owner in the April 2023 snapshot (which also shows at a glance
-// that the contract and token IDs are right). A land held by anyone else is
-// recorded as null: not held by a player.
+// and the land's known holder: from the daily chain index (chain.js,
+// tokens.json) when there is one, otherwise the owner in the April 2023
+// snapshot. That also shows at a glance that the contract and token IDs are
+// right. A land held by anyone else is recorded as null.
 const erc1155 = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
@@ -218,19 +220,32 @@ async function balances(pairs) {
 // who has not chosen a name yet
 const watched = new Set(Object.values(registry.players).map(p => p.address.toLowerCase()));
 
+// The holder of each token according to the daily chain index, if it has run
+function indexedHolders() {
+	const data = readJson(CHAIN_TOKENS, null);
+	if (!data || !data.tokens) return { holders: null, block: null };
+	const holders = new Map();
+	for (const [id, t] of Object.entries(data.tokens)) {
+		if (t && typeof t.holder === 'string') holders.set(id.toLowerCase(), t.holder.toLowerCase());
+	}
+	return { holders, block: data.block };
+}
+
 async function refreshOwners() {
 	const wallets = [...watched];
+	const index = indexedHolders();
+	const known = l => (index.holders ? index.holders.get(l.token) : l.snapshot) || null;
 	const pairs = [];
 	for (const l of lands) {
-		if (l.snapshot) pairs.push([l.snapshot, l.token]);
+		if (known(l)) pairs.push([known(l), l.token]);
 		for (const w of wallets) pairs.push([w, l.token]);
 	}
 	const held = await balances(pairs);
 	const result = {};
-	let k = 0, byPlayers = 0, bySnapshot = 0;
+	let k = 0, byPlayers = 0, byKnown = 0;
 	for (const l of lands) {
 		let holder = null;
-		if (l.snapshot && held[k++]) { holder = l.snapshot; bySnapshot++; }
+		if (known(l) && held[k++]) { holder = known(l); byKnown++; }
 		for (const w of wallets) if (held[k++]) holder = w;
 		if (holder && watched.has(holder)) byPlayers++;
 		result[l.token] = holder;
@@ -238,10 +253,11 @@ async function refreshOwners() {
 	owners = { updated: new Date().toISOString(), contract: CONTRACT, owners: result };
 	writeJsonAtomic(OWNERS_FILE, owners);
 	ownersError = null;
+	const source = index.holders ? `the chain index (block ${index.block})` : 'the 2023 snapshot';
 	log(`owners updated: ${byPlayers} lands held by ${wallets.length} player wallets; ` +
-		`${bySnapshot} of ${lands.length} still with their 2023 owner, from ${RPC_URL}`);
-	if (bySnapshot === 0 && lands.length > 100) {
-		log('warning: no land is held by its 2023 owner: is OV_CONTRACT the Orthoverse contract?');
+		`${byKnown} of ${lands.length} held as ${source} says, from ${RPC_URL}`);
+	if (byKnown === 0 && lands.length > 100) {
+		log('warning: no land is held by its known holder: is OV_CONTRACT the Orthoverse contract?');
 	}
 }
 

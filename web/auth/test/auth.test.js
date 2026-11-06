@@ -77,6 +77,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_DATA_DIR: join(dir, 'data'),
 		OV_AUTH_DB: join(dir, 'auth.sqlite'),
 		OV_LANDS: join(dir, 'lands.json'),
+		OV_CHAIN_TOKENS: join(dir, 'no-chain-index.json'),
 		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
 		NODE_NO_WARNINGS: '1',
 	},
@@ -110,7 +111,7 @@ try {
 	const owners = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
 	check(owners.owners[lands['7:8'].token] === carol.address.toLowerCase(), 'owners.json: a land still with its 2023 owner');
 	check(owners.owners[lands['1:2'].token] === null, 'owners.json: a land sold since 2023 to a wallet that has not signed in');
-	check(/1 of 4 still with their 2023 owner/.test(svcLog), 'the log counts lands still with their 2023 owner');
+	check(/1 of 4 held as the 2023 snapshot says/.test(svcLog), 'without a chain index, the 2023 snapshot is checked');
 	check(/is an ERC-1155/.test(svcLog), 'the contract is checked to be an ERC-1155');
 
 	let r = await call('GET', '/auth/me');
