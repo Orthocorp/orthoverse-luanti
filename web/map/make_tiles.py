@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Make the web map: map tiles from the world database, plus the land list.
 
-    make_tiles.py MAP.sqlite LANDS.json OUT_DIR [NEW_LANDS.json]
+    make_tiles.py MAP.sqlite LANDS.json OUT_DIR [NEW_LANDS.json [TOKENS.json HERALDRY_DIR CARDS_DIR]]
 
 Writes OUT_DIR/tiles/{z}/{x}/{y}.png (zoom 0 to 6; at zoom 6 one pixel is one
-node), OUT_DIR/lands/{x}_{z}.png (each land from above, 384 pixels square, for
-the token metadata) and OUT_DIR/lands.json (the land names, levels and token IDs the map
+node), OUT_DIR/lands/{x}_{z}.png (each land from above, 384 pixels square),
+CARDS_DIR (the token pictures: see cards.py) and OUT_DIR/lands.json (the land names, levels and token IDs the map
 shows, including lands placed later for new tokens: the chain service's
 new-lands.json). Takes a few minutes for the whole Orthoverse.
 
@@ -24,6 +24,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
 from render_map import render  # noqa: E402
+from cards import make_cards  # noqa: E402
 
 TILE = 256
 MAX_Z = 6
@@ -43,7 +44,8 @@ def save(img, path):
 def main():
     db, lands_path, out = sys.argv[1:4]
     new_lands_path = sys.argv[4] if len(sys.argv) > 4 else None
-    rgb, x_left, z_top = render(db)
+    tokens_path, heraldry_dir, cards_dir = (sys.argv[5:8] + [None] * 3)[:3]
+    rgb, x_left, z_top, heights = render(db, heights=True)
     h, w = rgb.shape[:2]
     # Where the rendered image sits in zoom-6 pixel space
     off_x = x_left + HALF
@@ -93,7 +95,15 @@ def main():
             os.path.join(out, "lands", "%d_%d.png" % (lx, lz)))
         pictures += 1
     print("land pictures: %d" % pictures, flush=True)
-    del rgb
+
+    if cards_dir:
+        tokens = {}
+        if tokens_path and os.path.exists(tokens_path):
+            with open(tokens_path, encoding="utf-8") as f:
+                tokens = json.load(f).get("tokens", {})
+        n, written, removed = make_cards(rgb, heights, x_left, z_top, all_lands, tokens, heraldry_dir, cards_dir)
+        print("token pictures: %d (%d new or changed, %d old ones removed)" % (n, written, removed), flush=True)
+    del rgb, heights
 
     # Lower zooms: each tile is its four children, halved
     for z in range(MAX_Z - 1, -1, -1):

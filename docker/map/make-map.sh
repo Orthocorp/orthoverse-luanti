@@ -5,7 +5,8 @@
 #   make-map          draw now
 #   make-map watch    redraw whenever the game has made the terrain of new lands
 #                     (it writes /world/orthoverse_new_lands_made.json), checking
-#                     every 5 minutes
+#                     every 5 minutes, and every night at OV_MAP_HOUR (UTC, default
+#                     3), so that the token pictures show what holders have built
 set -eu
 OUT=/out
 TMP="$OUT/.new"
@@ -19,7 +20,8 @@ draw() {
 	fi
 	rm -rf "$TMP"
 	mkdir -p "$TMP"
-	python /app/web/map/make_tiles.py /world/map.sqlite /app/data/lands.json "$TMP" "$NEW_LANDS"
+	python /app/web/map/make_tiles.py /world/map.sqlite /app/data/lands.json "$TMP" "$NEW_LANDS" \
+		/chain/tokens.json /app/heraldry "$OUT/cards"
 	rm -rf "$OUT/tiles.old"
 	if [ -d "$OUT/tiles" ]; then mv "$OUT/tiles" "$OUT/tiles.old"; fi
 	mv "$TMP/tiles" "$OUT/tiles"
@@ -36,8 +38,16 @@ if [ "${1:-}" != watch ]; then
 	exit
 fi
 
-echo "$(date -u +%FT%TZ) Watching for new lands."
+HOUR="${OV_MAP_HOUR:-3}"
+NIGHTLY="$OUT/.nightly"
+echo "$(date -u +%FT%TZ) Watching for new lands; redrawing every night at $HOUR:00 UTC."
 while :; do
+	today=$(date -u +%F)
+	if [ "$(date -u +%-H)" -eq "$HOUR" ] && [ "$(cat "$NIGHTLY" 2>/dev/null || true)" != "$today" ]; then
+		echo "$(date -u +%FT%TZ) Nightly redraw."
+		draw || true
+		echo "$today" > "$NIGHTLY"
+	fi
 	# Newer than the map, and quiet for 2 minutes (the server saves blocks
 	# every few seconds)
 	if [ -f "$MADE" ] && { [ ! -f "$OUT/lands.json" ] || [ "$MADE" -nt "$OUT/lands.json" ]; } \

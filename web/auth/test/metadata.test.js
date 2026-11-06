@@ -3,7 +3,7 @@
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
@@ -43,6 +43,10 @@ writeFileSync(join(dir, 'tokens.json'), JSON.stringify({
 	},
 }));
 
+// The map service's token pictures: one for the kingdom so far
+mkdirSync(join(dir, 'map', 'cards'), { recursive: true });
+writeFileSync(join(dir, 'map', 'cards', 'index.json'), JSON.stringify({ '12:-3': '12_-3-0123456789.png' }));
+
 // Stand-in Ethereum endpoint: owner(), and nothing else of interest
 const rpc = http.createServer((req, res) => {
 	let body = '';
@@ -69,6 +73,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_LANDS: join(dir, 'lands.json'), OV_CHAIN_TOKENS: join(dir, 'tokens.json'),
 		OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
 		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`, OV_PUBLIC_URL: 'https://orthoverse.land',
+		OV_MAP_DIR: join(dir, 'map'),
 		NODE_NO_WARNINGS: '1',
 	},
 	stdio: ['ignore', 'pipe', 'pipe'],
@@ -105,28 +110,41 @@ try {
 		attr(k, 'Coordinates') === '12:-3' && attr(k, 'Land') === 'Original' && attr(k, 'Revealed in block') === 13992468,
 		'attributes: realm, title, castle level, coordinates, original land, reveal block');
 	check(typeof attr(k, 'Crest') === 'string' && attr(k, 'Crest').length > 3, `the crest's blazon (${attr(k, 'Crest')})`);
-	check(k.image === 'https://orthoverse.land/api/metadata/crest/7030-crown.png', 'a kingdom shows its crest under a crown');
+	check(k.image === 'https://orthoverse.land/map/cards/12_-3-0123456789.png', 'a placed land shows the card the map service drew');
 	check(k.external_url === 'https://orthoverse.land/map/#12:-3', 'links to the land on the map');
 	check(typeof attr(k, 'Terrain') === 'string' && Number.isInteger(attr(k, 'Lakes')), `terrain (${attr(k, 'Terrain')}, ${attr(k, 'Lakes')} lakes)`);
 
 	r = await get(`${CROFT}-0.json`);
-	check(r.body.image === 'https://orthoverse.land/map/lands/-1_-2.png' && attr(r.body, 'Crest') === undefined,
-		'a land without a castle shows the picture of the land');
+	check(r.body.image === `https://orthoverse.land/api/metadata/classic/${CROFT}-0.png` && attr(r.body, 'Crest') === undefined,
+		'a land with no card yet shows the classic picture; no castle, no crest');
 
 	r = await get('0xab0c3d1e2f30415263748596a7b8c9dae0f102-0.json');
 	check(r.body.name === 'Zeroland', 'an ID with leading zero bytes (as uri() writes it) finds its land');
 
 	r = await get(`${NEWBIE}-1.json`);
 	check(r.body.name === 'Urtilotland' && attr(r.body, 'Land') === 'New' && attr(r.body, 'Coordinates') === '-7:4' &&
-		r.body.image.endsWith('/crest/9000-none.png'), 'a new land, with its crest and no headgear at castle level 1');
+		attr(r.body, 'Crest') !== undefined, 'a new land, with its crest');
 
 	r = await get(`${WAITING}-4.json`);
-	check(attr(r.body, 'Status') === 'Awaiting placement' && r.body.image.endsWith('/crest/15-baron.png'),
-		'a revealed token whose land is not placed yet, with a baron at level 4');
+	check(attr(r.body, 'Status') === 'Awaiting placement' && r.body.image.endsWith(`/classic/${WAITING}-4.png`),
+		'a revealed token whose land is not placed yet: the classic picture, in colour');
 
 	r = await get('0x000000000000000000000000000000000000dead-0.json');
-	check(r.body.name === 'Unrevealed Orthoverse land' && attr(r.body, 'Status') === 'Unrevealed',
-		'any other address: an unrevealed land');
+	check(r.body.name === 'Unrevealed Orthoverse land' && attr(r.body, 'Status') === 'Unrevealed' &&
+		r.body.image.endsWith('/classic/0x000000000000000000000000000000000000dead-0-unrevealed.png'),
+		'any other address: an unrevealed land, the classic picture in grey');
+
+	r = await get('classic/0x000000000000000000000000000000000000dead-0-unrevealed.png');
+	const grey = PNG.sync.read(r.body);
+	let colourful = 0;
+	for (let i = 0; i < grey.data.length; i += 4) if (grey.data[i] !== grey.data[i + 1] || grey.data[i + 1] !== grey.data[i + 2]) colourful++;
+	check(r.status === 200 && grey.width === 800 && grey.height === 800 && colourful === 0 && /immutable/.test(r.headers.get('cache-control')),
+		'classic picture: 800 x 800, grey when unrevealed, cached for good');
+	r = await get(`classic/${KING}-7.png`);
+	const king = PNG.sync.read(r.body);
+	let kc = 0;
+	for (let i = 0; i < king.data.length; i += 4) if (king.data[i] !== king.data[i + 1]) kc++;
+	check(kc > 10000, 'and in colour otherwise');
 
 	// Pictures
 	r = await get('crest/7030-crown.png');

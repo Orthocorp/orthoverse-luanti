@@ -586,6 +586,7 @@ const metadata = createMetadata({
 	landsFile: LANDS_FILE,
 	newLandsFile: CHAIN_NEW_LANDS,
 	tokensFile: CHAIN_TOKENS,
+	cardsIndex: join(env.OV_MAP_DIR || '/map', 'cards', 'index.json'),
 	heraldryDir: HERALDRY,
 	publicUrl: PUBLIC_URL,
 	royaltyRecipient: () => contractOwner,

@@ -30,7 +30,7 @@ The game server publishes no port, so the web proxy is the only way in, and the
 | `chain` | `docker/auth/` | Once a day: every token, its holder, castle level and realm, from the contract (`web/auth/chain.js`) |
 | `web` | `docker/web/` | nginx with the landing and map pages; serves the map tiles and the browser game from `data/` |
 | `map` | `docker/map/` | `docker compose run --rm --build map` redraws the map (about 4 minutes) |
-| `mapwatch` | `docker/map/` | Redraws the map by itself when new lands have been added |
+| `mapwatch` | `docker/map/` | Redraws the map and the token pictures when new lands have been added, and every night at `OV_MAP_HOUR` (UTC) |
 | `client` | `docker/client/` | Builds luanti-wasm with `web/client/patches/` and installs it with `play.html` |
 
 ## Everyday use
@@ -44,7 +44,7 @@ All commands from the repository directory (`~/orthoverse-luanti`).
 | Change the admin (`OV_ADMIN` in `.env`) | `docker compose up -d luanti` |
 | See what is running | `docker compose ps` |
 | Follow the logs | `docker compose logs -f luanti` (also `proxy`, `web`) |
-| Redraw the map | `docker compose run --rm --build map` |
+| Redraw the map and the token pictures | `docker compose run --rm --build map` |
 | Rebuild and install the browser game (engine patches or `play.html` changed) | `docker compose run --rm --build client` |
 | Stop everything | `docker compose down` |
 

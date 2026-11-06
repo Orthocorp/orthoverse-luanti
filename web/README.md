@@ -11,6 +11,7 @@ Everything served at orthoverse.land:
 | `/auth/` | Wallet sign-in and player names (the auth service) |
 | `/api/metadata/` | Token and collection metadata, for the contract's `uri()` and `contractURI()` (the auth service) |
 | `/map/lands/` | Each land from above, 384 pixels square (drawn with the map) |
+| `/map/cards/` | The token pictures (drawn with the map) |
 
 It all runs on Docker Compose; how to run it is in `docker/README.md`. This file
 is about how the web parts work.
@@ -27,10 +28,10 @@ need no port forwarding on the router.
 | Directory | Contents | Image |
 | --- | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
-| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`, `pngjs`); `metadata.js`, the token metadata; `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
+| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`, `pngjs`); `metadata.js`, the token metadata; `classic.js` and `classic/`, the classic pictures; `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
 | `web/heraldry/` | The crests (from orthoverse-offline) | `auth`, `chain` |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
-| `web/map/make_tiles.py` | Map tiles, land pictures and the land list, from the world database | `map`, `mapwatch` |
+| `web/map/make_tiles.py`, `cards.py` | Map tiles, land pictures, token pictures and the land list, from the world database | `map`, `mapwatch` |
 | `web/client/play.html` | The Orthoverse play page | `client` |
 | `web/client/patches/` | Orthoverse changes to the engine, applied when the browser game is built | `client` |
 
@@ -104,12 +105,26 @@ revealed tokens and the void base for the rest. Both bases are
 | `contract.json` | The collection: name, description, picture, link, and the 2.5% royalty to the contract's owner (`royaltyInfo`) |
 | `<0xid>-<level>.json` | A token. A land: its name, description, picture, a link to it on the map, and its realm, title, castle level, crest (the blazon), terrain, coordinates, whether it is an original or a new land, and its reveal block. A revealed token whose land is not placed yet says so; any other address is an unrevealed land |
 | `crest/<n>-<rank>.png` | Crest n, 320 x 512 pixels, with no headgear, a baron's cap, a coronet or a crown above it |
+| `classic/<0xid>-<level>[-unrevealed].png` | The classic pixel-art picture of a token, 800 x 800 |
 
 The level in the URL is the level when a marketplace asked; the current level
 from the chain index wins. `uri()` writes the ID without leading zero bytes, so
-the API pads it back to 40 digits. A land with a castle (castle level 1 to 7)
-shows its crest, with a baron's cap at level 4, a coronet at 5 and 6 and a
-crown at 7; a land without one shows its picture from the map.
+the API pads it back to 40 digits.
+
+Pictures:
+
+- A placed land's picture is its card (`web/map/cards.py`): the land drawn
+  isometrically from the world itself, with whatever its holder has built, on
+  the old pictures' background colour for its realm, under a banner with its
+  crest (a baron's cap at castle level 4, a coronet at 5 and 6, a crown at 7),
+  name, title and coordinates. The map service draws them whenever it draws the
+  map, and mapwatch every night (`OV_MAP_HOUR`, UTC), to `OV_DATA/map/cards/`,
+  each named after its content, so a changed picture gets a new address and
+  marketplaces fetch it again; `cards/index.json` says which is current.
+- A token with no land to draw (revealed but not placed yet, or unrevealed) gets
+  the classic picture (`web/auth/classic.js`), drawn from its ID and level as
+  orthoverse-offline's `make-map-image.js` drew each land on the old map, from
+  the same tile art (`web/auth/classic/`); unrevealed ones in grey.
 
 Crests are given out by the chain service as `update-escutcheons.js` did:
 castle levels 1 to 3 get a plain crest, level 4 and up one with an animal (a

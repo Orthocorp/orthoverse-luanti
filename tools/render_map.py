@@ -68,11 +68,12 @@ def decode(blob, dctx):
     return param0, names
 
 
-def render(db, step=1, quiet=False):
+def render(db, step=1, quiet=False, heights=False):
     """Top-down colour image of the map, north at the top.
 
     Returns (rgb uint8 array, x of the left column, z of the top row), in
     nodes. With step > 1, every step-th node in each direction is sampled.
+    With heights=True, also the height of each column (int16, same shape).
     """
     # Read in short queries: a long one holds a read lock on the database for
     # minutes, and a running server cannot save meanwhile ("database has been
@@ -137,7 +138,7 @@ def render(db, step=1, quiet=False):
     # North (high z) at the top; sample every 'step' nodes before colouring.
     names_s = top_name[::-1][::step, ::step]
     ys = top_y[::-1][::step, ::step]
-    del top_name, top_y
+    del top_name
     rgb = np.empty(names_s.shape + (3,), dtype=np.uint8)
     for r in range(0, names_s.shape[0], 512):      # in strips, to save memory
         c = lut[names_s[r:r + 512]]
@@ -148,6 +149,9 @@ def render(db, step=1, quiet=False):
     z_top = (zmax + 1) * 16 - 1
     if not quiet:
         print("%d blocks rendered" % n, flush=True)
+    if heights:
+        return rgb, x_left, z_top, ys
+    del ys, top_y
     return rgb, x_left, z_top
 
 

@@ -6,6 +6,12 @@
 //   <0xtoken>-<level>.json         a token: uri(id) gives the token ID in hex
 //                                  and its castle level at the time of asking
 //   crest/<n>-<rank>.png           a crest, with its rank's headgear above it
+//   classic/<0xtoken>-<level>[-unrevealed].png
+//                                  the classic pixel-art picture of a token
+//
+// A placed land's picture is its card, drawn ahead by the map service from the
+// world itself (map/cards/, see web/map/cards.py); tokens with no land to draw
+// get the classic picture, unrevealed ones in grey.
 //
 // A token is a land of the world (lands.json, or new-lands.json from the chain
 // service), a revealed token whose land is not placed yet, or (any other
@@ -16,6 +22,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { landName, landDescription, TITLES } from './names.js';
+import { classicCard } from './classic.js';
 
 // What each hex digit of a token makes of its 16 x 16 tile (as the mapgen draws it)
 const TERRAIN = {
@@ -25,12 +32,6 @@ const TERRAIN = {
 };
 const LAKE = '2a', MOUNTAIN = '19', FOREST = '47cf';
 
-// Headgear above the crest, by castle level (Barony, Duchy and Principality, Kingdom)
-function rank(castle) {
-	return castle >= 7 ? 'crown' : castle >= 5 ? 'coronet' : castle >= 4 ? 'baron' : 'none';
-}
-
-const ARGENT = 2815;     // a plain silver shield: unrevealed lands
 const OR = 2817;         // a plain gold shield: the collection
 const SCALE = 16;        // crest pixels to image pixels
 
@@ -47,7 +48,7 @@ function watched(path) {
 	};
 }
 
-export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDir, publicUrl, royaltyRecipient }) {
+export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex, heraldryDir, publicUrl, royaltyRecipient }) {
 	const BASE = publicUrl.replace(/\/+$/, '');
 	const API = BASE + '/api/metadata';
 
@@ -58,6 +59,7 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDi
 	}
 	const newLands = watched(newLandsFile);
 	const tokens = watched(tokensFile);
+	const cards = watched(cardsIndex);
 
 	function landOf(token) {
 		const hit = byToken.get(token);
@@ -113,6 +115,8 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDi
 	}
 
 	const crestUrl = (n, r) => `${API}/crest/${n}-${r}.png`;
+	const classicUrl = (token, level, unrevealed) => `${API}/classic/${token}-${level}${unrevealed ? '-unrevealed' : ''}.png`;
+	const classics = new Map();
 
 	function terrain(token) {
 		const tiles = token.slice(2, 38);
@@ -131,7 +135,7 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDi
 				name: 'Unrevealed Orthoverse land',
 				description: 'Every Ethereum address has an Orthoverse land, waiting to be revealed. ' +
 					'Once revealed it takes its place in the Orthoverse, which you can explore at ' + BASE + '.',
-				image: crestUrl(ARGENT, 'none'),
+				image: classicUrl(token, Number.isInteger(urlLevel) ? urlLevel % 16 : 0, true),
 				external_url: BASE,
 				attributes: [{ trait_type: 'Status', value: 'Unrevealed' }],
 			};
@@ -167,10 +171,9 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDi
 			attributes.push({ trait_type: 'Revealed in block', value: t.revealed, display_type: 'number' });
 		}
 
-		let image;
-		if (crest !== null && castle > 0 && !missing.has(crest)) image = crestUrl(crest, rank(castle));
-		else if (hit) image = `${BASE}/map/lands/${hit.key.replace(':', '_')}.png`;
-		else image = crestUrl(ARGENT, 'none');
+		// The card the map service drew, or until there is one, the classic picture
+		const card = hit && (cards() || {})[hit.key];
+		const image = card && /^[-\w.]+\.png$/.test(card) ? `${BASE}/map/cards/${card}` : classicUrl(token, level % 16, false);
 
 		const where = hit ? `, land ${hit.key} of the Orthoverse` : ', in the Orthoverse (its land is being placed)';
 		return {
@@ -219,6 +222,25 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, heraldryDi
 			const id = BigInt(m[1]);
 			const token = '0x' + id.toString(16).padStart(40, '0');
 			sendJson(res, 200, tokenJson(token, m[2] === undefined ? null : parseInt(m[2], 10)));
+			return true;
+		}
+		m = /^classic\/(0x[0-9a-fA-F]{1,64})-(\d{1,2})(-unrevealed)?\.png$/.exec(rest);
+		if (m) {
+			const token = '0x' + BigInt(m[1]).toString(16).padStart(40, '0');
+			const level = parseInt(m[2], 10) % 16;
+			const k = token + '-' + level + (m[3] || '');
+			let png = classics.get(k);
+			if (!png) {
+				png = classicCard(token, level, !!m[3]);
+				if (classics.size > 500) classics.clear();
+				classics.set(k, png);
+			}
+			res.writeHead(200, {
+				'content-type': 'image/png',
+				'access-control-allow-origin': '*',
+				'cache-control': 'public, max-age=31536000, immutable',
+			});
+			res.end(req.method === 'HEAD' ? undefined : png);
 			return true;
 		}
 		m = /^crest\/(\d{1,5})-(none|baron|coronet|crown)\.png$/.exec(rest);
