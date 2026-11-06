@@ -8,6 +8,7 @@ Everything served at orthoverse.land:
 | `/map/` | Zoomable map of the whole world, with land search and land details |
 | `/play/` | Luanti running in the browser (paradust7/luanti-wasm), joined to the Orthoverse |
 | `/proxy` | WebSocket the browser client uses to reach the game server |
+| `/auth/` | Wallet sign-in and player names (the auth service) |
 
 It all runs on Docker Compose; how to run it is in `docker/README.md`. This file
 is about how the web parts work.
@@ -24,10 +25,59 @@ need no port forwarding on the router.
 | Directory | Contents | Image |
 | --- | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
+| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`), and `test/auth.test.js` | `auth` |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
 | `web/map/make_tiles.py` | Map tiles and the land list, from the world database | `map` |
 | `web/client/play.html` | The Orthoverse play page | `client` |
 | `web/client/patches/` | Orthoverse changes to the engine, applied when the browser game is built | `client` |
+
+## Web only
+
+The game server publishes no port and sits on an internal Compose network, so
+the web proxy is the only way in: a desktop Luanti client on the LAN or the
+internet cannot connect.
+
+Every browser player reaches the game server from the proxy's address, so the
+server cannot tell them apart by address: ban players by name, not by IP.
+
+## Players: wallets and guests
+
+The play page offers two ways in.
+
+- **Sign in with wallet.** The page asks the wallet (MetaMask or any browser wallet)
+  to sign a Sign-In with Ethereum message (EIP-4361) for this site; this costs
+  nothing. The auth service (`web/auth/`) checks the signature and keeps the
+  browser signed in for 30 days. The first time, the player chooses a name, which
+  stays bound to that wallet. The game password for the name is derived from a
+  secret only the auth service holds (`OV_AUTH_SECRET`), so players never see or
+  type a password, and only the wallet can obtain it.
+- **Play as a guest.** The page makes up a name like `Guest-7F3A9C` and a random
+  password, kept in that browser so the guest comes back as the same player.
+
+Old name-and-password accounts can no longer join: the game turns away any name
+that is neither a guest nor bound to a wallet.
+
+Building (`mods/orthoverse_wallets`): a wallet player can dig and build only on
+the lands whose token the wallet holds now, ground below and sky above included.
+Guests can explore, ride and use the henges but not build. Nobody builds on
+henges, the open sea or the rim, except the admin. In the game, `/mylands` lists
+your lands and `/whereami` says whose land you are on.
+
+Ownership comes from the Orthoverse contract on Ethereum mainnet (`OV_CONTRACT`):
+every 10 minutes the auth service asks it `ownerOf` for every land's token,
+through a public RPC endpoint (`OV_ETH_RPC`), and writes `owners.json`. A sale
+moves building rights within 10 minutes. If the endpoint is down, the last good
+list is kept. Check it with `curl -s http://127.0.0.1:8485/auth/status`.
+
+The auth service writes `registry.json` (names and wallets) and `owners.json` to
+`OV_DATA/auth/`, which the game server reads (read-only) as
+`/world/orthoverse_auth/`.
+
+The engine gets `--login` or `--register` from the page (added by
+`patches/luanti-login-register.patch`), so a player is created in the game on
+their first visit only. When joining fails, the engine hands the reason to the
+page (`orthoverseJoinError`), the page reloads, and explains what went wrong.
+The engine runs in English so the reasons can be recognised.
 
 ## Web only
 

@@ -6,37 +6,41 @@
 <title>Play the Orthoverse</title>
 <style>
   :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341;
-    --line: #30363d; --bad: #ff7b72; --bad-bg: rgba(255, 123, 114, 0.08); }
+    --line: #30363d; --bad: #ff7b72; --bad-bg: rgba(255, 123, 114, 0.08); --good: #4ee69a; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 560px; margin: 0 auto; padding: 48px 16px; }
   h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: 0.02em; }
-  .sub { color: var(--quiet); margin: 0 0 28px; }
+  h2 { font-size: 17px; margin: 0 0 6px; }
+  .sub { color: var(--quiet); margin: 0 0 24px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
-  .tabs { display: flex; gap: 4px; margin: -4px 0 8px; border-bottom: 1px solid var(--line); }
-  .tab { flex: 1; margin: 0; padding: 10px 8px; background: none; color: var(--quiet); border: 0;
-    border-bottom: 2px solid transparent; border-radius: 0; font: inherit; font-weight: 600; cursor: pointer; }
-  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .panel + .panel { margin-top: 14px; }
+  .panel p { margin: 0 0 4px; color: var(--quiet); font-size: 15px; }
   label { display: block; font-size: 14px; color: var(--quiet); margin: 14px 0 4px; }
   input { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .hint { font-size: 13px; color: var(--quiet); margin-top: 4px; }
-  .go { margin-top: 20px; width: 100%; padding: 12px; font: inherit; font-weight: 600;
+  .go { margin-top: 14px; width: 100%; padding: 12px; font: inherit; font-weight: 600;
     color: #111; background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
+  .go.second { background: transparent; color: var(--ink); border: 1px solid var(--line); }
   .go:disabled { opacity: 0.45; cursor: progress; }
+  .go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .who { margin-top: 10px; font-size: 14px; color: var(--quiet); }
+  .who b { color: var(--ink); font-weight: 600; }
+  .who .good { color: var(--good); }
+  .linkish { padding: 0; background: none; border: 0; color: var(--accent); font: inherit;
+    font-size: 14px; text-decoration: underline; cursor: pointer; }
   .status { margin-top: 14px; font-size: 14px; color: var(--quiet); min-height: 1.5em; }
-  .problem { margin: 4px 0 8px; padding: 12px 14px; border: 1px solid var(--bad); border-radius: 8px;
+  .problem { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--bad); border-radius: 8px;
     background: var(--bad-bg); }
-  .problem[hidden] { display: none; }
+  .problem[hidden], [hidden] { display: none !important; }
   .problem strong { display: block; color: var(--bad); margin-bottom: 2px; }
-  .problem p { margin: 0; font-size: 15px; }
+  .problem p { margin: 0; font-size: 15px; color: var(--ink); }
   .problem .raw { margin-top: 6px; font-size: 12px; color: var(--quiet); }
-  .problem button { margin-top: 8px; padding: 0; background: none; border: 0; color: var(--accent);
-    font: inherit; text-decoration: underline; cursor: pointer; }
-  .notes { margin-top: 24px; font-size: 14px; color: var(--quiet); }
+  .problem button { margin-top: 8px; }
+  .notes { margin-top: 24px; font-size: 14px; color: var(--quiet); padding-left: 20px; }
   .notes li { margin: 4px 0; }
   a { color: var(--accent); }
   canvas { display: block; }
@@ -46,40 +50,54 @@
 <main id="page">
   <h1>The Orthoverse</h1>
   <p class="sub">Every land is an Orthoverse token. Walk them in your browser.</p>
-  <div class="panel">
-    <div class="tabs" role="tablist">
-      <button class="tab" id="tab-login" role="tab" type="button" aria-selected="true">Log in</button>
-      <button class="tab" id="tab-register" role="tab" type="button" aria-selected="false">Register</button>
-    </div>
 
-    <div id="problem" class="problem" role="alert" hidden>
-      <strong id="problem-title"></strong>
-      <p id="problem-text"></p>
-      <button id="problem-action" type="button" hidden></button>
-      <div id="problem-raw" class="raw"></div>
-    </div>
-
-    <form id="form" autocomplete="on" novalidate>
-      <label for="name">Player name</label>
-      <input id="name" name="username" required maxlength="19" autocomplete="username"
-             autocapitalize="off" spellcheck="false">
-      <div class="hint" id="name-hint">Names are case sensitive.</div>
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required autocomplete="current-password">
-      <div id="confirm-row" hidden>
-        <label for="confirm">Password again</label>
-        <input id="confirm" name="confirm" type="password" autocomplete="new-password">
-      </div>
-      <button id="play" class="go" type="submit" disabled>Loading…</button>
-    </form>
-    <div id="status" class="status"></div>
+  <div id="problem" class="problem" role="alert" hidden>
+    <strong id="problem-title"></strong>
+    <p id="problem-text"></p>
+    <button id="problem-action" class="linkish" type="button" hidden></button>
+    <div id="problem-raw" class="raw"></div>
   </div>
+
+  <!-- Wallet players -->
+  <section class="panel" aria-labelledby="wallet-title">
+    <h2 id="wallet-title">Sign in with your wallet</h2>
+    <p>Holders of Orthoverse tokens can build on their lands. Signing in costs nothing.</p>
+
+    <div id="wallet-out">
+      <button id="wallet-signin" class="go" type="button" disabled>Loading…</button>
+      <div id="no-wallet" class="hint" hidden>No wallet found in this browser. Install MetaMask (or a
+        similar wallet) and reload, or play as a guest below.</div>
+    </div>
+
+    <form id="name-form" hidden novalidate>
+      <label for="name">Choose your player name</label>
+      <input id="name" name="username" maxlength="19" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint">3 to 19 letters, digits, - and _. It stays with this wallet for good.</div>
+      <button id="name-go" class="go" type="submit">Take this name and enter</button>
+    </form>
+
+    <div id="wallet-in" hidden>
+      <button id="wallet-play" class="go" type="button" disabled>Loading…</button>
+      <div class="who" id="wallet-who"></div>
+      <button id="wallet-signout" class="linkish" type="button">Sign out</button>
+    </div>
+  </section>
+
+  <!-- Guests -->
+  <section class="panel" aria-labelledby="guest-title">
+    <h2 id="guest-title">Play as a guest</h2>
+    <p>Explore, ride and travel by the henges. Guests cannot build.</p>
+    <button id="guest-play" class="go second" type="button" disabled>Loading…</button>
+    <div class="who" id="guest-who"></div>
+  </section>
+
+  <div id="status" class="status"></div>
+
   <ul class="notes">
-    <li>New here? Choose <b>Register</b> to create your player. After that, use <b>Log in</b>.</li>
     <li>Best on a desktop or laptop with a recent Chrome, Edge or Firefox. The first visit
       downloads the game engine (tens of megabytes); later visits load it from your browser.</li>
     <li>Walk with W A S D, jump with space, open your inventory with I, chat with T.
-      Type <code>/whereami</code> in chat to see whose land you are on.</li>
+      <code>/whereami</code> tells you whose land you are on, <code>/mylands</code> lists yours.</li>
     <li><a href="/map/">See the map of the Orthoverse</a></li>
   </ul>
 </main>
@@ -91,48 +109,42 @@
   const SERVER_ADDRESS = '10.58.0.1';
   const SERVER_PORT = 30000;
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
-  const NAME_RE = /^[A-Za-z0-9_-]{1,19}$/;
-  const MIN_PASSWORD = 6;
   const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
+  const GUEST_KEY = 'orthoverse.guest';   // localStorage: this browser's guest
+  const NAME_RE = /^[A-Za-z0-9_-]{3,19}$/;
 
   const $ = (id) => document.getElementById(id);
-  const form = $('form'), nameInput = $('name'), passInput = $('password'), confirmInput = $('confirm');
-  const playBtn = $('play'), statusEl = $('status');
-  let mode = 'login';
-  let ready = false;
+  const statusEl = $('status');
+  let ready = false;        // the engine has loaded
+  let me = null;            // the signed-in wallet player, from /auth/me
+  let guest = null;         // {name, password}
 
-  function store(kind, key, value) {
+  function storage(kind) {
+    try { return kind === 'session' ? sessionStorage : localStorage; } catch (e) { return null; }
+  }
+  function load(kind, key) {
+    try { return JSON.parse(storage(kind).getItem(key) || 'null'); } catch (e) { return null; }
+  }
+  function save(kind, key, value) {
     try {
-      const s = kind === 'session' ? sessionStorage : localStorage;
-      if (value === undefined) return s.getItem(key);
-      if (value === null) s.removeItem(key); else s.setItem(key, value);
-    } catch (e) { /* storage unavailable: carry on without it */ }
-    return null;
+      if (value === null) storage(kind).removeItem(key);
+      else storage(kind).setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) { return false; }
   }
 
-  // ------------------------------------------------------------------
-  // Log in / Register
-
-  function setMode(m) {
-    mode = m;
-    $('tab-login').setAttribute('aria-selected', String(m === 'login'));
-    $('tab-register').setAttribute('aria-selected', String(m === 'register'));
-    $('confirm-row').hidden = m !== 'register';
-    passInput.autocomplete = m === 'register' ? 'new-password' : 'current-password';
-    $('name-hint').textContent = m === 'register'
-      ? 'Letters, digits, - and _, up to 19 characters. Names are case sensitive.'
-      : 'Names are case sensitive.';
-    updateButton();
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: body ? { 'content-type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    if (!res.ok) throw new Error(data.error || ('The sign-in service answered ' + res.status + '.'));
+    return data;
   }
-
-  function updateButton() {
-    playBtn.disabled = !ready;
-    playBtn.textContent = !ready ? 'Loading…'
-      : mode === 'register' ? 'Create player and enter' : 'Enter the Orthoverse';
-  }
-
-  $('tab-login').addEventListener('click', () => { setMode('login'); hideProblem(); });
-  $('tab-register').addEventListener('click', () => { setMode('register'); hideProblem(); });
 
   // ------------------------------------------------------------------
   // Explaining what went wrong
@@ -141,45 +153,32 @@
     $('problem-title').textContent = title;
     $('problem-text').textContent = text;
     const btn = $('problem-action');
-    if (action) {
-      btn.textContent = action.label;
-      btn.onclick = action.run;
-      btn.hidden = false;
-    } else {
-      btn.hidden = true;
-    }
+    btn.hidden = !action;
+    if (action) { btn.textContent = action.label; btn.onclick = action.run; }
     $('problem-raw').textContent = raw ? 'The game said: ' + raw : '';
     $('problem').hidden = false;
+    $('problem').scrollIntoView({ block: 'nearest' });
   }
-
   function hideProblem() { $('problem').hidden = true; }
 
-  const toRegister = { label: 'Register this name instead', run: () => { setMode('register'); hideProblem(); passInput.focus(); } };
-  const toLogin = { label: 'Log in instead', run: () => { setMode('login'); hideProblem(); passInput.focus(); } };
+  const newGuest = { label: 'Start again as a new guest', run: () => { makeGuest(); hideProblem(); showGuest(); } };
 
   // The engine's reason (English) -> what to tell the player. First match wins.
-  function explain(reason, m, name) {
+  function explain(reason, kind) {
     const r = reason || '';
-    const who = name ? '"' + name + '"' : 'that name';
     const rules = [
-      [/Name is not registered/i, () => ['No player called ' + who,
-        'There is no player with that name. Check the spelling and the capital letters, ' +
-        'or register it if you are new.', toRegister]],
-      [/Name is taken/i, () => ['The name ' + who + ' is taken',
-        'Someone has already registered that name. Choose another one, or log in if it is yours.', toLogin]],
-      [/Another account called/i, () => ['Too close to an existing name',
-        'A player with the same name in different capital letters already exists. ' +
-        'Choose another name, or log in with the existing spelling if it is yours.', toLogin]],
-      [/Invalid password/i, () => ['Wrong password',
-        'That password does not match the one ' + who + ' registered with. ' +
-        'Passwords are case sensitive.', null]],
-      [/Empty passwords/i, () => ['A password is needed', 'Enter a password and try again.', null]],
-      [/disallowed characters/i, () => ['That name cannot be used',
-        'Player names may only contain letters, digits, - and _.', null]],
-      [/name not allowed|too long|choose a name/i, () => ['That name cannot be used',
-        'Choose a different name of 1 to 19 letters, digits, - or _.', null]],
+      [/not linked to a wallet/i, () => ['This player cannot join',
+        'Only wallet players and guests can join now. Sign in with your wallet, or play as a guest.', null]],
+      [/Invalid password/i, () => kind === 'guest'
+        ? ['This guest could not log in', 'The guest saved in this browser no longer matches the game. Start again as a new guest.', newGuest]
+        : ['Could not log in', 'The game did not accept this player. Sign out and sign in with your wallet again.', null]],
+      [/Name is taken|Another account called/i, () => kind === 'guest'
+        ? ['That guest name is taken', 'Start again as a new guest.', newGuest]
+        : ['That name is taken', 'Sign out, sign in again and choose another name.', null]],
+      [/Name is not registered/i, () => ['Could not join',
+        'The game does not know this player yet. Reload the page and try again.', null]],
       [/Another client is connected with this name/i, () => ['Already playing',
-        who + ' is already in the Orthoverse, perhaps in another tab or window. ' +
+        'You are already in the Orthoverse, perhaps in another tab or window. ' +
         'Close it, or if the game closed unexpectedly, wait a minute and try again.', null]],
       [/Too many users/i, () => ['The Orthoverse is full',
         'The most players allowed at once are already in. Try again in a little while.', null]],
@@ -194,65 +193,148 @@
         'Something went wrong on the server while you were joining. Try again in a minute.', null]],
       [/Kicked|kicked/i, () => ['You were removed from the game', r.replace(/^Access denied\. Reason:\s*/, ''), null]],
     ];
-    for (const [re, make] of rules) {
-      if (re.test(r)) return make();
-    }
+    for (const [re, make] of rules) if (re.test(r)) return make();
     return ['Could not join the Orthoverse', r.replace(/^Access denied\. Reason:\s*/, '') ||
       'Something went wrong. Try again in a minute.', null];
   }
 
   // ------------------------------------------------------------------
-  // Back from a failed attempt: the engine exits, the page reloads, and the
-  // reason is shown above the form.
+  // Wallet players
 
-  (function restore() {
-    const savedName = store('local', 'orthoverse.name');
-    if (savedName) nameInput.value = savedName;
-    let retry = null;
-    try { retry = JSON.parse(store('session', RETRY_KEY) || 'null'); } catch (e) { retry = null; }
-    store('session', RETRY_KEY, null);
-    setMode(retry && retry.mode === 'register' ? 'register' : 'login');
-    if (retry) {
-      if (retry.name) nameInput.value = retry.name;
-      const [title, text, action] = explain(retry.reason, retry.mode, retry.name);
-      const known = text && retry.reason && !/^Could not join/.test(title);
-      showProblem(title, text, action, known ? '' : retry.reason);
-      (retry.name ? passInput : nameInput).focus();
+  function hex(text) {
+    return '0x' + Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function showWallet() {
+    const signedIn = me && me.signedIn;
+    $('wallet-out').hidden = !!signedIn;
+    $('name-form').hidden = !(signedIn && !me.name);
+    $('wallet-in').hidden = !(signedIn && me.name);
+    $('no-wallet').hidden = !!window.ethereum || !!signedIn;
+    const signinBtn = $('wallet-signin');
+    signinBtn.disabled = !window.ethereum;
+    signinBtn.textContent = 'Sign in with wallet';
+    if (signedIn && me.name) {
+      const play = $('wallet-play');
+      play.disabled = !ready;
+      play.textContent = ready ? 'Enter as ' + me.name : 'Loading the game…';
+      const short = me.address.slice(0, 6) + '…' + me.address.slice(-4);
+      const n = me.lands.length;
+      const who = $('wallet-who');
+      who.textContent = '';
+      who.append('Wallet ' + short + ' · ');
+      const held = document.createElement('span');
+      if (me.ownersUpdated === null) {
+        held.textContent = 'checking which lands it holds';
+      } else {
+        held.className = n ? 'good' : '';
+        held.textContent = n ? `holds ${n} land${n === 1 ? '' : 's'}: ` +
+          me.lands.slice(0, 4).map(l => l.name).join(', ') + (n > 4 ? '…' : '') : 'holds no lands (you can explore, not build)';
+      }
+      who.append(held);
     }
-  })();
+  }
 
-  let joinError = null;
-  // Called by the engine (patched) when a join fails, just before it exits
-  globalThis.orthoverseJoinError = (reason) => { joinError = String(reason || ''); };
+  async function signIn() {
+    hideProblem();
+    const btn = $('wallet-signin');
+    btn.disabled = true;
+    btn.textContent = 'Check your wallet…';
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const address = accounts && accounts[0];
+      if (!address) throw new Error('The wallet did not share an account.');
+      const n = await api('GET', '/auth/nonce?address=' + encodeURIComponent(address));
+      const signature = await window.ethereum.request({ method: 'personal_sign', params: [hex(n.message), address] });
+      me = await api('POST', '/auth/verify', { nonce: n.nonce, signature });
+      showWallet();
+      if (!me.name) $('name').focus();
+    } catch (e) {
+      const declined = e && (e.code === 4001 || /reject|denied|cancel/i.test(e.message || ''));
+      showProblem(declined ? 'Signing in was cancelled' : 'Could not sign in',
+        declined ? 'Your wallet did not sign the message. Try again when you are ready.' : (e.message || String(e)), null, '');
+      showWallet();
+    }
+  }
+
+  async function chooseName(ev) {
+    ev.preventDefault();
+    hideProblem();
+    const name = $('name').value.trim();
+    if (!NAME_RE.test(name)) {
+      return showProblem('That name cannot be used', 'Player names are 3 to 19 letters, digits, - and _, with no spaces.', null, '');
+    }
+    if (/^guest/i.test(name)) {
+      return showProblem('That name cannot be used', 'Names starting with "Guest" are kept for guests.', null, '');
+    }
+    $('name-go').disabled = true;
+    try {
+      me = await api('POST', '/auth/name', { name });
+      showWallet();
+      if (ready) enter('wallet');
+    } catch (e) {
+      showProblem('That name cannot be used', e.message, null, '');
+    } finally {
+      $('name-go').disabled = false;
+    }
+  }
+
+  async function signOut() {
+    try { await api('POST', '/auth/logout', {}); } catch (e) { /* signed out anyway */ }
+    me = { signedIn: false };
+    hideProblem();
+    showWallet();
+  }
+
+  // ------------------------------------------------------------------
+  // Guests: a name and password kept in this browser
+
+  function makeGuest() {
+    const bytes = crypto.getRandomValues(new Uint8Array(3 + 16));
+    const h = (a) => Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+    guest = { name: 'Guest-' + h(bytes.slice(0, 3)).toUpperCase(), password: h(bytes.slice(3)) };
+    guest.kept = save('local', GUEST_KEY, guest);
+    return guest;
+  }
+
+  function showGuest() {
+    const btn = $('guest-play');
+    btn.disabled = !ready;
+    btn.textContent = ready ? 'Play as guest' : 'Loading the game…';
+    $('guest-who').textContent = guest
+      ? 'You will play as ' + guest.name + (guest.kept === false ? ' (this browser cannot keep it for next time).' : '.')
+      : '';
+  }
 
   // ------------------------------------------------------------------
   // The engine
+
+  let attempt = null;
+  let joinError = null;
+  // Called by the engine (patched) when a join fails, just before it exits
+  globalThis.orthoverseJoinError = (reason) => { joinError = String(reason || ''); };
 
   const progress = new Map();
   const mtl = new LuantiLauncher();
   mtl.onprogress = (name, fraction) => {
     progress.set(name, fraction);
-    const parts = [...progress.entries()]
-      .filter(([, f]) => f < 1)
-      .map(([n, f]) => `${n} ${Math.round(f * 100)}%`);
+    const parts = [...progress.entries()].filter(([, f]) => f < 1).map(([n, f]) => `${n} ${Math.round(f * 100)}%`);
     statusEl.textContent = parts.length ? 'Downloading ' + parts.join(', ') : 'Starting…';
   };
   mtl.onready = () => {
     ready = true;
-    updateButton();
     statusEl.textContent = '';
+    showWallet();
+    showGuest();
   };
   mtl.onerror = (err) => {
     ready = false;
-    updateButton();
     showProblem('The game could not start', 'Your browser could not run the game engine. ' +
       'Try a recent Chrome, Edge or Firefox on a desktop or laptop.', null, String(err));
   };
-  let attempt = null;
   mtl.onexit = () => {
     if (joinError !== null && attempt) {
-      store('session', RETRY_KEY, JSON.stringify({ mode: attempt.mode, name: attempt.name, reason: joinError }));
-      if (store('session', RETRY_KEY)) {
+      if (save('session', RETRY_KEY, { kind: attempt.kind, reason: joinError })) {
         location.reload();
         return;
       }
@@ -263,7 +345,7 @@
     const s = document.createElement('p');
     s.className = 'sub';
     if (joinError !== null) {
-      const [title, text] = explain(joinError, attempt && attempt.mode, attempt && attempt.name);
+      const [title, text] = explain(joinError, attempt && attempt.kind);
       h.textContent = title;
       s.textContent = text;
     } else {
@@ -278,37 +360,24 @@
     document.body.appendChild(p);
   };
 
-  form.addEventListener('submit', (ev) => {
-    ev.preventDefault();
+  async function enter(kind) {
     if (!ready || !mtl.isReady()) return;
-    const name = nameInput.value.trim();
-    const password = passInput.value;
-    if (!NAME_RE.test(name)) {
-      showProblem('That name cannot be used',
-        'Player names are 1 to 19 letters, digits, - and _, with no spaces.', null, '');
-      nameInput.focus();
-      return;
-    }
-    if (!password) {
-      showProblem('A password is needed', 'Enter your password.', null, '');
-      passInput.focus();
-      return;
-    }
-    if (mode === 'register') {
-      if (password.length < MIN_PASSWORD) {
-        showProblem('Password too short', 'Use at least ' + MIN_PASSWORD + ' characters.', null, '');
-        passInput.focus();
-        return;
-      }
-      if (password !== confirmInput.value) {
-        showProblem('Passwords do not match', 'Type the same password in both boxes.', null, '');
-        confirmInput.focus();
-        return;
-      }
-    }
     hideProblem();
-    store('local', 'orthoverse.name', name);
-    attempt = { mode, name };
+    let name, password, exists;
+    try {
+      if (kind === 'wallet') {
+        me = await api('GET', '/auth/me');   // fresh password and account state
+        if (!me.signedIn || !me.name) { showWallet(); return; }
+        name = me.name; password = me.password; exists = me.exists;
+      } else {
+        if (!guest) makeGuest();
+        name = guest.name; password = guest.password;
+        exists = (await api('GET', '/auth/exists?name=' + encodeURIComponent(name))).exists;
+      }
+    } catch (e) {
+      return showProblem('Could not reach the Orthoverse', e.message, null, '');
+    }
+    attempt = { kind, name };
 
     const args = new LuantiArgs();
     args.address = SERVER_ADDRESS;
@@ -316,8 +385,8 @@
     args.name = name;
     args.password = password;
     args.go = true;
-    // Log in never creates a player; Register never logs in to an existing one
-    args.extra = [mode === 'register' ? '--register' : '--login'];
+    // The first visit creates the player in the game; later ones log in
+    args.extra = [exists ? '--login' : '--register'];
 
     mtl.setProxy(PROXY_URL);
     // English, set explicitly because an earlier visit may have saved another
@@ -325,9 +394,35 @@
     mtl.setLang('en');
     mtl.setConf('viewing_range', 120);
 
-    document.getElementById('page').remove();
+    $('page').remove();
     mtl.launch(args);
-  });
+  }
+
+  // ------------------------------------------------------------------
+  // Start
+
+  $('wallet-signin').addEventListener('click', signIn);
+  $('name-form').addEventListener('submit', chooseName);
+  $('wallet-play').addEventListener('click', () => enter('wallet'));
+  $('wallet-signout').addEventListener('click', signOut);
+  $('guest-play').addEventListener('click', () => enter('guest'));
+
+  guest = load('local', GUEST_KEY);
+  if (guest && !(guest.name && /^Guest-[0-9A-F]{6}$/.test(guest.name) && guest.password)) guest = null;
+  showWallet();
+  showGuest();
+
+  // Back from a failed attempt: say what went wrong
+  const retry = load('session', RETRY_KEY);
+  save('session', RETRY_KEY, null);
+  if (retry) {
+    const [title, text, action] = explain(retry.reason, retry.kind);
+    const known = !/^Could not join the Orthoverse$/.test(title);
+    showProblem(title, text, action, known ? '' : retry.reason);
+  }
+
+  api('GET', '/auth/me').then((data) => { me = data; showWallet(); })
+    .catch(() => { me = { signedIn: false }; showWallet(); });
 </script>
 </body>
 </html>

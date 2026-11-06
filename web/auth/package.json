@@ -1,0 +1,17 @@
+{
+  "name": "orthoverse-auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orthoverse wallet sign-in, player names and land ownership",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "node test/auth.test.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "ethers": "6.15.0"
+  }
+}

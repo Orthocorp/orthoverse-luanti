@@ -26,6 +26,7 @@ The game server publishes no port, so the web proxy is the only way in, and the
 | --- | --- | --- |
 | `luanti` | `docker/luanti/` | Luanti 5.18.0 server with static LuaJIT, the Orthoverse game; settings in `docker/luanti/orthoverse.conf` |
 | `proxy` | `docker/proxy/` | `web/proxy/proxy.js` |
+| `auth` | `docker/auth/` | Wallet sign-in, player names, land owners from the Ethereum contract; the only service with internet access |
 | `web` | `docker/web/` | nginx with the landing and map pages; serves the map tiles and the browser game from `data/` |
 | `map` | `docker/map/` | `docker compose run --rm --build map` redraws the map (about 4 minutes) |
 | `client` | `docker/client/` | Builds luanti-wasm with `web/client/patches/` and installs it with `play.html` |
@@ -69,11 +70,26 @@ docker compose run --rm --build map
 
 ### The admin and privileges
 
-The player named in `OV_ADMIN` has every privilege. In the game (chat, T) the
+The admin is a wallet player: sign in with your wallet on the play page, choose
+your player name, put that name in `OV_ADMIN` in `.env`, and run
+`docker compose up -d luanti`. That player has every privilege, and can build
+anywhere. In the game (chat, T) the
 admin can give other players some of them, for example
 `/grant somebody fly,fast,noclip`, take them away with `/revoke somebody fly`,
 and see a player's with `/privs somebody`. In the game, fly is toggled with K,
 fast with J and noclip with H.
+
+### Wallet sign-in and ownership
+
+- `OV_AUTH_SECRET` in `.env` must be set once (`openssl rand -hex 32`) and then
+  kept: wallet players' game passwords are derived from it, so changing it locks
+  them out of their players.
+- `curl -s http://127.0.0.1:8485/auth/status` shows how many players are signed
+  up, when land ownership was last read, and any error reading it.
+- `docker compose logs auth` shows sign-ins, new names and each ownership update
+  (`owners updated: N lands owned`).
+- Player names and wallets are in `OV_DATA/auth/registry.json`. Back it up with the
+  world: without it, wallet players cannot join as their players.
 
 ## History: before Docker
 

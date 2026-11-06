@@ -20,6 +20,8 @@ services:
     volumes:
       - ${OV_WORLD:?set OV_WORLD in .env}:/world
       - ./docker/luanti/orthoverse.conf:/etc/orthoverse/orthoverse.conf:ro
+      # Player names and land owners, written by the auth service
+      - ${OV_DATA:?set OV_DATA in .env}/auth:/world/orthoverse_auth:ro
     environment:
       OV_NUMA_NODE: ${OV_NUMA_NODE:-}
       OV_ADMIN: ${OV_ADMIN:-}
@@ -49,6 +51,25 @@ services:
     restart: unless-stopped
     depends_on: [luanti]
 
+  # Wallet sign-in, player names, and land owners from the Ethereum contract.
+  # The only service that reaches the internet (an Ethereum RPC endpoint).
+  auth:
+    build:
+      context: .
+      dockerfile: docker/auth/Dockerfile
+    image: orthoverse/auth
+    user: "${OV_UID}:${OV_GID}"
+    environment:
+      OV_AUTH_SECRET: ${OV_AUTH_SECRET:?set OV_AUTH_SECRET in .env (openssl rand -hex 32)}
+      OV_ETH_RPC: ${OV_ETH_RPC:-https://ethereum-rpc.publicnode.com}
+      OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
+    volumes:
+      - ${OV_DATA}/auth:/data
+      - ${OV_WORLD}:/world:ro
+    networks: [web]
+    read_only: true
+    restart: unless-stopped
+
   # orthoverse.land: the host's Cloudflare tunnel points at this port
   web:
     build:
@@ -62,7 +83,7 @@ services:
       - ${OV_DATA}/play:/srv/play:ro
     networks: [web]
     restart: unless-stopped
-    depends_on: [proxy]
+    depends_on: [proxy, auth]
 
   # Run on demand: docker compose run --rm --build map
   map:
