@@ -102,6 +102,7 @@ const rpc = http.createServer((req, res) => {
 			}
 			if (r.method === 'eth_call') {
 				const tx = abi.parseTransaction({ data: r.params[0].data });
+				if (!tx) return { result: '0x' + '0'.repeat(64) };   // owner() and the like
 				if (tx.name === 'castleLevel') {
 					return { result: abi.encodeFunctionResult('castleLevel', [levels[hex('0x' + tx.args[0].toString(16).padStart(40, '0'))] || 0n]) };
 				}
@@ -179,6 +180,13 @@ try {
 	check(old.length === 3 && old.some(t => t[0] === carol && t[1] === '3' && t[2] === alice && t[3] === '14100000'),
 		'token-data.json in the old [holder, level, tokenId, block] format');
 
+	// Crests: a castle (level 1 to 7 in either realm) gets one; a plain one
+	// below castle level 4
+	check(Number.isInteger(tokens.tokens[bob].crest) && tokens.tokens[bob].crest >= 2808, `castle level 1 (level 9): a plain crest (${tokens.tokens[bob].crest})`);
+	check(Number.isInteger(tokens.tokens[alice].crest) && tokens.tokens[alice].crest >= 2808, `castle level 3: a plain crest (${tokens.tokens[alice].crest})`);
+	check(tokens.tokens[dave].crest === null, 'no castle: no crest');
+	check(/2 crests given, 0 upgraded/.test(r.out), 'the log counts crests given');
+
 	// Second run: only what is new
 	const callsBefore = getLogsCalls;
 	head += 1000;
@@ -195,6 +203,22 @@ try {
 	check(db.prepare("SELECT has_land FROM tokens WHERE token_id = ?").get(dave).has_land === 1 &&
 		db.prepare("SELECT land_key FROM placements WHERE token_id = ?").get(dave).land_key === '0:0', 'the placement is in the database');
 	db.close();
+
+	// Castle level 4: the plain crest is swapped for one with an animal
+	{
+		const before = JSON.parse(readFileSync(join(dir, 'chain', 'tokens.json'), 'utf8')).tokens;
+		levels[bob] = 12n;
+		r = await runNode(['chain.js', '--once']);
+		const after = JSON.parse(readFileSync(join(dir, 'chain', 'tokens.json'), 'utf8')).tokens;
+		check(after[bob].crest < 2808 && after[bob].crest !== before[bob].crest && /0 crests given, 1 upgraded/.test(r.out),
+			`castle level 4: an animal crest instead (${before[bob].crest} -> ${after[bob].crest})`);
+		check(after[alice].crest === before[alice].crest, 'other crests stay as they are');
+		const db2 = new DatabaseSync(join(dir, 'chain', 'orthoverse-chain.sqlite'), { readOnly: true });
+		const n = db2.prepare('SELECT count(*) AS n, count(DISTINCT crest) AS d FROM crests').get();
+		db2.close();
+		check(n.n === n.d, 'no crest is used twice');
+		levels[bob] = 9n;
+	}
 
 	// A database for another contract is refused
 	r = await runNode(['chain.js', '--once'], { OV_CONTRACT: '0x' + '1'.repeat(40) });

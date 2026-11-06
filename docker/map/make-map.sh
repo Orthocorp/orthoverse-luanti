@@ -1,6 +1,6 @@
 #!/bin/sh
-# Draw the map from /world/map.sqlite into /out (tiles/ and lands.json), then
-# swap the new tiles in at once. Safe while the server runs: it only reads.
+# Draw the map from /world/map.sqlite into /out (tiles/, lands/ and lands.json),
+# then swap the new ones in at once. Safe while the server runs: it only reads.
 #
 #   make-map          draw now
 #   make-map watch    redraw whenever the game has made the terrain of new lands
@@ -24,7 +24,10 @@ draw() {
 	if [ -d "$OUT/tiles" ]; then mv "$OUT/tiles" "$OUT/tiles.old"; fi
 	mv "$TMP/tiles" "$OUT/tiles"
 	mv "$TMP/lands.json" "$OUT/lands.json"
-	rm -rf "$OUT/tiles.old" "$TMP"
+	rm -rf "$OUT/lands.old"
+	if [ -d "$OUT/lands" ]; then mv "$OUT/lands" "$OUT/lands.old"; fi
+	mv "$TMP/lands" "$OUT/lands"
+	rm -rf "$OUT/tiles.old" "$OUT/lands.old" "$TMP"
 	echo "$(date -u +%FT%TZ) Map updated."
 }
 

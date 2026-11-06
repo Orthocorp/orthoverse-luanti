@@ -4,7 +4,8 @@
     make_tiles.py MAP.sqlite LANDS.json OUT_DIR [NEW_LANDS.json]
 
 Writes OUT_DIR/tiles/{z}/{x}/{y}.png (zoom 0 to 6; at zoom 6 one pixel is one
-node) and OUT_DIR/lands.json (the land names, levels and token IDs the map
+node), OUT_DIR/lands/{x}_{z}.png (each land from above, 384 pixels square, for
+the token metadata) and OUT_DIR/lands.json (the land names, levels and token IDs the map
 shows, including lands placed later for new tokens: the chain service's
 new-lands.json). Takes a few minutes for the whole Orthoverse.
 
@@ -68,6 +69,30 @@ def main():
             made[(tx, ty)] = True
             count += 1
     print("zoom %d: %d tiles" % (MAX_Z, count), flush=True)
+
+    # Each land from above, for the token metadata: 96 nodes, 4 pixels each
+    with open(lands_path, encoding="utf-8") as f:
+        data = json.load(f)
+    all_lands = dict(data["lands"])
+    if new_lands_path and os.path.exists(new_lands_path):
+        with open(new_lands_path, encoding="utf-8") as f:
+            for key, land in json.load(f).get("lands", {}).items():
+                all_lands.setdefault(key, land)
+    size = data["land_size"]
+    half = size // 2
+    os.makedirs(os.path.join(out, "lands"), exist_ok=True)
+    pictures = 0
+    for key in all_lands:
+        lx, lz = (int(v) for v in key.split(":"))
+        col = lx * size - half - x_left                  # west edge
+        row = z_top - (-lz * size - half + size - 1)     # north edge
+        if col < 0 or row < 0 or col + size > w or row + size > h:
+            continue
+        img = Image.fromarray(rgb[row:row + size, col:col + size])
+        img.resize((size * 4, size * 4), Image.NEAREST).save(
+            os.path.join(out, "lands", "%d_%d.png" % (lx, lz)))
+        pictures += 1
+    print("land pictures: %d" % pictures, flush=True)
     del rgb
 
     # Lower zooms: each tile is its four children, halved
@@ -88,13 +113,6 @@ def main():
         print("zoom %d: %d tiles" % (z, len(parents)), flush=True)
 
     # The land list the page needs (no owners: those come from the chain later)
-    with open(lands_path, encoding="utf-8") as f:
-        data = json.load(f)
-    all_lands = dict(data["lands"])
-    if new_lands_path and os.path.exists(new_lands_path):
-        with open(new_lands_path, encoding="utf-8") as f:
-            for key, land in json.load(f).get("lands", {}).items():
-                all_lands.setdefault(key, land)
     lands = []
     for key, land in all_lands.items():
         lx, lz = (int(v) for v in key.split(":"))

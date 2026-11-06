@@ -66,6 +66,7 @@ services:
       OV_ETH_RPC: ${OV_ETH_RPC:-https://ethereum-rpc.publicnode.com}
       OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
       OV_CHAIN_TOKENS: /chain/tokens.json
+      OV_PUBLIC_URL: ${OV_PUBLIC_URL:-https://orthoverse.land}
     volumes:
       - ${OV_DATA}/auth:/data
       - ${OV_WORLD}:/world:ro

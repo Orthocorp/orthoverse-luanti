@@ -23,9 +23,11 @@
 import http from 'node:http';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
+import { createMetadata } from './metadata.js';
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -44,6 +46,11 @@ const RPC_SHOWN = (() => { try { return new URL(RPC_URL).host; } catch (e) { ret
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
 const CHAIN_TOKENS = env.OV_CHAIN_TOKENS || '/chain/tokens.json';
 const CHAIN_NEW_LANDS = env.OV_CHAIN_NEW_LANDS || '/chain/new-lands.json';
+// Where the site is, for the links in the token metadata
+const PUBLIC_URL = env.OV_PUBLIC_URL || 'https://orthoverse.land';
+// The crests (web/heraldry, /app/heraldry in the image)
+const HERALDRY = env.OV_HERALDRY || fileURLToPath(new URL(
+	existsSync(new URL('./heraldry', import.meta.url)) ? './heraldry/' : '../heraldry/', import.meta.url));
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
 const CHAIN_ID = 1;
 
@@ -561,8 +568,38 @@ const routes = {
 	},
 };
 
+// ---------------------------------------------------------------------------
+// Token metadata (/api/metadata/), and the contract's owner, who receives the
+// royalties (royaltyInfo: owner(), 2.5%)
+
+let contractOwner = null;
+async function readContractOwner() {
+	try {
+		const [r] = await rpcBatch([{ to: CONTRACT, data: '0x8da5cb5b' }]);   // owner()
+		contractOwner = getAddress('0x' + r.slice(26));
+	} catch (e) {
+		log('could not read the contract owner:', e.message);
+	}
+}
+
+const metadata = createMetadata({
+	landsFile: LANDS_FILE,
+	newLandsFile: CHAIN_NEW_LANDS,
+	tokensFile: CHAIN_TOKENS,
+	heraldryDir: HERALDRY,
+	publicUrl: PUBLIC_URL,
+	royaltyRecipient: () => contractOwner,
+});
+
 const server = http.createServer(async (req, res) => {
 	const url = new URL(req.url, 'http://x');
+	try {
+		if (metadata(req, res, url)) return;
+	} catch (e) {
+		log('error', req.method, url.pathname, e.message);
+		if (!res.headersSent) send(res, 500, { error: 'The request could not be handled.' });
+		return;
+	}
 	const route = routes[`${req.method} ${url.pathname}`];
 	if (!route) return send(res, 404, { error: 'Not found' });
 	try {
@@ -577,6 +614,8 @@ server.listen(PORT, HOST, () => {
 	log(`Orthoverse auth on http://${HOST}:${PORT}: ${lands.length} lands, ` +
 		`${Object.keys(registry.players).length} players, contract ${CONTRACT} via ${RPC_SHOWN}`);
 	checkContract().then(ownersLoop);
+	readContractOwner();
+	setInterval(readContractOwner, 6 * 3600 * 1000).unref();
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

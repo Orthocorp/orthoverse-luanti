@@ -23,7 +23,9 @@
 
 'use strict';
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
+import { randomInt } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Interface } from 'ethers';
@@ -63,6 +65,10 @@ const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 const multicall = new Interface([
 	'function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)',
 ]);
+
+// The crests (web/heraldry, /app/heraldry in the image)
+const HERALDRY = env.OV_HERALDRY || fileURLToPath(new URL(
+	existsSync(new URL('./heraldry', import.meta.url)) ? './heraldry/' : '../heraldry/', import.meta.url));
 
 const ZERO = '0x' + '0'.repeat(40);
 const abi = new Interface([
@@ -165,6 +171,9 @@ db.exec(`
 		last_transfer_block INTEGER,
 		has_land INTEGER NOT NULL DEFAULT 0);
 	CREATE INDEX IF NOT EXISTS tokens_holder ON tokens (holder);
+	-- Each castle's crest (a picture in web/heraldry/escutcheons.png)
+	CREATE TABLE IF NOT EXISTS crests (
+		token_id TEXT PRIMARY KEY, crest INTEGER NOT NULL UNIQUE, assigned_at TEXT NOT NULL);
 	-- Where new lands were placed: for good, never moved
 	CREATE TABLE IF NOT EXISTS placements (
 		token_id TEXT PRIMARY KEY, land_key TEXT NOT NULL UNIQUE,
@@ -192,13 +201,18 @@ const insertTransfer = db.prepare(`INSERT OR IGNORE INTO transfers
 	(block, log_index, item, tx, token_id, from_addr, to_addr) VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
 // The world's fixed lands (keys and names), its planned seas, and its radius
-const world = { keys: new Set(), names: new Set(), seas: new Set(), radius: 56 };
+const world = { keys: new Set(), names: new Set(), seas: new Set(), radius: 56, crests: new Map() };
 
 // Land tokens, and their holders in the April 2023 snapshot
 const landTokens = (() => {
 	try {
 		const data = JSON.parse(readFileSync(LANDS_FILE, 'utf8'));
-		for (const [key, l] of Object.entries(data.lands)) { world.keys.add(key); world.names.add(l.name); }
+		for (const [key, l] of Object.entries(data.lands)) {
+			world.keys.add(key);
+			world.names.add(l.name);
+			const m = /^(\d+)\.png$/.exec(l.crest || '');
+			if (m && l.token) world.crests.set(l.token.toLowerCase(), parseInt(m[1], 10));
+		}
 		for (const key of data.seas || []) world.seas.add(key);
 		if (data.map_radius) world.radius = data.map_radius;
 		const map = new Map();
@@ -395,11 +409,12 @@ async function readLevels() {
 }
 
 function writeFiles(block) {
-	const rows = db.prepare('SELECT * FROM tokens ORDER BY revealed_block NULLS FIRST, token_id').all();
+	const rows = db.prepare(`SELECT t.*, c.crest FROM tokens t LEFT JOIN crests c ON c.token_id = t.token_id
+		ORDER BY t.revealed_block NULLS FIRST, t.token_id`).all();
 	const updated = new Date().toISOString();
 	const tokens = {};
 	for (const r of rows) {
-		tokens[r.token_id] = { holder: r.holder, level: r.level, realm: r.realm, revealed: r.revealed_block };
+		tokens[r.token_id] = { holder: r.holder, level: r.level, realm: r.realm, revealed: r.revealed_block, crest: r.crest ?? null };
 	}
 	writeJsonAtomic(join(DIR, 'tokens.json'), { updated, block, contract: CONTRACT, tokens });
 	writeJsonAtomic(join(DIR, 'token-data.json'),
@@ -472,18 +487,78 @@ function placeNewLands() {
 }
 
 function writeNewLands() {
-	const rows = db.prepare(`SELECT p.land_key, p.token_id, p.name, p.placed_at, t.level, t.holder
-		FROM placements p JOIN tokens t ON t.token_id = p.token_id ORDER BY p.placed_at, p.land_key`).all();
+	const rows = db.prepare(`SELECT p.land_key, p.token_id, p.name, p.placed_at, t.level, t.holder, c.crest
+		FROM placements p JOIN tokens t ON t.token_id = p.token_id LEFT JOIN crests c ON c.token_id = p.token_id
+		ORDER BY p.placed_at, p.land_key`).all();
 	const lands = {};
 	for (const r of rows) {
 		const level = r.level || 0;
 		lands[r.land_key] = {
-			token: r.token_id, name: r.name, level, crest: null,
+			token: r.token_id, name: r.name, level, crest: r.crest == null ? null : r.crest + '.png',
 			owner_snapshot: r.holder, description: landDescription(r.name, level), placed: r.placed_at,
 		};
 	}
 	writeJsonAtomic(join(DIR, 'new-lands.json'), { format: 1, updated: new Date().toISOString(), lands }, 1);
 	return rows.length;
+}
+
+// ---------------------------------------------------------------------------
+// Crests, as orthoverse-offline's update-escutcheons.js gave them out: a land
+// gets a crest when it has a castle (castle level 1 to 7 in either realm),
+// chosen at random from those not yet used: a plain one (2808 and up) for
+// levels 1 to 3, one with an animal (below 2808) from level 4, and a plain one
+// is swapped for an animal one when the land reaches level 4. The crests in
+// the lands file (2023) are kept.
+
+const heraldry = (() => {
+	try {
+		return JSON.parse(readFileSync(join(HERALDRY, 'heraldry.json'), 'utf8'));
+	} catch (e) {
+		log('cannot read the heraldry in', HERALDRY, '- no crests will be given out');
+		return null;
+	}
+})();
+
+function assignCrests() {
+	if (!heraldry) return { given: 0, upgraded: 0 };
+	const now = new Date().toISOString();
+	const seed = db.prepare('INSERT OR IGNORE INTO crests (token_id, crest, assigned_at) VALUES (?, ?, ?)');
+	db.exec('BEGIN');
+	for (const [token, crest] of world.crests) seed.run(token, crest, now);
+	db.exec('COMMIT');
+
+	const current = new Map(db.prepare('SELECT token_id, crest FROM crests').all().map(r => [r.token_id, r.crest]));
+	const used = new Set(current.values());
+	const free = { animals: [], plain: [] };
+	const missing = new Set(heraldry.missing);
+	for (let i = 0; i < heraldry.count; i++) {
+		if (used.has(i) || missing.has(i) || !heraldry.blazons[String(i)]) continue;
+		(i < heraldry.animals_below ? free.animals : free.plain).push(i);
+	}
+	const take = list => list.length ? list.splice(randomInt(list.length), 1)[0] : null;
+	const set = db.prepare(`INSERT INTO crests (token_id, crest, assigned_at) VALUES (?, ?, ?)
+		ON CONFLICT(token_id) DO UPDATE SET crest = excluded.crest, assigned_at = excluded.assigned_at`);
+	let given = 0, upgraded = 0;
+	db.exec('BEGIN');
+	for (const t of db.prepare('SELECT token_id, level FROM tokens WHERE holder IS NOT NULL AND level IS NOT NULL').all()) {
+		const castle = t.level % 8;
+		if (castle === 0) continue;
+		const had = current.get(t.token_id);
+		if (had === undefined) {
+			const crest = castle >= 4 ? (take(free.animals) ?? take(free.plain)) : take(free.plain);
+			if (crest === null) { log('no crests left for', t.token_id); continue; }
+			set.run(t.token_id, crest, now);
+			given++;
+		} else if (castle >= 4 && had >= heraldry.animals_below) {
+			const crest = take(free.animals);
+			if (crest === null) continue;   // the animals have run out: keep the plain one
+			set.run(t.token_id, crest, now);
+			free.plain.push(had);
+			upgraded++;
+		}
+	}
+	db.exec('COMMIT');
+	return { given, upgraded };
 }
 
 async function run() {
@@ -492,13 +567,15 @@ async function run() {
 	const n = rebuildHolders();
 	const changed = await readLevels();
 	const placedNow = placeNewLands();
+	const crests = assignCrests();
 	const newLands = writeNewLands();
 	writeFiles(block);
 	const held = db.prepare('SELECT count(*) AS n FROM tokens WHERE holder IS NOT NULL').get().n;
 	const holders = db.prepare('SELECT count(DISTINCT holder) AS n FROM tokens WHERE holder IS NOT NULL').get().n;
 	const landless = db.prepare('SELECT count(*) AS n FROM tokens WHERE holder IS NOT NULL AND has_land = 0').get().n;
 	log(`chain indexed to block ${block}: ${found} new transfers; ${n} tokens, ${held} held by ${holders} wallets; ` +
-		`${changed} levels changed; ${placedNow} new lands placed (${newLands} in all)` +
+		`${changed} levels changed; ${crests.given} crests given, ${crests.upgraded} upgraded; ` +
+		`${placedNow} new lands placed (${newLands} in all)` +
 		(landless ? `; ${landless} tokens still without land` : '') + ' ' +
 		`(${Math.round((Date.now() - t0) / 1000)} s)`);
 }

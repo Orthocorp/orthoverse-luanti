@@ -9,6 +9,8 @@ Everything served at orthoverse.land:
 | `/play/` | Luanti running in the browser (paradust7/luanti-wasm), joined to the Orthoverse |
 | `/proxy` | WebSocket the browser client uses to reach the game server |
 | `/auth/` | Wallet sign-in and player names (the auth service) |
+| `/api/metadata/` | Token and collection metadata, for the contract's `uri()` and `contractURI()` (the auth service) |
+| `/map/lands/` | Each land from above, 384 pixels square (drawn with the map) |
 
 It all runs on Docker Compose; how to run it is in `docker/README.md`. This file
 is about how the web parts work.
@@ -25,9 +27,10 @@ need no port forwarding on the router.
 | Directory | Contents | Image |
 | --- | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
-| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`); `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
+| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`, `pngjs`); `metadata.js`, the token metadata; `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
+| `web/heraldry/` | The crests (from orthoverse-offline) | `auth`, `chain` |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
-| `web/map/make_tiles.py` | Map tiles and the land list, from the world database | `map` |
+| `web/map/make_tiles.py` | Map tiles, land pictures and the land list, from the world database | `map`, `mapwatch` |
 | `web/client/play.html` | The Orthoverse play page | `client` |
 | `web/client/patches/` | Orthoverse changes to the engine, applied when the browser game is built | `client` |
 
@@ -88,38 +91,31 @@ their first visit only. When joining fails, the engine hands the reason to the
 page (`orthoverseJoinError`), the page reloads, and explains what went wrong.
 The engine runs in English so the reasons can be recognised.
 
-## Web only
+## Token metadata
 
-The game server publishes no port and sits on an internal Compose network, so
-the web proxy is the only way in: a desktop Luanti client on the LAN or the
-internet cannot connect.
+The contract builds its URIs from two base URIs, which its owner sets with
+`setURI` and `setVoidURI`: `contractURI()` is `<base>contract.json`, and
+`uri(id)` is `<base><id in hex>-<castle level>.json`, with the revealed base for
+revealed tokens and the void base for the rest. Both bases are
+`https://orthoverse.land/api/metadata/` (`web/auth/metadata.js`):
 
-Every browser player reaches the game server from the proxy's address, so the
-server cannot tell them apart by address: ban players by name, not by IP.
+| Path | What |
+| --- | --- |
+| `contract.json` | The collection: name, description, picture, link, and the 2.5% royalty to the contract's owner (`royaltyInfo`) |
+| `<0xid>-<level>.json` | A token. A land: its name, description, picture, a link to it on the map, and its realm, title, castle level, crest (the blazon), terrain, coordinates, whether it is an original or a new land, and its reveal block. A revealed token whose land is not placed yet says so; any other address is an unrevealed land |
+| `crest/<n>-<rank>.png` | Crest n, 320 x 512 pixels, with no headgear, a baron's cap, a coronet or a crown above it |
 
-## Accounts
+The level in the URL is the level when a marketplace asked; the current level
+from the chain index wins. `uri()` writes the ID without leading zero bytes, so
+the API pads it back to 40 digits. A land with a castle (castle level 1 to 7)
+shows its crest, with a baron's cap at level 4, a coronet at 5 and 6 and a
+crown at 7; a land without one shows its picture from the map.
 
-The play page has two tabs. **Log in** only logs in to an existing player: an
-unknown name is refused, it never creates a player. **Register** only creates a
-new player: a name that is taken is refused. The page passes `--login` or
-`--register` to the engine (added by `patches/luanti-login-register.patch`; the
-engine already had both modes for its own main menu, but no way to choose them
-from the command line).
-
-When joining fails, the engine hands the reason to the page
-(`orthoverseJoinError`), the page reloads, and the form shows what went wrong
-and what to do: unknown name, name taken (or the same name in other capitals),
-wrong password, already playing, server full, server restarting, server not
-reachable, client out of date. The engine runs in English so the reasons can be
-recognised; anything unrecognised is shown as the engine's own text.
-
-The server requires a password for every player (`disallow_empty_password`), and
-the page asks for at least 6 characters when registering.
-
-The choice is enforced by the web client, not the server: someone who builds
-their own client could still create a player by logging in with a new name. The
-server cannot tell the two apart, because a Luanti client asks to register only
-after the server has told it the name is new.
+Crests are given out by the chain service as `update-escutcheons.js` did:
+castle levels 1 to 3 get a plain crest, level 4 and up one with an animal (a
+plain one is swapped then), never one already used. The 13,188 crests made by
+orthoverse-offline's `make-shields.js` are in `web/heraldry/escutcheons.png`,
+128 to a row, with their blazons in `heraldry.json`.
 
 ## Proxy settings
 

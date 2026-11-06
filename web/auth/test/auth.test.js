@@ -52,6 +52,7 @@ const rpc = http.createServer((req, res) => {
 		rpcCalls += batch.length;
 		const out = batch.map(r => {
 			const tx = erc1155.parseTransaction({ data: r.params[0].data });
+			if (!tx) return { jsonrpc: '2.0', id: r.id, result: '0x' + '0'.repeat(64) };   // owner() and the like
 			if (tx.name === 'supportsInterface') {
 				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('supportsInterface', [true]) };
 			}

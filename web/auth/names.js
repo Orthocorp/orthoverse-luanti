@@ -56,7 +56,7 @@ export function landName(token) {
 		pick(NAMES_2, h.slice(8, 10)) + pick(NAMES_3, h.slice(10, 12));
 }
 
-const TITLES = [
+export const TITLES = [
 	'Croft', 'Land', 'Domain', 'Fiefdom', 'Barony', 'Duchy', 'Principality', 'Kingdom',
 	'Town', 'City', 'Metropolis', 'Region', 'District', 'State', 'Prefecture', 'Nation',
 ];
