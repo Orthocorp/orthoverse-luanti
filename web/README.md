@@ -118,7 +118,11 @@ Pictures:
   the old pictures' background colour for its realm, under a banner with its
   crest (a baron's cap at castle level 4, a coronet at 5 and 6, a crown at 7),
   name, title and coordinates, in the Midnight font (`web/map/fonts/`, the Lords
-  of Midnight 8 x 8 font, at multiples of 8 pixels so it stays sharp). The map service draws them whenever it draws the
+  of Midnight 8 x 8 font, at multiples of 8 pixels so it stays sharp). Blocks
+  are coloured as on the map: natural ones from the palette in
+  `tools/render_map.py`, everything else (what players build with) from the
+  average colour of its texture, worked out when the map image is built
+  (`tools/texture_colours.py`). The map service draws them whenever it draws the
   map, and mapwatch every night (`OV_MAP_HOUR`, UTC), to `OV_DATA/map/cards/`,
   each named after its content, so a changed picture gets a new address and
   marketplaces fetch it again; `cards/index.json` says which is current.

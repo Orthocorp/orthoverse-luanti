@@ -11,6 +11,8 @@ Needs numpy, zstandard and Pillow; use a venv:
     python3 -m venv .venv && .venv/bin/pip install numpy zstandard pillow
 """
 import sqlite3
+import json
+import os
 import struct
 import time
 import sys
@@ -37,17 +39,62 @@ PALETTE = [
     ("obsidian", (30, 20, 40)), ("steel", (200, 200, 210)), ("tin", (180, 180, 190)),
     ("copper", (200, 120, 60)), ("bronze", (180, 110, 50)), ("glass", (190, 230, 240)),
     ("sandstone", (220, 200, 140)), ("meselamp", (250, 250, 150)),
-    ("wool", (220, 80, 160)), ("cactus", (40, 140, 40)), ("flowers", (230, 90, 90)),
+    ("cactus", (40, 140, 40)), ("xpanes:", (190, 230, 240)), ("flowers", (230, 90, 90)),
     ("grass", (110, 180, 70)), ("shrub", (140, 110, 60)), ("apple", (200, 40, 40)),
     ("stone", (125, 125, 125)),
 ]
+
+
+# The average colour of each texture in the game (tools/texture_colours.py), for
+# blocks the palette does not cover: what players build with
+TEXTURES = {}
+_tex = os.environ.get("ORTHOVERSE_TEXTURE_COLOURS",
+                      os.path.join(os.path.dirname(os.path.abspath(__file__)), "texture_colours.json"))
+if os.path.exists(_tex):
+    with open(_tex, encoding="utf-8") as _f:
+        TEXTURES = json.load(_f)
+
+PREFIXES = ("stair_inner_", "stair_outer_", "stair_", "slab_", "fence_rail_", "fence_", "gate_",
+            "pane_", "wall_")
+SUFFIXES = ("_a", "_b", "_c", "_d", "_open", "_closed", "_active", "_on", "_off", "_flowing",
+            "_source", "_flat", "_top", "_bottom", "_wall", "_ceiling", "_1", "_2", "_3", "_4")
+UNKNOWN = (150, 145, 140)
+
+
+def texture_colour(name):
+    """The colour of a block from its texture: "default:brick" is default_brick.png,
+    "stairs:stair_brick" too, "wool:red" is wool_red.png, and so on."""
+    if ":" not in name or not TEXTURES:
+        return None
+    mod, item = name.split(":", 1)
+    bases = [item]
+    for p in PREFIXES:
+        if item.startswith(p):
+            bases.append(item[len(p):])
+    for b in list(bases):
+        for sfx in SUFFIXES:
+            if b.endswith(sfx):
+                bases.append(b[:-len(sfx)])
+    for b in list(bases):
+        if b.endswith("block") and not b.endswith("_block"):   # goldblock: default_gold_block
+            bases.append(b[:-5] + "_block")
+    for b in bases:
+        for cand in (mod + "_" + b, "default_" + b, b, mod + "_" + b + "_top", "default_" + b + "_top"):
+            if cand in TEXTURES:
+                return tuple(TEXTURES[cand])
+    for b in bases:
+        if len(b) >= 4:
+            hits = sorted(k for k in TEXTURES if k.endswith("_" + b) or ("_" + b + "_") in k)
+            if hits:
+                return tuple(TEXTURES[hits[0]])
+    return None
 
 
 def colour(name):
     for frag, col in PALETTE:
         if frag in name:
             return col
-    return (255, 0, 255)
+    return texture_colour(name) or UNKNOWN
 
 
 def decode(blob, dctx):
