@@ -14,6 +14,9 @@
 //   orthoverse-chain.sqlite  tables tokens, transfers (since FROM_BLOCK) and meta
 //   tokens.json              { updated, block, contract, tokens: { id: {holder, level, realm, revealed} } }
 //   token-data.json          the old format: [[holder, level, tokenId, revealBlock], ...]
+//   new-lands.json           lands placed for tokens revealed after the world's lands
+//                            were fixed: { updated, lands: { "x:z": land } }, read by
+//                            the game, the auth service and the web map
 //
 //   node chain.js           index now, then again every OV_CHAIN_EVERY_HOURS (24)
 //   node chain.js --once    index now and exit
@@ -24,6 +27,7 @@ import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Interface } from 'ethers';
+import { landName, landDescription } from './names.js';
 
 const env = process.env;
 const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
@@ -161,6 +165,10 @@ db.exec(`
 		last_transfer_block INTEGER,
 		has_land INTEGER NOT NULL DEFAULT 0);
 	CREATE INDEX IF NOT EXISTS tokens_holder ON tokens (holder);
+	-- Where new lands were placed: for good, never moved
+	CREATE TABLE IF NOT EXISTS placements (
+		token_id TEXT PRIMARY KEY, land_key TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL, placed_at TEXT NOT NULL);
 `);
 
 function getMeta(key) {
@@ -183,10 +191,16 @@ setMeta('contract', CONTRACT);
 const insertTransfer = db.prepare(`INSERT OR IGNORE INTO transfers
 	(block, log_index, item, tx, token_id, from_addr, to_addr) VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
+// The world's fixed lands (keys and names), its planned seas, and its radius
+const world = { keys: new Set(), names: new Set(), seas: new Set(), radius: 56 };
+
 // Land tokens, and their holders in the April 2023 snapshot
 const landTokens = (() => {
 	try {
 		const data = JSON.parse(readFileSync(LANDS_FILE, 'utf8'));
+		for (const [key, l] of Object.entries(data.lands)) { world.keys.add(key); world.names.add(l.name); }
+		for (const key of data.seas || []) world.seas.add(key);
+		if (data.map_radius) world.radius = data.map_radius;
 		const map = new Map();
 		for (const l of Object.values(data.lands)) {
 			if (!l.token) continue;
@@ -344,13 +358,14 @@ function rebuildHolders() {
 		t.last = r.block;
 		holders.set(r.token_id, t);
 	}
+	const placed = new Set(db.prepare('SELECT token_id FROM placements').all().map(r => r.token_id));
 	const upsert = db.prepare(`INSERT INTO tokens (token_id, holder, revealed_block, last_transfer_block, has_land)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(token_id) DO UPDATE SET holder = excluded.holder, revealed_block = excluded.revealed_block,
 			last_transfer_block = excluded.last_transfer_block, has_land = excluded.has_land`);
 	db.exec('BEGIN');
 	for (const [id, t] of holders) {
-		upsert.run(id, t.holder, t.revealed, t.last, landTokens.has(id) ? 1 : 0);
+		upsert.run(id, t.holder, t.revealed, t.last, landTokens.has(id) || placed.has(id) ? 1 : 0);
 	}
 	db.exec('COMMIT');
 	return holders.size;
@@ -392,17 +407,99 @@ function writeFiles(block) {
 	setMeta('updated', updated);
 }
 
+// ---------------------------------------------------------------------------
+// New lands
+
+// The cells of the old map in the order generate-map-from-db-sqlite.js filled
+// them: one square spiral around each henge centre, all nine growing together,
+// a land dealt to each spiral in turn. Coordinates are land keys (x, z; z grows
+// southwards). The 1943 fixed lands are exactly the first cells of this order,
+// skipping the planned seas.
+const SPIRAL_CENTRES = [[0, 0], [-30, -30], [0, -30], [30, -30], [-30, 0], [30, 0], [-30, 30], [0, 30], [30, 30]];
+function* spiral() {
+	let x = 0, y = 0, d = 1;
+	for (let m = 1; m < 4 * world.radius; m++) {
+		while (2 * y * d < m) {
+			for (const [cx, cy] of SPIRAL_CENTRES) yield [cx + x, cy + y];
+			y += d;
+		}
+		while (2 * x * d < m) {
+			for (const [cx, cy] of SPIRAL_CENTRES) yield [cx + x, cy + y];
+			x += d;
+		}
+		d = -d;
+	}
+}
+
+// Give every token that has no land yet the next free cell, in the order the
+// tokens were revealed. Returns how many were placed.
+function placeNewLands() {
+	const waiting = db.prepare(`SELECT token_id FROM tokens
+		WHERE has_land = 0 AND holder IS NOT NULL
+		ORDER BY revealed_block IS NULL, revealed_block, token_id`).all().map(r => r.token_id);
+	if (!waiting.length) return 0;
+	const taken = new Set([...world.keys, ...world.seas,
+		...db.prepare('SELECT land_key FROM placements').all().map(r => r.land_key)]);
+	const names = new Set([...world.names, ...db.prepare('SELECT name FROM placements').all().map(r => r.name)]);
+	const insert = db.prepare('INSERT INTO placements (token_id, land_key, name, placed_at) VALUES (?, ?, ?, ?)');
+	const mark = db.prepare('UPDATE tokens SET has_land = 1 WHERE token_id = ?');
+	const cells = spiral();
+	let n = 0;
+	db.exec('BEGIN');
+	for (const token of waiting) {
+		// (next() by hand: leaving a for...of would close the generator)
+		let key = null;
+		for (let c = cells.next(); !c.done; c = cells.next()) {
+			const [x, z] = c.value;
+			const k = `${x}:${z}`;
+			if (Math.max(Math.abs(x), Math.abs(z)) > world.radius || taken.has(k)) continue;
+			key = k;
+			break;
+		}
+		if (!key) { log('no free cell left for', token); break; }
+		taken.add(key);
+		let name = landName(token);
+		if (names.has(name)) name += ' Parva';   // as orthoverse-offline did for a repeat
+		for (let i = 2; names.has(name); i++) name = landName(token) + ' ' + i;
+		names.add(name);
+		insert.run(token, key, name, new Date().toISOString());
+		mark.run(token);
+		log(`new land ${name} at ${key} for token ${token}`);
+		n++;
+	}
+	db.exec('COMMIT');
+	return n;
+}
+
+function writeNewLands() {
+	const rows = db.prepare(`SELECT p.land_key, p.token_id, p.name, p.placed_at, t.level, t.holder
+		FROM placements p JOIN tokens t ON t.token_id = p.token_id ORDER BY p.placed_at, p.land_key`).all();
+	const lands = {};
+	for (const r of rows) {
+		const level = r.level || 0;
+		lands[r.land_key] = {
+			token: r.token_id, name: r.name, level, crest: null,
+			owner_snapshot: r.holder, description: landDescription(r.name, level), placed: r.placed_at,
+		};
+	}
+	writeJsonAtomic(join(DIR, 'new-lands.json'), { format: 1, updated: new Date().toISOString(), lands }, 1);
+	return rows.length;
+}
+
 async function run() {
 	const t0 = Date.now();
 	const { found, block } = await readEvents();
 	const n = rebuildHolders();
 	const changed = await readLevels();
+	const placedNow = placeNewLands();
+	const newLands = writeNewLands();
 	writeFiles(block);
 	const held = db.prepare('SELECT count(*) AS n FROM tokens WHERE holder IS NOT NULL').get().n;
 	const holders = db.prepare('SELECT count(DISTINCT holder) AS n FROM tokens WHERE holder IS NOT NULL').get().n;
 	const landless = db.prepare('SELECT count(*) AS n FROM tokens WHERE holder IS NOT NULL AND has_land = 0').get().n;
 	log(`chain indexed to block ${block}: ${found} new transfers; ${n} tokens, ${held} held by ${holders} wallets; ` +
-		`${changed} levels changed; ${landless} tokens have no land in the world yet ` +
+		`${changed} levels changed; ${placedNow} new lands placed (${newLands} in all)` +
+		(landless ? `; ${landless} tokens still without land` : '') + ' ' +
 		`(${Math.round((Date.now() - t0) / 1000)} s)`);
 }
 

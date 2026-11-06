@@ -22,6 +22,8 @@ services:
       - ./docker/luanti/orthoverse.conf:/etc/orthoverse/orthoverse.conf:ro
       # Player names and land owners, written by the auth service
       - ${OV_DATA:?set OV_DATA in .env}/auth:/world/orthoverse_auth:ro
+      # New lands, placed by the chain service
+      - ${OV_DATA}/chain:/world/orthoverse_chain:ro
     environment:
       OV_NUMA_NODE: ${OV_NUMA_NODE:-}
       OV_ADMIN: ${OV_ADMIN:-}
@@ -119,7 +121,23 @@ services:
     volumes:
       - ${OV_WORLD}:/world:ro
       - ${OV_DATA}/map:/out
+      - ${OV_DATA}/chain:/chain:ro
     network_mode: none
+
+  # Redraws the web map when the game has made the terrain of new lands
+  mapwatch:
+    build:
+      context: .
+      dockerfile: docker/map/Dockerfile
+    image: orthoverse/map
+    command: ["watch"]
+    user: "${OV_UID}:${OV_GID}"
+    volumes:
+      - ${OV_WORLD}:/world:ro
+      - ${OV_DATA}/map:/out
+      - ${OV_DATA}/chain:/chain:ro
+    network_mode: none
+    restart: unless-stopped
 
   # Run on demand: docker compose run --rm --build client
   client:

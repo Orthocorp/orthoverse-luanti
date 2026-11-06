@@ -171,8 +171,10 @@ try {
 	check(tokens.tokens[bob].level === 9 && tokens.tokens[bob].realm === 'futuristic', 'level 9 is a futuristic castle');
 	check(multicalls === 1, `castle levels read through one Multicall3 call (${multicalls})`);
 	check(tokens.tokens[alice].revealed === 14100000, 'reveal block recorded');
-	check(/2 held by 2 wallets|3 held by 2 wallets/.test(r.out) && /1 tokens have no land/.test(r.out),
-		'the log sums up tokens, holders and tokens without land');
+	check(/3 held by 2 wallets/.test(r.out) && /1 new lands placed \(1 in all\)/.test(r.out),
+		'the log sums up tokens, holders and new lands');
+	const nl0 = JSON.parse(readFileSync(join(dir, 'chain', 'new-lands.json'), 'utf8')).lands;
+	check(nl0['0:0'] && nl0['0:0'].token === dave, 'a token without land gets one: the first free cell of the spiral');
 	const old = JSON.parse(readFileSync(join(dir, 'chain', 'token-data.json'), 'utf8'));
 	check(old.length === 3 && old.some(t => t[0] === carol && t[1] === '3' && t[2] === alice && t[3] === '14100000'),
 		'token-data.json in the old [holder, level, tokenId, block] format');
@@ -190,12 +192,48 @@ try {
 
 	const db = new DatabaseSync(join(dir, 'chain', 'orthoverse-chain.sqlite'), { readOnly: true });
 	check(db.prepare('SELECT count(*) AS n FROM transfers').get().n === 6, 'every transfer is kept in the database');
-	check(db.prepare("SELECT has_land FROM tokens WHERE token_id = ?").get(dave).has_land === 0, 'a token without land is marked');
+	check(db.prepare("SELECT has_land FROM tokens WHERE token_id = ?").get(dave).has_land === 1 &&
+		db.prepare("SELECT land_key FROM placements WHERE token_id = ?").get(dave).land_key === '0:0', 'the placement is in the database');
 	db.close();
 
 	// A database for another contract is refused
 	r = await runNode(['chain.js', '--once'], { OV_CONTRACT: '0x' + '1'.repeat(40) });
 	check(r.code === 1 && /is for contract/.test(r.out), 'refuses to mix contracts in one database');
+
+	// New lands, with the real lands file: tokens revealed after the world's
+	// lands were fixed get the next cells of the old spiral, for good
+	{
+		const real = new URL('../../../mods/orthoverse_lands/data/lands.json', import.meta.url).pathname;
+		const fixed = JSON.parse(readFileSync(real, 'utf8'));
+		const saved = events.splice(0);
+		const savedHead = head;
+		const erin = Wallet.createRandom().address.toLowerCase();
+		const fred = Wallet.createRandom().address.toLowerCase();
+		head = 16000000;
+		single(15900000, ZERO, erin, erin);
+		single(15900100, ZERO, fred, fred);
+		const dir5 = join(dir, 'chain5');
+		r = await runNode(['chain.js', '--once'], { OV_LANDS: real, OV_CHAIN_FROM_BLOCK: '', OV_CHAIN_DIR: dir5 });
+		const nl = JSON.parse(readFileSync(join(dir5, 'new-lands.json'), 'utf8')).lands;
+		const keys = Object.keys(nl);
+		check(r.code === 0 && keys.length === 2, `two new lands placed (${keys.join(', ')})`);
+		check(nl['-7:4'] && nl['-7:4'].token === erin, 'the first goes to -7:4, the next free cell of the old spiral');
+		const other = keys.find(k => k !== '-7:4');
+		check(other && !fixed.lands[other] && !fixed.seas.includes(other) && nl[other].token === fred,
+			`the second goes to the next free cell (${other}), not on a land or a planned sea`);
+		const { landName } = await import('../names.js');
+		check(nl['-7:4'].name === landName(erin) && /^The Orthoverse (Croft|Land) of /.test(nl['-7:4'].description),
+			`named as load-tokens.js named lands (${nl['-7:4'].name})`);
+		check(/2 new lands placed/.test(r.out) && !/still without land/.test(r.out), 'the log says so');
+		// Stays put
+		head += 10;
+		r = await runNode(['chain.js', '--once'], { OV_LANDS: real, OV_CHAIN_FROM_BLOCK: '', OV_CHAIN_DIR: dir5 });
+		const nl2 = JSON.parse(readFileSync(join(dir5, 'new-lands.json'), 'utf8')).lands;
+		check(JSON.stringify(Object.keys(nl2).sort()) === JSON.stringify(keys.sort()) && /0 new lands placed \(2 in all\)/.test(r.out),
+			'a placed land stays where it is');
+		events.splice(0, events.length, ...saved);
+		head = savedHead;
+	}
 
 	// The auth service checks the indexed holders instead of the 2023 snapshot
 	r = await runNode(['server.js'], {

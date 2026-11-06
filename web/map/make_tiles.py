@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Make the web map: map tiles from the world database, plus the land list.
 
-    make_tiles.py MAP.sqlite LANDS.json OUT_DIR
+    make_tiles.py MAP.sqlite LANDS.json OUT_DIR [NEW_LANDS.json]
 
 Writes OUT_DIR/tiles/{z}/{x}/{y}.png (zoom 0 to 6; at zoom 6 one pixel is one
 node) and OUT_DIR/lands.json (the land names, levels and token IDs the map
-shows). Takes a few minutes for the whole Orthoverse.
+shows, including lands placed later for new tokens: the chain service's
+new-lands.json). Takes a few minutes for the whole Orthoverse.
 
 Coordinates: the map is a 16384-node square centred on the origin. At zoom 6,
 pixel (px, py) is node x = px - 8192, z = 8192 - py (north up). The page uses
@@ -40,6 +41,7 @@ def save(img, path):
 
 def main():
     db, lands_path, out = sys.argv[1:4]
+    new_lands_path = sys.argv[4] if len(sys.argv) > 4 else None
     rgb, x_left, z_top = render(db)
     h, w = rgb.shape[:2]
     # Where the rendered image sits in zoom-6 pixel space
@@ -88,8 +90,13 @@ def main():
     # The land list the page needs (no owners: those come from the chain later)
     with open(lands_path, encoding="utf-8") as f:
         data = json.load(f)
+    all_lands = dict(data["lands"])
+    if new_lands_path and os.path.exists(new_lands_path):
+        with open(new_lands_path, encoding="utf-8") as f:
+            for key, land in json.load(f).get("lands", {}).items():
+                all_lands.setdefault(key, land)
     lands = []
-    for key, land in data["lands"].items():
+    for key, land in all_lands.items():
         lx, lz = (int(v) for v in key.split(":"))
         entry = {"x": lx, "z": lz, "n": land["name"], "l": land["level"], "t": land["token"]}
         if key in data.get("henges", {}):

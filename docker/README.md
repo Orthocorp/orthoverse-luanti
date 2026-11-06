@@ -12,7 +12,7 @@ browser ── https://orthoverse.land ──► Cloudflare tunnel (host) ──
   │    /proxy ──► proxy (Node) ──► luanti (game server, no published port)   │
   │                 "web" network      "game" network (internal, no internet)│
   │                                                                          │
-  │  map     on demand: draws the map from the world (read-only)            │
+  │  map     on demand, mapwatch when lands are added: draws the map        │
   │  client  on demand: builds and installs the browser game                │
   └──────────────────────────────────────────────────────────────────────────┘
        world: /mnt/ethereum/orthoverse/luanti/worlds/orthoverse (plain files)
@@ -30,6 +30,7 @@ The game server publishes no port, so the web proxy is the only way in, and the
 | `chain` | `docker/auth/` | Once a day: every token, its holder, castle level and realm, from the contract (`web/auth/chain.js`) |
 | `web` | `docker/web/` | nginx with the landing and map pages; serves the map tiles and the browser game from `data/` |
 | `map` | `docker/map/` | `docker compose run --rm --build map` redraws the map (about 4 minutes) |
+| `mapwatch` | `docker/map/` | Redraws the map by itself when new lands have been added |
 | `client` | `docker/client/` | Builds luanti-wasm with `web/client/patches/` and installs it with `play.html` |
 
 ## Everyday use
@@ -68,6 +69,27 @@ docker compose run --rm luanti pregen          # about 25 minutes; pregen 3 0,0 
 docker compose start luanti
 docker compose run --rm --build map
 ```
+
+### New lands
+
+A token revealed after the world's lands were fixed gets a land of its own,
+by itself:
+
+1. The `chain` service, in its daily run, gives it the next free cell in the
+   order the old toolchain used (`generate-map-from-db-sqlite.js`): a square
+   spiral round each of the nine henge centres, all nine growing together,
+   skipping lands and the planned seas and lakes (`seas` in
+   `mods/orthoverse_lands/data/lands.json`, from the old `sea.json`). The next
+   cells are -7:4, -37:-26, -7:-26, 23:-26, -37:4. It names the land as
+   `load-tokens.js` did, and writes `OV_DATA/chain/new-lands.json`. A land, once
+   placed, never moves (table `placements` in the chain database).
+2. Within a minute the game adds it, and makes its terrain: it deletes the
+   land's mapchunk and those of the sea cells around it, and generates them
+   afresh (`docker compose logs luanti | grep orthoverse_lands`). Neighbouring
+   lands are not touched: lands run full height to their edges, and the beaches
+   are in the sea cells.
+3. The auth service adds it within 10 minutes, so its holder can build there.
+4. `mapwatch` redraws the web map a few minutes later.
 
 ### The admin and privileges
 

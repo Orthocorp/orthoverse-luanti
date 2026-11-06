@@ -7,12 +7,16 @@ Sources (from the old repos):
                       last updated 6 Apr 2023: the data the last live server used)
   special.json        orthoverse-prismarine/patch-files/flying-squid/map-data/special.json
   sqlite dump         orthoverse-offline/orthoverse-sqlite.dump (descriptions only)
+  sea.json            orthoverse-offline/data/sea.json: the planned seas and lakes,
+                      as [row, column] of the old 101 x 101 map array, which
+                      generate-map-from-db-sqlite.js reads as land x = column - 50,
+                      z = row - 50 (checked: no land is on one)
 
 Positions in voxel.json are authoritative and frozen. Coordinates use the old
 Orthoverse convention: key "x:z" with z increasing southwards (Minecraft style).
 The mod converts to Luanti coordinates (z increasing northwards).
 
-Standard library only; run with: python3 tools/build_lands.py VOXEL SPECIAL DUMP OUT
+Standard library only; run with: python3 tools/build_lands.py VOXEL SPECIAL DUMP SEA OUT
 """
 import json
 import re
@@ -42,7 +46,7 @@ def clean_feature(s):
     return s[:36]
 
 
-def main(voxel_path, special_path, dump_path, out_path):
+def main(voxel_path, special_path, dump_path, sea_path, out_path):
     with open(voxel_path, encoding="utf-8") as f:
         voxel = json.load(f)
     with open(special_path, encoding="utf-8") as f:
@@ -77,15 +81,23 @@ def main(voxel_path, special_path, dump_path, out_path):
         if key not in lands:
             raise ValueError("henge without a land entry: " + key)
 
+    with open(sea_path, encoding="utf-8") as f:
+        seas = sorted({"%d:%d" % (col - 50, row - 50) for row, col in json.load(f)},
+                      key=lambda k: tuple(int(v) for v in k.split(":")))
+    if set(seas) & set(lands):
+        raise ValueError("a planned sea is on a land")
+
     out = {
         "format": 1,
         "comment": "Orthoverse lands, frozen positions. Key 'x:z' in old Orthoverse "
                    "coordinates (z grows southwards). Terrain comes from 'token'; "
-                   "'owner_snapshot' is the owner as of Apr 2023, not authoritative.",
+                   "'owner_snapshot' is the owner as of Apr 2023, not authoritative. "
+                   "'seas' are the planned seas and lakes: new lands are never placed there.",
         "land_size": 96,
         "map_radius": 56,
         "lands": lands,
         "henges": henges,
+        "seas": seas,
     }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
@@ -93,6 +105,6 @@ def main(voxel_path, special_path, dump_path, out_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 6:
         sys.exit(__doc__)
     main(*sys.argv[1:])

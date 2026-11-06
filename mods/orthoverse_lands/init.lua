@@ -1,4 +1,6 @@
 -- orthoverse_lands: loads the frozen land table and shares it with the mapgen threads.
+-- Lands placed later for newly revealed tokens (the chain service's
+-- new-lands.json) are added while the server runs, and their terrain is made.
 
 local modpath = core.get_modpath(core.get_current_modname())
 
@@ -15,14 +17,166 @@ assert(data.format == 1, "orthoverse_lands: unsupported lands.json format")
 
 orthoverse.lands = data.lands
 orthoverse.henges = data.henges
+orthoverse.seas = {}
+for _, key in ipairs(data.seas or {}) do orthoverse.seas[key] = true end
 
 local count = 0
 for _ in pairs(data.lands) do count = count + 1 end
 core.log("action", ("[orthoverse_lands] %d lands, henges loaded"):format(count))
 
 -- The mapgen environment cannot see this one; hand the data over via IPC.
-core.ipc_set("orthoverse:lands", { lands = data.lands, henges = data.henges })
+-- The mapgen threads reload the lands when the version changes.
+local lands_version = 0
+local function publish()
+	lands_version = lands_version + 1
+	core.ipc_set("orthoverse:lands", { lands = orthoverse.lands, henges = orthoverse.henges })
+	core.ipc_set("orthoverse:lands_version", lands_version)
+end
 core.ipc_set("orthoverse:lands_path", modpath)
+
+------------------------------------------------------------------------------
+-- New lands
+
+-- Written by the chain service (OV_DATA/chain, mounted into the world folder)
+local NEW_LANDS = core.get_worldpath() .. "/orthoverse_chain/new-lands.json"
+-- Which new lands have their terrain, for the web map's redraw
+local MADE_FILE = core.get_worldpath() .. "/orthoverse_new_lands_made.json"
+local storage = core.get_mod_storage()
+
+-- {key = time} of the new lands whose terrain has been made
+local function made_lands()
+	local s = storage:get_string("made")
+	return s ~= "" and core.parse_json(s) or {}
+end
+
+local function read_new_lands()
+	local f = io.open(NEW_LANDS, "r")
+	if not f then return {} end
+	local raw = f:read("*a")
+	f:close()
+	local ok, parsed = pcall(core.parse_json, raw)
+	if not ok or type(parsed) ~= "table" or type(parsed.lands) ~= "table" then
+		core.log("warning", "[orthoverse_lands] new-lands.json did not parse; trying again later")
+		return {}
+	end
+	return parsed.lands
+end
+
+local function valid(key, land)
+	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+	lx, lz = tonumber(lx), tonumber(lz)
+	return lx and math.max(math.abs(lx), math.abs(lz)) <= C.MAP_RADIUS
+		and type(land) == "table" and type(land.token) == "string"
+		and land.token:match("^0x%x+$") and #land.token >= 38
+		and type(land.name) == "string" and tonumber(land.level)
+end
+
+-- Add the new lands that are not in the table yet (a land is never moved or
+-- removed). Returns the keys added.
+local function add_new_lands()
+	local added = {}
+	for key, land in pairs(read_new_lands()) do
+		if not orthoverse.lands[key] and not orthoverse.henges[key] then
+			if valid(key, land) then
+				land.level = tonumber(land.level)
+				orthoverse.lands[key] = land
+				added[#added + 1] = key
+			else
+				core.log("warning", "[orthoverse_lands] new land " .. tostring(key) .. " is not valid; ignored")
+			end
+		end
+	end
+	return added
+end
+
+-- The mapchunks to make again for a new land: its own, and those of the sea
+-- cells around it, whose beaches now rise to meet it. A land is exactly one
+-- mapchunk across (chunksize 6); in height, the two chunks that hold the
+-- surface (y -48..143).
+local function regen_area(lx, lz)
+	local x0, zn = C.land_origin(lx, lz)
+	return vector.new(x0, -48, zn - C.LAND + 1), vector.new(x0 + C.LAND - 1, 143, zn)
+end
+
+local function is_sea(lx, lz)
+	local key = C.key(lx, lz)
+	return math.max(math.abs(lx), math.abs(lz)) <= C.MAP_RADIUS
+		and not orthoverse.lands[key] and not orthoverse.henges[key]
+end
+
+local function record_made()
+	local made = made_lands()
+	local f = io.open(MADE_FILE .. ".tmp", "w")
+	if not f then return end
+	f:write(core.write_json({ updated = os.time(), lands = made }))
+	f:close()
+	os.rename(MADE_FILE .. ".tmp", MADE_FILE)
+end
+
+local pending = {}   -- new lands whose terrain is being made
+
+local function make_terrain(key)
+	pending[key] = true
+	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+	lx, lz = tonumber(lx), tonumber(lz)
+	local cells = {{lx, lz}}
+	for dz = -1, 1 do
+		for dx = -1, 1 do
+			if (dx ~= 0 or dz ~= 0) and is_sea(lx + dx, lz + dz) then
+				cells[#cells + 1] = {lx + dx, lz + dz}
+			end
+		end
+	end
+	local left = #cells
+	for _, c in ipairs(cells) do
+		local p1, p2 = regen_area(c[1], c[2])
+		core.delete_area(p1, p2)
+		core.emerge_area(p1, p2, function(_, _, remaining)
+			if remaining > 0 then return end
+			left = left - 1
+			if left == 0 then
+				local made = made_lands()
+				made[key] = os.time()
+				storage:set_string("made", core.write_json(made))
+				record_made()
+				pending[key] = nil
+				core.log("action", ("[orthoverse_lands] terrain made for new land %s (%s)")
+					:format(orthoverse.lands[key].name, key))
+			end
+		end)
+	end
+end
+
+local function check_new_lands()
+	local added = add_new_lands()
+	if #added > 0 then
+		publish()
+	end
+	-- Terrain for every new land that does not have it yet (also after a
+	-- restart part-way)
+	local made = made_lands()
+	for key, land in pairs(orthoverse.lands) do
+		if not data.lands_fixed[key] and not made[key] and not pending[key] then
+			core.log("action", ("[orthoverse_lands] new land %s at %s"):format(land.name, key))
+			make_terrain(key)
+		end
+	end
+end
+
+-- The fixed lands, so that new ones can be told apart
+data.lands_fixed = {}
+for key in pairs(data.lands) do data.lands_fixed[key] = true end
+
+add_new_lands()
+publish()
+
+-- Terrain is made once the server runs (emerging needs the map); then every
+-- minute, look for lands placed since
+local function loop()
+	check_new_lands()
+	core.after(60, loop)
+end
+core.after(5, loop)
 
 -- Land at a Luanti position (or nil for sea / border).
 function orthoverse.land_at(pos)

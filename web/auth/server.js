@@ -43,6 +43,7 @@ const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
 const RPC_SHOWN = (() => { try { return new URL(RPC_URL).host; } catch (e) { return '(endpoint)'; } })();
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
 const CHAIN_TOKENS = env.OV_CHAIN_TOKENS || '/chain/tokens.json';
+const CHAIN_NEW_LANDS = env.OV_CHAIN_NEW_LANDS || '/chain/new-lands.json';
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
 const CHAIN_ID = 1;
 
@@ -161,6 +162,25 @@ const lands = (() => {
 	return list;
 })();
 
+// Lands placed since for new tokens (the chain service's new-lands.json):
+// added to the list, never removed or moved
+const landKeys = new Set(lands.map(l => l.key));
+function addNewLands() {
+	const data = readJson(CHAIN_NEW_LANDS, null);
+	if (!data || !data.lands) return 0;
+	let n = 0;
+	for (const [key, land] of Object.entries(data.lands)) {
+		if (landKeys.has(key) || !land || !/^0x[0-9a-fA-F]{40,64}$/.test(land.token || '')) continue;
+		const snap = /^0x[0-9a-fA-F]{40}$/.test(land.owner_snapshot || '') ? land.owner_snapshot.toLowerCase() : null;
+		lands.push({ key, name: String(land.name || key), token: land.token.toLowerCase(), snapshot: snap });
+		landKeys.add(key);
+		n++;
+	}
+	if (n) log(`${n} new lands added`);
+	return n;
+}
+addNewLands();
+
 let owners = readJson(OWNERS_FILE, null);   // { updated, contract, owners: {token: holder|null} }
 let ownersError = null;
 
@@ -239,6 +259,7 @@ function indexedHolders() {
 }
 
 async function refreshOwners() {
+	addNewLands();
 	const wallets = [...watched];
 	const index = indexedHolders();
 	const known = l => (index.holders ? index.holders.get(l.token) : l.snapshot) || null;

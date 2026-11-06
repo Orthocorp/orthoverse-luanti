@@ -11,6 +11,7 @@
 local IPC = core.ipc_get("orthoverse:lands")
 local C = dofile(core.ipc_get("orthoverse:lands_path") .. "/coords.lua")
 local LANDS, HENGES = IPC.lands, IPC.henges
+local lands_version = core.ipc_get("orthoverse:lands_version")
 
 local G = tonumber(core.get_mapgen_setting("mgflat_ground_level")) or 8
 local W = tonumber(core.get_mapgen_setting("water_level")) or 1
@@ -174,6 +175,43 @@ local function is_landish(lx, lz)
 	return k ~= "sea"
 end
 
+-- New lands are added while the server runs: reload when the version changes
+local function check_lands()
+	local v = core.ipc_get("orthoverse:lands_version")
+	if v ~= lands_version then
+		local ipc = core.ipc_get("orthoverse:lands")
+		LANDS, HENGES = ipc.lands, ipc.henges
+		lands_version = v
+		land_cache = {}
+	end
+end
+
+-- Beaches. Lands keep their full height to their edges, so that a land placed
+-- later in the sea fits against its neighbours; the sea cells next to land rise
+-- to meet it instead. Returns the distance (nodes) from x,z in a sea cell to
+-- the nearest neighbouring land, sideways or at a corner, or nil if none is
+-- within reach.
+local SHORE = 16
+local function shore_distance(lx, lz, u, v)
+	local d = nil
+	local function near(dist)
+		if dist < SHORE and (not d or dist < d) then d = dist end
+	end
+	-- u grows eastwards (lx + 1), v southwards (lz + 1); edges at -0.5 and 95.5
+	local du = {[-1] = u + 0.5, [1] = 95.5 - u}
+	local dv = {[-1] = v + 0.5, [1] = 95.5 - v}
+	for oz = -1, 1 do
+		for ox = -1, 1 do
+			if (ox ~= 0 or oz ~= 0) and is_landish(lx + ox, lz + oz) then
+				if oz == 0 then near(du[ox])
+				elseif ox == 0 then near(dv[oz])
+				else near(sqrt(du[ox] ^ 2 + dv[oz] ^ 2)) end
+			end
+		end
+	end
+	return d
+end
+
 ------------------------------------------------------------------------------
 -- Tile shapes. Each returns the surface height offset (relative to G), the top
 -- node, the filler under it, and optionally water up to some level.
@@ -230,6 +268,7 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 	local need_wall = minp.y <= G + 64
 
 	if not need_surface and not need_wall then return end
+	check_lands()
 
 	local emin, emax = vm:get_emerged_area()
 	local area = VoxelArea(emin, emax)
@@ -271,6 +310,14 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 					h = (W - 5 - G) + floor(vnoise(x, z, 11, 4) * 3)
 					top = (vnoise(x, z, 5, 5) > 0.6) and c.gravel or c.sand
 					filler, water = c.sand, W
+					-- Beach: sand from the land's level at its edge down into the
+					-- water, all of it in the sea cell
+					local d = (u < SHORE or u > 95 - SHORE or v < SHORE or v > 95 - SHORE)
+						and shore_distance(lx, lz, u, v)
+					if d then
+						h = floor(h * smooth(d / SHORE) + 0.5)
+						top, filler = c.sand, c.sand
+					end
 				else
 					local tx, tz = floor(u / 16), floor(v / 16)
 					local a, b = u % 16, v % 16
@@ -305,21 +352,6 @@ core.register_on_generated(function(vm, minp, maxp, blockseed)
 						h, top, filler, water = natural(f, a, b, dx, dz, r, x, z)
 					end
 
-					-- Coasts: slope down to the sea within 14 nodes of a sea edge
-					if info.kind ~= "wall" then
-						local d = 99
-						if u < 14 and not is_landish(lx - 1, lz) then d = min(d, u) end
-						if u > 81 and not is_landish(lx + 1, lz) then d = min(d, 95 - u) end
-						if v < 14 and not is_landish(lx, lz - 1) then d = min(d, v) end
-						if v > 81 and not is_landish(lx, lz + 1) then d = min(d, 95 - v) end
-						if d < 14 then
-							local s = smooth(d / 14)
-							local base = W - 1 - G
-							h = floor(base + (h - base) * s + 0.5)
-							if h + G <= W + 1 then top, filler = c.sand, c.sand end
-							if water and h + G < W then water = nil end
-						end
-					end
 				end
 
 				-- Write the column. Clear biome dust (snow) and anything the base
