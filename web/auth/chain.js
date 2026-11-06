@@ -11,7 +11,7 @@
 // with castleLevel() on every run.
 //
 // Writes, in OV_CHAIN_DIR (default /chain):
-//   orthoverse-chain.sqlite  tables tokens, transfers and meta
+//   orthoverse-chain.sqlite  tables tokens, transfers (since FROM_BLOCK) and meta
 //   tokens.json              { updated, block, contract, tokens: { id: {holder, level, realm, revealed} } }
 //   token-data.json          the old format: [[holder, level, tokenId, revealBlock], ...]
 //
@@ -30,8 +30,14 @@ const RPC_URL = env.OV_ETH_RPC || 'https://ethereum-rpc.publicnode.com';
 const CONTRACT = (env.OV_CONTRACT || '0x118aeD2606D02C2545C6D7D2d1021e567cc08922').toLowerCase();
 const DIR = env.OV_CHAIN_DIR || '/chain';
 const LANDS_FILE = env.OV_LANDS || '/app/lands.json';
-// No Orthoverse event is older than this (January 2022, before V2 was deployed)
-const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || '14000000', 10);
+// Where the events are read from: the Merge (15 September 2022). Most nodes
+// no longer keep logs from before it (history expiry, EIP-4444), so the
+// holders before that come from the lands file's snapshot of April 2023
+// (owner_snapshot), and events from here on are replayed over it. Any block
+// before the snapshot works; with a node that keeps full history, 14000000
+// reads everything since before V2 was deployed.
+const MERGE_BLOCK = 15537394;
+const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || String(MERGE_BLOCK), 10);
 const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '24') * 3600 * 1000;
 const CONFIRMATIONS = 64;       // stay this far behind the chain head (reorgs)
 const MAX_SPAN = 500000;        // blocks per eth_getLogs, at most
@@ -155,13 +161,20 @@ setMeta('contract', CONTRACT);
 const insertTransfer = db.prepare(`INSERT OR IGNORE INTO transfers
 	(block, log_index, item, tx, token_id, from_addr, to_addr) VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
+// Land tokens, and their holders in the April 2023 snapshot
 const landTokens = (() => {
 	try {
 		const data = JSON.parse(readFileSync(LANDS_FILE, 'utf8'));
-		return new Set(Object.values(data.lands).filter(l => l.token).map(l => l.token.toLowerCase()));
+		const map = new Map();
+		for (const l of Object.values(data.lands)) {
+			if (!l.token) continue;
+			const snap = /^0x[0-9a-fA-F]{40}$/.test(l.owner_snapshot || '') ? l.owner_snapshot.toLowerCase() : null;
+			map.set(l.token.toLowerCase(), snap);
+		}
+		return map;
 	} catch (e) {
-		log('cannot read the lands file', LANDS_FILE, '- has_land will be 0 for every token');
-		return new Set();
+		log('cannot read the lands file', LANDS_FILE, '- no snapshot, and has_land will be 0 for every token');
+		return new Map();
 	}
 })();
 
@@ -196,10 +209,15 @@ async function readEvents() {
 				continue;
 			}
 			// One block and still refused: not a range problem
-			await withRetries(`eth_getLogs at block ${from}`, async () => {
-				logs = await rpc('eth_getLogs', [{ address: CONTRACT, topics: [TOPICS],
-					fromBlock: '0x' + from.toString(16), toBlock: '0x' + end.toString(16) }]);
-			});
+			try {
+				await withRetries(`eth_getLogs at block ${from}`, async () => {
+					logs = await rpc('eth_getLogs', [{ address: CONTRACT, topics: [TOPICS],
+						fromBlock: '0x' + from.toString(16), toBlock: '0x' + end.toString(16) }]);
+				});
+			} catch (e2) {
+				throw new Error(`${e2.message}. The endpoint will not give logs for block ${from}: ` +
+					'it may not keep history that old (OV_CHAIN_FROM_BLOCK), or may not allow eth_getLogs (OV_ETH_RPC)');
+			}
 		}
 		db.exec('BEGIN');
 		try {
@@ -235,9 +253,13 @@ async function readEvents() {
 	return { found, block: to };
 }
 
-// Replay every transfer in order: the last recipient holds the token
+// Start from the snapshot, then replay every transfer in order: the last
+// recipient holds the token
 function rebuildHolders() {
 	const holders = new Map();   // token -> { holder, revealed, last }
+	for (const [id, snap] of landTokens) {
+		holders.set(id, { holder: snap, revealed: null, last: null });
+	}
 	const rows = db.prepare('SELECT block, token_id, from_addr, to_addr FROM transfers ORDER BY block, log_index, item').all();
 	for (const r of rows) {
 		const t = holders.get(r.token_id) || { holder: null, revealed: null, last: null };
@@ -280,7 +302,7 @@ async function readLevels() {
 }
 
 function writeFiles(block) {
-	const rows = db.prepare('SELECT * FROM tokens ORDER BY revealed_block, token_id').all();
+	const rows = db.prepare('SELECT * FROM tokens ORDER BY revealed_block NULLS FIRST, token_id').all();
 	const updated = new Date().toISOString();
 	const tokens = {};
 	for (const r of rows) {
@@ -288,7 +310,7 @@ function writeFiles(block) {
 	}
 	writeJsonAtomic(join(DIR, 'tokens.json'), { updated, block, contract: CONTRACT, tokens });
 	writeJsonAtomic(join(DIR, 'token-data.json'),
-		rows.filter(r => r.holder).map(r => [r.holder, String(r.level), r.token_id, String(r.revealed_block)]), 1);
+		rows.filter(r => r.holder).map(r => [r.holder, String(r.level), r.token_id, r.revealed_block == null ? '' : String(r.revealed_block)]), 1);
 	setMeta('updated', updated);
 }
 

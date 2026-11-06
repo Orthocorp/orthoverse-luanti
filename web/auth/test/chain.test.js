@@ -41,7 +41,7 @@ single(14300000, ZERO, dave, dave);                // Dave reveals; no land in t
 batch(14400000, bob, carol, [bob]);                // Bob sells his to Carol, in a batch
 const levels = { [alice]: 3n, [bob]: 9n, [dave]: 0n };
 
-let getLogsCalls = 0, refused = 0;
+let getLogsCalls = 0, refused = 0, historyExpired = false;
 const rpc = http.createServer((req, res) => {
 	let body = '';
 	req.on('data', c => body += c);
@@ -53,6 +53,7 @@ const rpc = http.createServer((req, res) => {
 				const f = r.params[0];
 				const from = parseInt(f.fromBlock, 16), to = parseInt(f.toBlock, 16);
 				if (to - from + 1 > 50000) { refused++; return { error: { code: -32701, message: 'block range too large' } }; }
+				if (historyExpired && from < 15537394) return { error: { code: -32000, message: 'history expired' } };
 				if (f.address.toLowerCase() !== CONTRACT) return { result: [] };
 				const logs = [];
 				events.forEach((e, i) => {
@@ -107,6 +108,7 @@ const env = {
 	OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
 	OV_CHAIN_DIR: join(dir, 'chain'),
 	OV_LANDS: join(dir, 'lands.json'),
+	OV_CHAIN_FROM_BLOCK: '14000000',   // a node with full history
 	NODE_NO_WARNINGS: '1',
 };
 const cwd = new URL('..', import.meta.url).pathname;
@@ -169,6 +171,20 @@ try {
 	const owners = JSON.parse(readFileSync(join(dir, 'auth', 'owners.json'), 'utf8'));
 	check(/2 of 2 held as the chain index \(block \d+\) says/.test(r.out), 'auth: holders come from the chain index');
 	check(owners.owners[alice] === dave && owners.owners[bob] === carol, 'auth: owners.json has the current holders');
+	// A node without pre-Merge history: start from the 2023 snapshot at the Merge
+	historyExpired = true;
+	head = 15700000;
+	single(15600000, dave, bob, alice);        // after the Merge, Dave sells Aliceholm to Bob
+	r = await runNode(['chain.js', '--once'], { OV_CHAIN_FROM_BLOCK: '', OV_CHAIN_DIR: join(dir, 'chain2') });
+	const t3 = JSON.parse(readFileSync(join(dir, 'chain2', 'tokens.json'), 'utf8'));
+	check(r.code === 0 && !/failed/.test(r.out), 'from the Merge, no pre-Merge logs are asked for');
+	check(t3.tokens[bob].holder === bob, 'a land with no transfer since the Merge keeps its snapshot holder');
+	check(t3.tokens[alice].holder === bob, 'a land sold since the Merge has its new holder');
+	check(!t3.tokens[dave], 'a token without land revealed before the Merge is not known (no history)');
+	r = await runNode(['chain.js', '--once'], { OV_CHAIN_DIR: join(dir, 'chain3') });   // 14000000 again
+	check(r.code === 1 && /may not keep history that old/.test(r.out), 'refused old history is explained');
+	historyExpired = false;
+
 } catch (e) {
 	failures.push('exception: ' + e.stack);
 	console.log(e);
