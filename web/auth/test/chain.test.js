@@ -23,6 +23,11 @@ const abi = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
 ]);
+const multicall = new Interface([
+	'function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)',
+]);
+const MULTICALL3 = '0xca11bde05977b3631167028862be2a173976ca11';
+let multicalls = 0;
 const CONTRACT = '0x118aed2606d02c2545c6d7d2d1021e567cc08922';
 const ZERO = '0x' + '0'.repeat(40);
 const [alice, bob, carol, dave] = [1, 2, 3, 4].map(() => Wallet.createRandom().address.toLowerCase());
@@ -84,6 +89,16 @@ const rpc = http.createServer((req, res) => {
 				const page = all.slice(startAt, startAt + 2);
 				transferPages++;
 				return { result: { transfers: page, ...(startAt + 2 < all.length ? { pageKey: String(startAt + 2) } : {}) } };
+			}
+			if (r.method === 'eth_call' && r.params[0].to.toLowerCase() === MULTICALL3) {
+				multicalls++;
+				const calls = multicall.decodeFunctionData('aggregate3', r.params[0].data)[0];
+				const out = calls.map(c => {
+					if (c.target.toLowerCase() !== CONTRACT) return [false, '0x'];
+					const inner = one({ method: 'eth_call', params: [{ to: CONTRACT, data: c.callData }, 'latest'] });
+					return [true, inner.result];
+				});
+				return { result: multicall.encodeFunctionResult('aggregate3', [out]) };
 			}
 			if (r.method === 'eth_call') {
 				const tx = abi.parseTransaction({ data: r.params[0].data });
@@ -154,6 +169,7 @@ try {
 	check(tokens.tokens[bob].holder === carol, 'a token sold in a TransferBatch is held by the buyer');
 	check(tokens.tokens[dave].holder === dave, 'a revealed token is held by its revealer');
 	check(tokens.tokens[bob].level === 9 && tokens.tokens[bob].realm === 'futuristic', 'level 9 is a futuristic castle');
+	check(multicalls === 1, `castle levels read through one Multicall3 call (${multicalls})`);
 	check(tokens.tokens[alice].revealed === 14100000, 'reveal block recorded');
 	check(/2 held by 2 wallets|3 held by 2 wallets/.test(r.out) && /1 tokens have no land/.test(r.out),
 		'the log sums up tokens, holders and tokens without land');

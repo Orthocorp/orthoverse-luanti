@@ -50,7 +50,7 @@ const SESSION_DAYS = 30;
 const NONCE_TTL_MS = 10 * 60 * 1000;
 const MAX_NONCES = 5000;
 const PAIRS_PER_CALL = 400;     // wallet-and-land pairs per balanceOfBatch call
-const CALLS_PER_BATCH = 5;      // eth_calls per JSON-RPC request
+const CALLS_PER_BATCH = 1;      // eth_calls per JSON-RPC request (keyed endpoints limit calls a second)
 
 if (SECRET.length < 32) {
 	console.error('OV_AUTH_SECRET must be set to at least 32 characters (openssl rand -hex 32)');
@@ -218,7 +218,7 @@ async function balances(pairs) {
 		for (const r of results) {
 			for (const b of erc1155.decodeFunctionResult('balanceOfBatch', r)[0]) out.push(b > 0n);
 		}
-		await new Promise(r => setTimeout(r, 150));
+		await new Promise(r => setTimeout(r, 250));
 	}
 	return out;
 }

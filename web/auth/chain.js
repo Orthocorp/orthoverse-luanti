@@ -51,7 +51,14 @@ const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || (METHOD === 'transfers' ?
 const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '24') * 3600 * 1000;
 const CONFIRMATIONS = 64;       // stay this far behind the chain head (reorgs)
 const MAX_SPAN = 500000;        // blocks per eth_getLogs, at most
-const LEVEL_CALLS = 50;         // castleLevel calls per JSON-RPC batch
+const LEVEL_CALLS = 500;        // castleLevel calls per Multicall3 eth_call
+// Multicall3, the same address on every chain: many read calls in one
+// eth_call, which keyed endpoints count as one call (Alchemy's free plan
+// refuses 50 separate calls a second)
+const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
+const multicall = new Interface([
+	'function aggregate3((address target, bool allowFailure, bytes callData)[] calls) payable returns ((bool success, bytes returnData)[] returnData)',
+]);
 
 const ZERO = '0x' + '0'.repeat(40);
 const abi = new Interface([
@@ -356,16 +363,18 @@ async function readLevels() {
 	const before = new Map(db.prepare('SELECT token_id, level FROM tokens').all().map(r => [r.token_id, r.level]));
 	for (let i = 0; i < ids.length; i += LEVEL_CALLS) {
 		const chunk = ids.slice(i, i + LEVEL_CALLS);
-		const results = await withRetries('castleLevel', () => rpcBatch('eth_call', chunk.map(id => [
-			{ to: CONTRACT, data: abi.encodeFunctionData('castleLevel', [BigInt(id)]) }, 'latest'])));
+		const data = multicall.encodeFunctionData('aggregate3', [chunk.map(id =>
+			[CONTRACT, false, abi.encodeFunctionData('castleLevel', [BigInt(id)])])]);
+		const raw = await withRetries('castleLevel', () => rpc('eth_call', [{ to: MULTICALL3, data }, 'latest']));
+		const results = multicall.decodeFunctionResult('aggregate3', raw)[0];
 		db.exec('BEGIN');
 		chunk.forEach((id, j) => {
-			const level = Number(abi.decodeFunctionResult('castleLevel', results[j])[0]);
+			const level = Number(abi.decodeFunctionResult('castleLevel', results[j].returnData)[0]);
 			if (before.get(id) !== level) changed++;
 			update.run(level, REALMS[level > 7 ? 1 : 0], id);
 		});
 		db.exec('COMMIT');
-		await sleep(100);
+		await sleep(250);
 	}
 	return changed;
 }
