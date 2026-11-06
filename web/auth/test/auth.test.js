@@ -7,7 +7,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Wallet } from 'ethers';
+import { Wallet, Interface } from 'ethers';
 
 const dir = mkdtempSync(join(tmpdir(), 'ov-auth-'));
 const failures = [];
@@ -19,16 +19,22 @@ function check(cond, what) {
 // Three lands; the first two belong to the test wallet, the third to someone else
 const alice = Wallet.createRandom();
 const bob = Wallet.createRandom();
+const carol = Wallet.createRandom();   // a 2023 owner who never signs in
 const lands = {
-	'1:2': { name: 'Aliceholm', token: '0x00000000000000000000000000000000000000a1' },
+	'1:2': { name: 'Aliceholm', token: '0x00000000000000000000000000000000000000a1', owner_snapshot: carol.address },
 	'3:4': { name: 'Alicemark', token: '0x00000000000000000000000000000000000000a2' },
 	'5:6': { name: 'Elsewhere', token: '0x00000000000000000000000000000000000000b1' },
-	'7:8': { name: 'Burnt', token: '0x00000000000000000000000000000000000000c1' },
+	'7:8': { name: 'Carolby', token: '0x00000000000000000000000000000000000000c1', owner_snapshot: carol.address },
 };
 writeFileSync(join(dir, 'lands.json'), JSON.stringify({ lands }));
-const ownerOf = {
-	'a1': alice.address, 'a2': alice.address, 'b1': bob.address,
+// Who holds each token on the stand-in chain (Aliceholm was Carol's in 2023)
+const holder = {
+	'0xa1': alice.address, '0xa2': alice.address, '0xb1': bob.address, '0xc1': carol.address,
 };
+const erc1155 = new Interface([
+	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
+	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
+]);
 
 // A game account database with one existing player
 const db = new DatabaseSync(join(dir, 'auth.sqlite'));
@@ -36,7 +42,7 @@ db.exec('CREATE TABLE auth (id INTEGER PRIMARY KEY, name VARCHAR(32) UNIQUE, pas
 db.prepare('INSERT INTO auth (name, password, last_login) VALUES (?, ?, 0)').run('Keirtest', '#1#x#y');
 db.close();
 
-// Stand-in Ethereum JSON-RPC endpoint: answers batches of ownerOf calls
+// Stand-in Ethereum JSON-RPC endpoint: an ERC-1155 answering balanceOfBatch
 let rpcCalls = 0;
 const rpc = http.createServer((req, res) => {
 	let body = '';
@@ -45,13 +51,14 @@ const rpc = http.createServer((req, res) => {
 		const batch = JSON.parse(body);
 		rpcCalls += batch.length;
 		const out = batch.map(r => {
-			const data = r.params[0].data;
-			const token = data.slice(10).replace(/^0+/, '');
-			const owner = ownerOf[token];
-			if (!owner || r.params[0].data.slice(0, 10) !== '0x6352211e') {
-				return { jsonrpc: '2.0', id: r.id, error: { code: 3, message: 'execution reverted: ERC721: invalid token ID' } };
+			const tx = erc1155.parseTransaction({ data: r.params[0].data });
+			if (tx.name === 'supportsInterface') {
+				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('supportsInterface', [true]) };
 			}
-			return { jsonrpc: '2.0', id: r.id, result: '0x' + owner.slice(2).toLowerCase().padStart(64, '0') };
+			const [accounts, ids] = tx.args;
+			const bal = accounts.map((a, i) =>
+				(holder['0x' + ids[i].toString(16)] || '').toLowerCase() === a.toLowerCase() ? 1n : 0n);
+			return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('balanceOfBatch', [bal]) };
 		});
 		res.writeHead(200, { 'content-type': 'application/json' });
 		res.end(JSON.stringify(out));
@@ -101,9 +108,10 @@ async function call(method, path, body, headers = {}) {
 try {
 	// Ownership indexed at start-up
 	const owners = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
-	check(owners.owners[lands['1:2'].token] === alice.address.toLowerCase(), 'owners.json: Aliceholm belongs to the test wallet');
-	check(owners.owners[lands['7:8'].token] === null, 'owners.json: a token that does not exist has no owner');
-	check(rpcCalls === 4, `one ownerOf call per land (${rpcCalls})`);
+	check(owners.owners[lands['7:8'].token] === carol.address.toLowerCase(), 'owners.json: a land still with its 2023 owner');
+	check(owners.owners[lands['1:2'].token] === null, 'owners.json: a land sold since 2023 to a wallet that has not signed in');
+	check(/1 of 4 still with their 2023 owner/.test(svcLog), 'the log counts lands still with their 2023 owner');
+	check(/is an ERC-1155/.test(svcLog), 'the contract is checked to be an ERC-1155');
 
 	let r = await call('GET', '/auth/me');
 	check(r.body.signedIn === false, 'not signed in at first');
@@ -126,7 +134,10 @@ try {
 	check(r.status === 200 && r.body.signedIn && r.body.name === null, 'signed in, no name yet');
 	check(/HttpOnly/.test(r.setCookie) && /SameSite=Strict/.test(r.setCookie) && /Secure/.test(r.setCookie),
 		'session cookie is HttpOnly, SameSite=Strict, Secure over https');
-	check(r.body.lands.length === 2, 'lists the two lands this wallet holds');
+	check(r.body.lands.length === 2, 'on signing in, the wallet\'s lands are looked up at once: both listed');
+	const owners2 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
+	check(owners2.owners[lands['1:2'].token] === alice.address.toLowerCase(), 'owners.json: Aliceholm now shows the player\'s wallet');
+	check(owners2.owners[lands['5:6'].token] === null, 'owners.json: a land held by a wallet that has not signed in');
 
 	r = await call('POST', '/auth/verify', { nonce: n2.nonce, signature: await alice.signMessage(n2.message) });
 	check(r.status === 400, 'a sign-in request cannot be used twice');

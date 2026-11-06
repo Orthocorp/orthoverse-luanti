@@ -63,11 +63,17 @@ Guests can explore, ride and use the henges but not build. Nobody builds on
 henges, the open sea or the rim, except the admin. In the game, `/mylands` lists
 your lands and `/whereami` says whose land you are on.
 
-Ownership comes from the Orthoverse contract on Ethereum mainnet (`OV_CONTRACT`):
-every 10 minutes the auth service asks it `ownerOf` for every land's token,
-through a public RPC endpoint (`OV_ETH_RPC`), and writes `owners.json`. A sale
-moves building rights within 10 minutes. If the endpoint is down, the last good
-list is kept. Check it with `curl -s http://127.0.0.1:8485/auth/status`.
+Ownership comes from the Orthoverse contract on Ethereum mainnet (`OV_CONTRACT`,
+`0x118aeD2606D02C2545C6D7D2d1021e567cc08922`). It is an ERC-1155 with one token per
+land, whose ID is the address that revealed it. An ERC-1155 cannot say who holds a
+token, only whether a given wallet does (`balanceOf`, here always 0 or 1). So every
+10 minutes the auth service asks, with `balanceOfBatch` through a public RPC
+endpoint (`OV_ETH_RPC`), whether each player's wallet holds each land, and whether
+each land's 2023 owner (`owner_snapshot` in the lands file) still does, and writes
+`owners.json`. A land held by anyone else is "not held by a player here", and nobody
+can build on it. A sale moves building rights within 10 minutes, and a wallet's
+lands are looked up at once when it signs in. If the endpoint is down, the last
+good list is kept. Check it with `curl -s http://127.0.0.1:8485/auth/status`.
 
 The auth service writes `registry.json` (names and wallets) and `owners.json` to
 `OV_DATA/auth/`, which the game server reads (read-only) as

@@ -86,8 +86,10 @@ fast with J and noclip with H.
   them out of their players.
 - `curl -s http://127.0.0.1:8485/auth/status` shows how many players are signed
   up, when land ownership was last read, and any error reading it.
-- `docker compose logs auth` shows sign-ins, new names and each ownership update
-  (`owners updated: N lands owned`).
+- `docker compose logs auth` shows sign-ins, new names and each ownership update:
+  `owners updated: N lands held by W player wallets; M of 1943 still with their
+  2023 owner`. M should be in the hundreds; 0 means `OV_CONTRACT` or the RPC
+  endpoint is wrong.
 - Player names and wallets are in `OV_DATA/auth/registry.json`. Back it up with the
   world: without it, wallet players cannot join as their players.
 

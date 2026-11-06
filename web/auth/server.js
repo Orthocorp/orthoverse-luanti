@@ -11,8 +11,9 @@
 // The game server reads two files this service writes (OV_DATA_DIR, mounted
 // into the luanti container at /world/orthoverse_auth):
 //   registry.json  player names and their wallets (who may join, and as whom)
-//   owners.json    the current owner of every land's token, from the Orthoverse
-//                  contract on Ethereum mainnet, refreshed every few minutes
+//   owners.json    which player's wallet holds each land's token, from the
+//                  Orthoverse contract on Ethereum mainnet, refreshed every few
+//                  minutes
 //
 // Guests need none of this: the play page makes up a Guest-XXXXXX name and
 // password and keeps them in the browser.
@@ -24,7 +25,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { verifyMessage, getAddress, isAddress } from 'ethers';
+import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -44,7 +45,8 @@ const CHAIN_ID = 1;
 const SESSION_DAYS = 30;
 const NONCE_TTL_MS = 10 * 60 * 1000;
 const MAX_NONCES = 5000;
-const BATCH = 25;               // ownerOf calls per JSON-RPC batch
+const PAIRS_PER_CALL = 400;     // wallet-and-land pairs per balanceOfBatch call
+const CALLS_PER_BATCH = 5;      // eth_calls per JSON-RPC request
 
 if (SECRET.length < 32) {
 	console.error('OV_AUTH_SECRET must be set to at least 32 characters (openssl rand -hex 32)');
@@ -148,19 +150,27 @@ const lands = (() => {
 	const list = [];
 	for (const [key, land] of Object.entries(data.lands)) {
 		if (land.token && /^0x[0-9a-fA-F]{1,64}$/.test(land.token)) {
-			list.push({ key, name: land.name, token: land.token.toLowerCase() });
+			const snap = /^0x[0-9a-fA-F]{40}$/.test(land.owner_snapshot || '') ? land.owner_snapshot.toLowerCase() : null;
+			list.push({ key, name: land.name, token: land.token.toLowerCase(), snapshot: snap });
 		}
 	}
 	return list;
 })();
 
-let owners = readJson(OWNERS_FILE, null);   // { updated, contract, owners: {token: owner|null} }
+let owners = readJson(OWNERS_FILE, null);   // { updated, contract, owners: {token: holder|null} }
 let ownersError = null;
 
-function ownerOfCall(token) {
-	const id = token.slice(2).padStart(64, '0');
-	return { to: CONTRACT, data: '0x6352211e' + id };   // ownerOf(uint256)
-}
+// The Orthoverse contract is an ERC-1155 with one token per land, whose ID is
+// the address that revealed it. ERC-1155 cannot say who holds a token, only
+// whether a given wallet does (balanceOf, here always 0 or 1). So for every
+// land we ask about the wallets that matter: every signed-up player's wallet,
+// and the land's owner in the April 2023 snapshot (which also shows at a glance
+// that the contract and token IDs are right). A land held by anyone else is
+// recorded as null: not held by a player.
+const erc1155 = new Interface([
+	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
+	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
+]);
 
 async function rpcBatch(calls) {
 	const body = calls.map((c, i) => ({ jsonrpc: '2.0', id: i, method: 'eth_call', params: [c, 'latest'] }));
@@ -174,45 +184,105 @@ async function rpcBatch(calls) {
 	const out = await res.json();
 	if (!Array.isArray(out)) throw new Error('RPC answered a batch with ' + JSON.stringify(out).slice(0, 200));
 	const byId = new Map(out.map(r => [r.id, r]));
-	return calls.map((c, i) => byId.get(i));
+	return calls.map((c, i) => {
+		const a = byId.get(i);
+		if (!a || a.error || typeof a.result !== 'string') {
+			throw new Error('RPC call failed: ' + JSON.stringify(a && (a.error || a)).slice(0, 200));
+		}
+		return a.result;
+	});
 }
 
-async function refreshOwners() {
-	const result = {};
-	let found = 0, reverted = 0;
-	for (let i = 0; i < lands.length; i += BATCH) {
-		const chunk = lands.slice(i, i + BATCH);
-		const answers = await rpcBatch(chunk.map(l => ownerOfCall(l.token)));
-		answers.forEach((a, j) => {
-			const token = chunk[j].token;
-			if (a && typeof a.result === 'string' && /^0x[0-9a-fA-F]{64}$/.test(a.result)) {
-				const owner = '0x' + a.result.slice(26).toLowerCase();
-				result[token] = owner === '0x' + '0'.repeat(40) ? null : owner;
-				if (result[token]) found++;
-			} else if (a && a.error) {
-				// ownerOf reverts for a token that does not exist (burnt)
-				result[token] = null;
-				reverted++;
-			} else {
-				throw new Error('unexpected RPC answer for ' + token + ': ' + JSON.stringify(a).slice(0, 200));
-			}
+// Balances for a list of [wallet, token] pairs, in order
+async function balances(pairs) {
+	const calls = [];
+	for (let i = 0; i < pairs.length; i += PAIRS_PER_CALL) {
+		const chunk = pairs.slice(i, i + PAIRS_PER_CALL);
+		calls.push({
+			to: CONTRACT,
+			data: erc1155.encodeFunctionData('balanceOfBatch', [chunk.map(p => p[0]), chunk.map(p => BigInt(p[1]))]),
 		});
+	}
+	const out = [];
+	for (let i = 0; i < calls.length; i += CALLS_PER_BATCH) {
+		const results = await rpcBatch(calls.slice(i, i + CALLS_PER_BATCH));
+		for (const r of results) {
+			for (const b of erc1155.decodeFunctionResult('balanceOfBatch', r)[0]) out.push(b > 0n);
+		}
 		await new Promise(r => setTimeout(r, 150));
+	}
+	return out;
+}
+
+// Wallets whose lands we look up: players, and anyone signed in since start-up
+// who has not chosen a name yet
+const watched = new Set(Object.values(registry.players).map(p => p.address.toLowerCase()));
+
+async function refreshOwners() {
+	const wallets = [...watched];
+	const pairs = [];
+	for (const l of lands) {
+		if (l.snapshot) pairs.push([l.snapshot, l.token]);
+		for (const w of wallets) pairs.push([w, l.token]);
+	}
+	const held = await balances(pairs);
+	const result = {};
+	let k = 0, byPlayers = 0, bySnapshot = 0;
+	for (const l of lands) {
+		let holder = null;
+		if (l.snapshot && held[k++]) { holder = l.snapshot; bySnapshot++; }
+		for (const w of wallets) if (held[k++]) holder = w;
+		if (holder && watched.has(holder)) byPlayers++;
+		result[l.token] = holder;
 	}
 	owners = { updated: new Date().toISOString(), contract: CONTRACT, owners: result };
 	writeJsonAtomic(OWNERS_FILE, owners);
 	ownersError = null;
-	log(`owners updated: ${found} lands owned, ${reverted} without a token, from ${RPC_URL}`);
+	log(`owners updated: ${byPlayers} lands held by ${wallets.length} player wallets; ` +
+		`${bySnapshot} of ${lands.length} still with their 2023 owner, from ${RPC_URL}`);
+	if (bySnapshot === 0 && lands.length > 100) {
+		log('warning: no land is held by its 2023 owner: is OV_CONTRACT the Orthoverse contract?');
+	}
+}
+
+// One wallet's lands, looked up at once (on signing in), so a new player need
+// not wait for the next full refresh
+async function refreshWallet(address) {
+	if (!owners) return;
+	const held = await balances(lands.map(l => [address, l.token]));
+	lands.forEach((l, i) => {
+		if (held[i]) owners.owners[l.token] = address;
+		else if (owners.owners[l.token] === address) owners.owners[l.token] = null;
+	});
+	writeJsonAtomic(OWNERS_FILE, owners);
+}
+
+// One lookup at a time
+let queue = Promise.resolve();
+function serial(fn) {
+	const p = queue.then(fn);
+	queue = p.catch(() => {});
+	return p;
 }
 
 async function ownersLoop() {
 	try {
-		await refreshOwners();
+		await serial(refreshOwners);
 		setTimeout(ownersLoop, OWNERS_EVERY_MS);
 	} catch (e) {
 		ownersError = e.message;
 		log('owners refresh failed (keeping the last good list):', e.message);
 		setTimeout(ownersLoop, Math.min(OWNERS_EVERY_MS, 60 * 1000));
+	}
+}
+
+async function checkContract() {
+	try {
+		const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('supportsInterface', ['0xd9b67a26']) }]);
+		const yes = erc1155.decodeFunctionResult('supportsInterface', r)[0];
+		log(`contract ${CONTRACT} ${yes ? 'is' : 'says it is NOT'} an ERC-1155`);
+	} catch (e) {
+		log('could not ask the contract what it is:', e.message);
 	}
 }
 
@@ -377,6 +447,14 @@ const routes = {
 			return send(res, 400, { error: 'The signature is not from the wallet that asked to sign in.' });
 		}
 		log('signed in', signer, nameOfAddress.get(entry.address) || '(no name yet)');
+		if (!watched.has(entry.address)) {
+			watched.add(entry.address);
+			try {
+				await serial(() => refreshWallet(entry.address));
+			} catch (e) {
+				log('lands of', signer, 'not looked up yet:', e.message);
+			}
+		}
 		send(res, 200, me(entry.address), {
 			'set-cookie': sessionCookie(req, makeSession(entry.address), SESSION_DAYS * 86400),
 		});
@@ -454,7 +532,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
 	log(`Orthoverse auth on http://${HOST}:${PORT}: ${lands.length} lands, ` +
 		`${Object.keys(registry.players).length} players, contract ${CONTRACT} via ${RPC_URL}`);
-	ownersLoop();
+	checkContract().then(ownersLoop);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

@@ -101,8 +101,9 @@ local function short(address)
 	return address:sub(1, 6) .. "…" .. address:sub(-4)
 end
 
--- The current owner of a land (address), false if its token has none, nil if
--- ownership is not known yet
+-- The wallet holding a land (address): a player's wallet, or the land's 2023
+-- owner if they still hold it; false if neither (held by someone else, so
+-- nobody here can build on it); nil if not known yet
 local function owner_of(land)
 	if not owners or not land.token then return nil end
 	local o = owners[land.token:lower()]
@@ -152,7 +153,7 @@ local function may_build(name, pos)
 		return true
 	end
 	if owner == false then
-		return false, land.name .. " has no owner, so nobody can build on it."
+		return false, land.name .. " is not held by any player here, so nobody can build on it."
 	end
 	return false, land.name .. " belongs to " .. short(owner) .. ". You can build only on lands your wallet holds."
 end
@@ -247,7 +248,7 @@ core.override_chatcommand("whereami", {
 		end
 		local owner = owner_of(land)
 		local whose = owner == nil and "owner being checked"
-			or owner == false and "no owner"
+			or owner == false and "not held by a player"
 			or (owner == wallet_of(name) and "yours" or "held by " .. short(owner))
 		return true, ("Land %s: %s (level %d), %s."):format(key, land.name, land.level, whose)
 	end,
