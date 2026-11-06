@@ -158,4 +158,9 @@ brings it to the internet.
   files by default; the release files are named per build, so caching them for
   good is safe, and the page itself is marked not to be cached.
 
+Map tiles are in a folder per drawing of the map (`/map/tiles/<version>/`),
+and `lands.json` (never cached) names the current one, so a redrawn map shows at
+once and tiles can be cached for good; the previous drawing is kept for pages
+loaded a moment before.
+
 WebSockets work through the tunnel with no extra settings.

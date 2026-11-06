@@ -96,11 +96,13 @@ def main():
         pictures += 1
     print("land pictures: %d" % pictures, flush=True)
 
+    # Current levels and crests, from the chain service
+    tokens = {}
+    if tokens_path and os.path.exists(tokens_path):
+        with open(tokens_path, encoding="utf-8") as f:
+            tokens = json.load(f).get("tokens", {})
+
     if cards_dir:
-        tokens = {}
-        if tokens_path and os.path.exists(tokens_path):
-            with open(tokens_path, encoding="utf-8") as f:
-                tokens = json.load(f).get("tokens", {})
         n, written, removed = make_cards(rgb, heights, x_left, z_top, all_lands, tokens, heraldry_dir, cards_dir)
         print("token pictures: %d (%d new or changed, %d old ones removed)" % (n, written, removed), flush=True)
     del rgb, heights
@@ -126,14 +128,22 @@ def main():
     lands = []
     for key, land in all_lands.items():
         lx, lz = (int(v) for v in key.split(":"))
-        entry = {"x": lx, "z": lz, "n": land["name"], "l": land["level"], "t": land["token"]}
+        level = (tokens.get(land["token"].lower()) or {}).get("level")
+        entry = {"x": lx, "z": lz, "n": land["name"],
+                 "l": level if isinstance(level, int) else land["level"], "t": land["token"]}
         if key in data.get("henges", {}):
             entry["h"] = data["henges"][key]["name"]
         lands.append(entry)
     with open(os.path.join(out, "lands.json"), "w", encoding="utf-8") as f:
         # Node area the tiles cover, so the page only asks for tiles that exist
         drawn = {"west": x_left, "east": x_left + w, "north": z_top, "south": z_top - h}
-        json.dump({"land_size": data["land_size"], "drawn": drawn, "lands": lands}, f,
+        # The tiles' folder under tiles/ (see make-map.sh), so that a redrawn
+        # map has new addresses and no cache shows the old one
+        version = os.environ.get("MAP_VERSION")
+        out_json = {"land_size": data["land_size"], "drawn": drawn, "lands": lands}
+        if version:
+            out_json["version"] = version
+        json.dump(out_json, f,
                   ensure_ascii=False, separators=(",", ":"))
     print("lands.json: %d lands" % len(lands))
 

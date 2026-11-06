@@ -18,19 +18,27 @@ draw() {
 		echo "No map in the world yet (/world/map.sqlite): generate it first." >&2
 		return 1
 	fi
+	# Each drawing goes in its own folder, tiles/<version>/, named in
+	# lands.json: the map page asks for that version's tiles, so a redraw shows
+	# at once whatever Cloudflare or a browser has cached
+	version=$(date -u +%Y%m%d%H%M%S)
 	rm -rf "$TMP"
-	mkdir -p "$TMP"
-	python /app/web/map/make_tiles.py /world/map.sqlite /app/data/lands.json "$TMP" "$NEW_LANDS" \
+	mkdir -p "$TMP" "$OUT/tiles"
+	MAP_VERSION="$version" python /app/web/map/make_tiles.py /world/map.sqlite /app/data/lands.json "$TMP" "$NEW_LANDS" \
 		/chain/tokens.json /app/heraldry "$OUT/cards"
-	rm -rf "$OUT/tiles.old"
-	if [ -d "$OUT/tiles" ]; then mv "$OUT/tiles" "$OUT/tiles.old"; fi
-	mv "$TMP/tiles" "$OUT/tiles"
+	mv "$TMP/tiles" "$OUT/tiles/$version"
 	mv "$TMP/lands.json" "$OUT/lands.json"
 	rm -rf "$OUT/lands.old"
 	if [ -d "$OUT/lands" ]; then mv "$OUT/lands" "$OUT/lands.old"; fi
 	mv "$TMP/lands" "$OUT/lands"
-	rm -rf "$OUT/tiles.old" "$OUT/lands.old" "$TMP"
-	echo "$(date -u +%FT%TZ) Map updated."
+	rm -rf "$OUT/lands.old" "$TMP" "$OUT/tiles.old"
+	# Keep this drawing and the one before (for pages loaded a moment ago);
+	# remove older ones, and the tiles from before versions (tiles/0 .. tiles/6)
+	for d in "$OUT"/tiles/*; do
+		case "${d##*/}" in ?) rm -rf "$d" ;; esac
+	done
+	ls -1d "$OUT"/tiles/2*/ 2>/dev/null | sort -r | tail -n +3 | xargs -r rm -rf
+	echo "$(date -u +%FT%TZ) Map updated (version $version)."
 }
 
 if [ "${1:-}" != watch ]; then
