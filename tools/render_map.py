@@ -115,6 +115,50 @@ def decode(blob, dctx):
     return param0, names
 
 
+# Blocks that are not cubes (plants, torches and the like): left out of the
+# block-by-block pictures, where they would show as cubes
+THIN = ("grass_", "flowers:", "fern_", "marram_grass", "junglegrass", "dry_shrub", "sapling",
+        "torch", "papyrus", "farming:", "fireflies:", "butterflies:", "rail", "sign_", "ladder",
+        "_fence", "xpanes:", "doors:", "bed_", "vessels:", "mushroom", "snow_layer")
+
+
+def voxels(con, x0, z0, size, ylo=Y_LO, yhi=Y_HI):
+    """The blocks of a size x size square with its west, south corner at node
+    (x0, z0), node heights ylo..yhi: (ids, colours, y0), where ids[y, v, u] is
+    a colour index (0: nothing to draw), v growing southwards, u eastwards, y
+    upwards from y0; colours[i] is index i's RGB (float32)."""
+    bx0, bx1 = x0 >> 4, (x0 + size - 1) >> 4
+    bz0, bz1 = z0 >> 4, (z0 + size - 1) >> 4
+    by0, by1 = ylo >> 4, yhi >> 4
+    nx, nz, ny = (bx1 - bx0 + 1) * 16, (bz1 - bz0 + 1) * 16, (by1 - by0 + 1) * 16
+    grid = np.zeros((ny, nz, nx), dtype=np.uint16)        # y, z (northwards), x
+    name_ids = {}
+    dctx = zstandard.ZstdDecompressor()
+    rows = con.execute(
+        "SELECT x, y, z, data FROM blocks WHERE x BETWEEN ? AND ? AND y BETWEEN ? AND ?"
+        " AND z BETWEEN ? AND ?", (bx0, bx1, by0, by1, bz0, bz1)).fetchall()
+    for bx, by, bz, blob in rows:
+        param0, names = decode(blob, dctx)
+        local = np.zeros(max(names) + 1, dtype=np.uint16)
+        for nid, nm in names.items():
+            if nm in ("air", "ignore") or any(t in nm for t in THIN):
+                continue
+            if nm not in name_ids:
+                name_ids[nm] = len(name_ids) + 1
+            local[nid] = name_ids[nm]
+        # param0 is z, y, x within the block
+        b = local[param0].transpose(1, 0, 2)              # y, z, x
+        y0, z0b, x0b = (by - by0) * 16, (bz - bz0) * 16, (bx - bx0) * 16
+        grid[y0:y0 + 16, z0b:z0b + 16, x0b:x0b + 16] = b
+    colours = np.zeros((len(name_ids) + 1, 3), dtype=np.float32)
+    for nm, i in name_ids.items():
+        colours[i] = colour(nm)
+    # Crop to the square and the heights, and turn z round so v grows southwards
+    ox, oz, oy = x0 - bx0 * 16, z0 - bz0 * 16, ylo - by0 * 16
+    grid = grid[oy:oy + (yhi - ylo + 1), oz:oz + size, ox:ox + size][:, ::-1, :]
+    return grid, colours, ylo
+
+
 def render(db, step=1, quiet=False, heights=False, area=None):
     """Top-down colour image of the map, north at the top.
 

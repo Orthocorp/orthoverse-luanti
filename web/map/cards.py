@@ -10,12 +10,17 @@ it again, and out_dir/index.json ({"x:z": file name}), which the metadata API
 reads. Pictures that did not change are left alone; old ones are removed.
 """
 import hashlib
+import sqlite3
+import sys
 import io
 import json
 import os
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
+from render_map import voxels  # noqa: E402
 
 SIZE = 96            # nodes across a land
 CARD = 800           # card size, pixels
@@ -72,12 +77,60 @@ def isometric(top, h):
     base = np.where((under & (y < GROUND))[:, None], SOIL, base)
     base = np.where((under & (y < GROUND - 3))[:, None], ROCK, base)
     top_face = k < 2
-    shades = [0.78, 0.78, 0.6, 0.6]           # left and right sides, per pixel column
-    for j in range(4):
-        f = np.where(top_face, 1.0, shades[j])
-        c = np.clip(base * f[:, None], 0, 255).astype(np.uint8)
-        img[rows, sx[cell] + j, :3] = c
-        img[rows, sx[cell] + j, 3] = 255
+    # All four pixel columns of every row at once, in drawing order, so that
+    # where pixels overlap the nearest wins
+    j = np.arange(4)
+    side = np.array([0.78, 0.78, 0.6, 0.6], dtype=np.float32)
+    f = np.where(top_face[:, None], 1.0, side[None, :])
+    c = np.clip(base[:, None, :] * f[:, :, None], 0, 255).astype(np.uint8).reshape(-1, 3)
+    rr = np.repeat(rows, 4)
+    cc = (sx[cell][:, None] + j[None, :]).ravel()
+    img[rr, cc, :3] = c
+    img[rr, cc, 3] = 255
+    return Image.fromarray(img, "RGBA")
+
+
+def isometric_blocks(ids, colours, y0):
+    """A land from the north-west, above, block by block: ids[y, v, u] colour
+    indices (0: nothing), colours their RGB, y0 the world height of ids[0].
+    Each block is a cube 4 pixels across: its top, and its south and east sides
+    in two shades. Air stays air, so overhangs, arches and poles look as built."""
+    solid = ids > 0
+    if not solid.any():
+        return Image.new("RGBA", (SIZE * 4, SIZE * 2), (0, 0, 0, 0))
+    ny = ids.shape[0]
+    has = solid.any(axis=0)
+    tops = ny - 1 - np.argmax(solid[::-1], axis=0)
+    base = max(0, int(tops[has].min()) - 3)       # a few layers below the lowest surface
+    s, ids = solid[base:], ids[base:]
+    up = np.zeros_like(s)
+    up[:-1] = s[1:]
+    south = np.zeros_like(s)
+    south[:, :-1, :] = s[:, 1:, :]
+    east = np.zeros_like(s)
+    east[:, :, :-1] = s[:, :, 1:]
+    yy, vv, uu = np.nonzero(s & ~(up & south & east))   # blocks with a face in view
+    margin = int(yy.max()) * 2
+    img = np.zeros((SIZE * 2 + margin + 4, SIZE * 4, 4), dtype=np.uint8)
+
+    order = np.argsort((uu + vv) * 4096 + yy, kind="stable")   # far to near, low to high
+    yy, vv, uu = yy[order], vv[order], uu[order]
+    col = colours[ids[yy, vv, uu]]
+    # A little lighter higher up, as on the map
+    world_y = (yy + base + y0).astype(np.float32)
+    col = col * np.clip(0.85 + (world_y - GROUND) * 0.025, 0.55, 1.3)[:, None]
+    sx = (uu - vv + SIZE - 1) * 2
+    sy = (uu + vv) + margin - yy * 2
+    # The 16 pixels of each cube, all cubes in drawing order, written at once:
+    # where pixels overlap the last (nearest) one wins
+    r = np.repeat(np.arange(4), 4)
+    c = np.tile(np.arange(4), 4)
+    shade = np.where(r < 2, 1.0, np.where(c < 2, 0.78, 0.6)).astype(np.float32)
+    rows = (sy[:, None] + r[None, :]).ravel()
+    cols = (sx[:, None] + c[None, :]).ravel()
+    rgb = np.clip(col[:, None, :] * shade[None, :, None], 0, 255).astype(np.uint8).reshape(-1, 3)
+    img[rows, cols, :3] = rgb
+    img[rows, cols, 3] = 255
     return Image.fromarray(img, "RGBA")
 
 
@@ -167,15 +220,18 @@ def card_inputs(land, tokens):
     return level, crest_n
 
 
-def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir, update=False):
+def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir, update=False, db=None):
     """lands: {"x:z": land}; tokens: the chain service's tokens.json "tokens"
     (level and crest), or {}. With update=True only these lands' cards are
-    replaced; otherwise these are all the cards there are.
+    replaced; otherwise these are all the cards there are. With db (the
+    world's map.sqlite), lands are drawn block by block; without, from the
+    heights alone.
 
     Returns (cards, written, removed, {key: [level, crest]} drawn)."""
     os.makedirs(out_dir, exist_ok=True)
     heraldry = Heraldry(heraldry_dir)
     h_img, w_img = heights.shape
+    con = sqlite3.connect(db, timeout=30) if db else None
     index_path = os.path.join(out_dir, "index.json")
     old_index = {}
     if update and os.path.exists(index_path):
@@ -194,7 +250,12 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
         level, crest_n = card_inputs(land, tokens)
         drawn[key] = [level, crest_n]
         crest = heraldry.crest(crest_n, level % 8) if level % 8 > 0 else None
-        iso = isometric(rgb[row:row + SIZE, col:col + SIZE], heights[row:row + SIZE, col:col + SIZE])
+        if con is not None:
+            west = lx * SIZE - SIZE // 2
+            south = -lz * SIZE - SIZE // 2
+            iso = isometric_blocks(*voxels(con, west, south, SIZE))
+        else:
+            iso = isometric(rgb[row:row + SIZE, col:col + SIZE], heights[row:row + SIZE, col:col + SIZE])
         img = card(iso, land["name"], level, key, crest, token)
         buf = io.BytesIO()
         img.save(buf, "PNG")

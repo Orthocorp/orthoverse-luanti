@@ -194,7 +194,7 @@ def draw(db, lands_path, new_lands_path, tokens_path, heraldry_dir, out):
     state = {"drawn_at": started, "lands": {}}
     if cards_dir:
         n, written, removed, inputs = make_cards(rgb, heights, x_left, z_top, lands, tokens,
-                                                 heraldry_dir, cards_dir)
+                                                 heraldry_dir, cards_dir, db=db)
         print("token pictures: %d (%d new or changed, %d old ones removed)" % (n, written, removed), flush=True)
         state["lands"] = {k: {"at": started, "card": v} for k, v in inputs.items()}
     del rgb, heights
@@ -269,7 +269,7 @@ def update(db, lands_path, new_lands_path, tokens_path, heraldry_dir, out, chang
         if key in lands:
             land_picture(rgb, x_left, z_top, key, out)
             _, _, _, inputs = make_cards(rgb, heights, x_left, z_top, {key: lands[key]}, tokens,
-                                         heraldry_dir, cards_dir, update=True)
+                                         heraldry_dir, cards_dir, update=True, db=db)
             if key in inputs:
                 entry["card"] = inputs[key]
         print("drawn again: %s" % key, flush=True)

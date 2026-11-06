@@ -114,7 +114,9 @@ the API pads it back to 40 digits.
 Pictures:
 
 - A placed land's picture is its card (`web/map/cards.py`): the land drawn
-  isometrically from the world itself, with whatever its holder has built, on
+  isometrically from the world itself, block by block (so overhangs, arches
+  and poles look as built; plants, torches and other non-cube blocks are left
+  out), with whatever its holder has built, on
   the old pictures' background colour for its realm, under a banner with its
   crest (a baron's cap at castle level 4, a coronet at 5 and 6, a crown at 7),
   name, title and coordinates, in the Midnight font (`web/map/fonts/`, the Lords
