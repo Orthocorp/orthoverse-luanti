@@ -35,7 +35,8 @@ First rough version of the world:
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
   cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
   forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
-- The name of the land you are on at the bottom left of the screen, with its crest
+- The name of the land you are on at the bottom left of the screen, in the Midnight
+  font as on the cards, with its crest
   and headgear above it as on the token card (crests from castle level 1).
 - The minimap for everyone, shown from the moment they join (no mapping kit needed);
   V cycles through close, wide and off. The radar (caves) is for the admin only.
@@ -65,6 +66,7 @@ tools/assemble.sh            refreshes mods/mtg from Minetest Game
 tools/render_map.py          offline top-down render from map.sqlite
 tools/mapslice.py            offline node counts and vertical slices (debugging)
 tools/split_crests.py        one PNG per crest, for orthoverse_landhud (run by the image build)
+tools/midnight_atlas.py      the Midnight font as a picture of its letters, for orthoverse_landhud
 compose.yaml, docker/         running it all on Docker Compose (see docker/README.md)
 web/                         orthoverse.land: site, map, proxy, browser game (see web/README.md)
 ```
