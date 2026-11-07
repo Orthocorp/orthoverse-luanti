@@ -49,7 +49,8 @@
 .ov-bar .ov-who { position: relative; margin-left: auto; }
 .ov-bar .ov-who > button { font: 16px/16px "Midnight", monospace; }
 .ov-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 240px; padding: 12px;
-  background: var(--night-2); border: 3px solid var(--outline); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  background: var(--night-2); border: 3px solid var(--outline); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+  text-align: left; }
 .ov-menu p { margin: 0 0 10px; font-size: 14px; color: var(--quiet); word-break: break-all; }
 .ov-menu a, .ov-menu button.ov-link { display: block; width: 100%; text-align: left; padding: 6px 0; color: var(--gold);
   background: none; border: 0; font: 16px var(--body-font); cursor: pointer; text-decoration: underline; }
