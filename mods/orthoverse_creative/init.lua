@@ -1,11 +1,16 @@
--- orthoverse_creative: creative mode on your own lands.
+-- orthoverse_creative: creative mode on your own lands, more of it the higher
+-- the land's castle level.
 --
--- On a land your wallet holds you get fly, fast and noclip, the inventory's
--- creative tab (every block, nothing used up), and no damage. Your own
--- inventory is put away and your creative one (empty the first time, then as
--- you left it) takes its place. Step off the land and it all goes back: the
--- privileges are taken away, the creative inventory is put away, and your own
--- comes back, so nothing taken from the creative tab ever leaves the land.
+-- On a land your wallet holds you are in creative mode: every block in the
+-- inventory's Creative tab, nothing used up, no damage. Your own inventory is
+-- put away and your creative one (empty the first time, then as you left it)
+-- takes its place. Step off the land and it all goes back, so nothing taken
+-- from the Creative tab ever leaves the land.
+--
+-- The land's castle level adds abilities (LEVELS below; the contract's levels
+-- 8-15 are 0-7 with the futuristic style flag, so they count as 0-7). They
+-- follow the land you stand on: walk from a level 2 land of yours to a level 0
+-- one and fly and noclip go.
 --
 -- Players who can build anywhere (protection_bypass: the admin) are left alone.
 -- orthoverse.creative.allowed decides where a player is creative: other mods
@@ -13,16 +18,53 @@
 
 local S = core.get_translator and core.get_translator("orthoverse_creative") or function(s) return s end
 
-local PRIVS = { "fly", "fast", "noclip", "creative" }
+-- What each castle level adds, on top of the levels below it. Privileges here
+-- are granted while the player stands on the land and taken away when they
+-- leave it. To move an ability to another level, move it here.
+local LEVELS = {
+	[0] = { privs = { "creative" } },
+	[1] = { privs = { "fly", "fast" } },
+	[2] = { privs = { "noclip" } },
+}
+local PRIV_NAMES = { fly = "fly (K)", fast = "fast (J)", noclip = "noclip (H)" }
+
 local LISTS = { "main", "craft" }
 local KEY = "orthoverse_creative:"      -- player meta keys
 local CHECK_EVERY = 0.5
 
-orthoverse.creative = {}
+orthoverse.creative = { LEVELS = LEVELS }
 
 -- Whether `name` is creative at `pos`: wherever they may build (their own lands)
 function orthoverse.creative.allowed(name, pos)
 	return orthoverse.wallets.may_build(name, pos) == true
+end
+
+-- The land's level at `pos` for `name` (0-7), or nil if they are not creative
+-- there. The contract's levels 8-15 are 0-7 with the futuristic style flag set
+function orthoverse.creative.level_at(name, pos)
+	if not orthoverse.creative.allowed(name, pos) then return nil end
+	local land = orthoverse.land_at(pos)
+	return (land and tonumber(land.level) or 0) % 8
+end
+
+-- The privileges a level gives (a set)
+local function privs_for(level)
+	local out = {}
+	for l = 0, level do
+		for _, p in ipairs((LEVELS[l] or {}).privs or {}) do out[p] = true end
+	end
+	return out
+end
+
+local ALL_PRIVS = privs_for(7)
+
+-- The next level that adds something, and what it adds (for the hint)
+local function next_ability(level)
+	for l = level + 1, 7 do
+		local names = {}
+		for _, p in ipairs((LEVELS[l] or {}).privs or {}) do names[#names + 1] = PRIV_NAMES[p] or p end
+		if #names > 0 then return l, table.concat(names, " and ") end
+	end
 end
 
 local function exempt(name)
@@ -64,33 +106,13 @@ local function refresh_inventory_page(player)
 end
 
 ------------------------------------------------------------------------------
--- Entering and leaving
+-- Privileges, entering and leaving
 
 local falling = {}      -- name -> true: no fall damage until on the ground again
 local last_safe = {}    -- name -> last position on their land outside any block
 
 local function is_creative(player)
 	return player:get_meta():get_string(KEY .. "on") == "1"
-end
-
-local function enter(player)
-	local name = player:get_player_name()
-	local meta = player:get_meta()
-	local privs = core.get_player_privs(name)
-	local granted = {}
-	for _, p in ipairs(PRIVS) do
-		if not privs[p] then
-			privs[p] = true
-			granted[#granted + 1] = p
-		end
-	end
-	core.set_player_privs(name, privs)
-	meta:set_string(KEY .. "granted", table.concat(granted, ","))
-	save_lists(player, "own")
-	load_lists(player, "creative")
-	meta:set_string(KEY .. "on", "1")
-	refresh_inventory_page(player)
-	core.chat_send_player(name, S("Your land: creative mode. Fly (K), fast (J), noclip (H), and every block in the inventory's Creative tab. Your own inventory is kept safe until you leave."))
 end
 
 local function inside_block(pos)
@@ -102,22 +124,97 @@ local function inside_block(pos)
 	return false
 end
 
+-- Give the player the privileges in `wanted` (a set) that this mod hands out,
+-- and take away the ones it gave that are no longer wanted. Privileges the
+-- player had anyway are never touched. Returns the lists granted and removed.
+local function set_privs(player, wanted)
+	local name = player:get_player_name()
+	local meta = player:get_meta()
+	local granted = {}
+	for p in meta:get_string(KEY .. "granted"):gmatch("[^,]+") do granted[p] = true end
+	local privs = core.get_player_privs(name)
+	local added, removed = {}, {}
+	for p in pairs(ALL_PRIVS) do
+		if wanted[p] and not privs[p] then
+			privs[p] = true
+			granted[p] = true
+			added[#added + 1] = p
+		elseif not wanted[p] and granted[p] then
+			privs[p] = nil
+			granted[p] = nil
+			removed[#removed + 1] = p
+		end
+	end
+	if #added > 0 or #removed > 0 then
+		core.set_player_privs(name, privs)
+		local list = {}
+		for p in pairs(granted) do list[#list + 1] = p end
+		table.sort(list)
+		meta:set_string(KEY .. "granted", table.concat(list, ","))
+	end
+	local lost = {}
+	for _, p in ipairs(removed) do lost[p] = true end
+	-- Lost fly: no fall damage until they land. Lost noclip inside a wall:
+	-- back to where they last stood in the open on their land
+	if lost.fly then falling[name] = true end
+	if lost.noclip and inside_block(player:get_pos()) and last_safe[name] then
+		player:set_pos(last_safe[name])
+	end
+	return added, removed
+end
+
+-- What `level` gives, and what the next level up would add
+local function abilities_text(level)
+	local names = {}
+	for p in pairs(privs_for(level)) do
+		if PRIV_NAMES[p] then names[#names + 1] = PRIV_NAMES[p] end
+	end
+	table.sort(names)
+	local text = S("Every block is in the inventory's Creative tab")
+	if #names > 0 then text = text .. "; " .. table.concat(names, ", ") end
+	text = text .. "."
+	local l, more = next_ability(level)
+	if l then
+		text = text .. " " .. S("A castle at level @1 would add @2.", l, more)
+	end
+	return text
+end
+
+local function enter(player, level)
+	local name = player:get_player_name()
+	local meta = player:get_meta()
+	save_lists(player, "own")
+	load_lists(player, "creative")
+	meta:set_string(KEY .. "on", "1")
+	meta:set_int(KEY .. "level", level)
+	set_privs(player, privs_for(level))
+	refresh_inventory_page(player)
+	core.chat_send_player(name, S("Your land (level @1): creative mode. Your own inventory is kept safe until you leave.", level) ..
+		" " .. abilities_text(level))
+end
+
+-- Moving between your own lands of different levels (or the level changing
+-- on the chain while you stand there)
+local function change_level(player, level)
+	local meta = player:get_meta()
+	if meta:get_int(KEY .. "level") == level then return end
+	meta:set_int(KEY .. "level", level)
+	local added, removed = set_privs(player, privs_for(level))
+	if #added > 0 or #removed > 0 then
+		core.chat_send_player(player:get_player_name(),
+			S("This land is level @1.", level) .. " " .. abilities_text(level))
+	end
+end
+
 local function leave(player, quiet)
 	local name = player:get_player_name()
 	local meta = player:get_meta()
 	save_lists(player, "creative")
 	load_lists(player, "own")
-	local privs = core.get_player_privs(name)
-	for p in meta:get_string(KEY .. "granted"):gmatch("[^,]+") do privs[p] = nil end
-	core.set_player_privs(name, privs)
+	set_privs(player, {})      -- also sees to leaving through walls
 	meta:set_string(KEY .. "granted", "")
 	meta:set_string(KEY .. "on", "")
 	refresh_inventory_page(player)
-	-- Leaving through walls with noclip: back to where they were on their land
-	if inside_block(player:get_pos()) and last_safe[name] then
-		player:set_pos(last_safe[name])
-	end
-	-- Leaving in the air: no fall damage until they land
 	falling[name] = true
 	if not quiet then
 		core.chat_send_player(name, S("You have left your land: creative mode is off, and your own inventory is back."))
@@ -134,14 +231,16 @@ core.register_globalstep((function()
 			local name = player:get_player_name()
 			if not exempt(name) then
 				local pos = player:get_pos()
-				local here = orthoverse.creative.allowed(name, pos)
+				local level = orthoverse.creative.level_at(name, pos)
 				local on = is_creative(player)
-				if here and not on then
-					enter(player)
-				elseif on and not here then
+				if level and not on then
+					enter(player, level)
+				elseif on and not level then
 					leave(player)
+				elseif level then
+					change_level(player, level)
 				end
-				if here and not inside_block(pos) then
+				if level and not inside_block(pos) then
 					last_safe[name] = pos
 				end
 			end

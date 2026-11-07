@@ -23,10 +23,12 @@ First rough version of the world:
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
 - Wallet sign-in and guests: wallet players build on the lands their wallet holds
   (ownership read from the Ethereum contract); guests explore. See `web/README.md`.
-- Creative mode on your own lands: fly, fast, noclip, no damage and every block in
-  the inventory's Creative tab. Your own inventory is put away while you are there
-  and comes back when you step off; the creative one is kept for next time, so
-  nothing from the Creative tab leaves the land.
+- Creative mode on your own lands: every block in the inventory's Creative tab and
+  no damage. Your own inventory is put away while you are there and comes back when
+  you step off; the creative one is kept for next time, so nothing from the
+  Creative tab leaves the land. The land's castle level adds abilities: fly and
+  fast from level 1, noclip from level 2 (fantasy and futuristic lands alike). The
+  table is `LEVELS` in `mods/orthoverse_creative/init.lua`.
 - Player skins, chosen in the inventory's Skin tab with a 3D preview: Default, Wizard,
   Elf, Borgo and Strider. To add one, put a 64 × 32 (or 64 × 64) skin in
   `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild.
@@ -48,7 +50,7 @@ mods/orthoverse_animals/     which animals spawn where in the Orthoverse
 mods/orthoverse_skins/       player skins and the Skin tab
 mods/orthoverse_minimap/     the minimap for every player, on when they join
 mods/orthoverse_wallets/     who may join (wallet players, guests) and who may build where
-mods/orthoverse_creative/    creative mode on your own lands, with your inventory swapped
+mods/orthoverse_creative/    creative mode on your own lands, abilities by castle level
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
 mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen threads)
 mods/orthoverse_nodes/       world edge, henge portal and gateway, tarmac
