@@ -30,6 +30,15 @@ else
 	echo "$COMMIT" > /cache/commit
 fi
 
+# Our own engine textures (web/client/textures/) over the engine's
+PACK="build/luanti-install/textures/base/pack"
+[[ -d "$PACK" ]] || { echo "No $PACK: the engine's install layout changed" >&2; exit 1; }
+for t in /textures/*.png; do
+	[[ -e "$t" ]] || continue
+	echo "texture: $(basename "$t")"
+	cp "$t" "$PACK/"
+done
+
 ./build_fsroot.sh
 ./build_www.sh
 # The object files stay in the cache, not in the image
