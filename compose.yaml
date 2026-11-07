@@ -15,6 +15,9 @@ services:
     build:
       context: .
       dockerfile: docker/luanti/Dockerfile
+      args:
+        # The look of the world: a texture pack from texturepacks/, or none
+        OV_TEXTURES: ${OV_TEXTURES:-soothing32}
     image: orthoverse/luanti
     user: "${OV_UID:?set OV_UID in .env}:${OV_GID:?set OV_GID in .env}"
     volumes:

@@ -58,6 +58,19 @@ COPY game.conf minetest.conf ${GAME}/
 COPY mods ${GAME}/mods
 COPY --from=crests /tmp/crests ${GAME}/mods/orthoverse_landhud/crests
 
+# The texture pack (OV_TEXTURES in .env: a folder of texturepacks/, or none).
+# Textures in the game's own textures/ folder take the place of the mods' ones
+# of the same name, for every player, so the pack is copied there.
+ARG OV_TEXTURES=soothing32
+COPY texturepacks /tmp/texturepacks
+RUN if [ "$OV_TEXTURES" != "none" ]; then \
+      [ -d "/tmp/texturepacks/$OV_TEXTURES" ] || { echo "No texture pack texturepacks/$OV_TEXTURES" >&2; exit 1; }; \
+      mkdir -p ${GAME}/textures \
+      && cp -r "/tmp/texturepacks/$OV_TEXTURES/." ${GAME}/textures/ \
+      && find ${GAME}/textures -type f ! -name '*.png' -delete; \
+    fi \
+ && rm -rf /tmp/texturepacks
+
 COPY docker/luanti/entrypoint.sh /usr/local/bin/orthoverse-server
 # The server runs as the world's owner (compose sets the user); HOME only
 # needs to be somewhere writable.

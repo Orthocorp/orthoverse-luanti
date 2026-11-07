@@ -61,6 +61,7 @@ mods/orthoverse_animals/     which animals spawn where in the Orthoverse
 mods/orthoverse_skins/       player skins and the Skin tab
 mods/orthoverse_minimap/     the minimap for every player, on when they join
 mods/orthoverse_landhud/     the land you are on and its crest, at the bottom left
+texturepacks/                the look of the world for everyone (OV_TEXTURES in .env; see its README)
 mods/orthoverse_wallets/     who may join (wallet players, guests) and who may build where
 mods/orthoverse_creative/    creative mode on your own lands, abilities by castle level
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
