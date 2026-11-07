@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lost underground · The Orthoverse</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/site.js" defer></script>
+<style>
+  * { box-sizing: border-box; }
+  html { background: #0c0a08; }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; color: var(--parchment);
+    font: 17px/1.6 var(--body-font); }
+  /* Below the world: the torch-lit cave from the map, darker at the edges */
+  .cave { flex: 1; display: flex; align-items: center; justify-content: center; padding: 64px 16px;
+    background: radial-gradient(ellipse at 50% 45%, rgba(12, 10, 8, 0.15), rgba(12, 10, 8, 0.85) 75%),
+      #0c0a08 url("/map/cave.png") center / 1536px 1152px; image-rendering: pixelated; }
+  .lost { max-width: 640px; text-align: center; }
+  .lost img { width: 324px; max-width: 70vw; height: auto; image-rendering: pixelated; display: block; margin: 0 auto 32px;
+    filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.5)); }
+  h1 { margin: 0 0 16px; font: 24px/32px "Midnight", monospace; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze);
+    -webkit-font-smoothing: none; }
+  .why { margin: 0 0 8px; font-size: 19px; color: #fff; text-shadow: 0 0 8px #000, 1px 1px 0 #000; }
+  .where { margin: 0 0 32px; color: var(--quiet); font-size: 15px; text-shadow: 0 0 6px #000; word-break: break-all; }
+  .where code { font: 16px/1 "Midnight", monospace; color: var(--parchment); }
+  .ways { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="ov-header"></div>
+
+<main class="cave">
+  <div class="lost">
+    <img src="/img/404.png" width="162" height="66" alt="404">
+    <h1>You have dug through the bottom of the world</h1>
+    <p class="why">Even with noclip, there is nothing down here.</p>
+    <p class="where">There is nothing at <code id="path"></code></p>
+    <div class="ways">
+      <a class="ov-btn go" href="/">Climb back up</a>
+      <a class="ov-btn" href="/map/">Find your way on the map</a>
+      <a class="ov-btn" href="/play/">Play</a>
+    </div>
+  </div>
+</main>
+
+<div id="ov-footer"></div>
+
+<script>
+  document.getElementById('path').textContent = location.pathname;
+</script>
+</body>
+</html>

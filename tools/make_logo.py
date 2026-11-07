@@ -5,7 +5,8 @@ extrusion and a dark outline, like a title in a block game.
     make_logo.py FONT.ttf OUT_DIR
 
 Writes OUT_DIR/logo.png (show it at whole multiples of its size, with
-image-rendering: pixelated) and OUT_DIR/icon.png (64 x 64).
+image-rendering: pixelated), OUT_DIR/icon.png (64 x 64) and OUT_DIR/404.png
+(the not-found page's title).
 """
 import os
 import sys
@@ -84,6 +85,18 @@ def logo(font, out):
     return img.size
 
 
+def title(font, out, text, filename):
+    """A word in the logo's gold blocks, on its own."""
+    block, depth = 6, 2
+    pixels, w = bitmap(font, text)
+    size = (w * block + (depth + 4) * block, 8 * block + (depth + 4) * block)
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw_blocks(img, pixels, block * 2, block * 2, block, depth, 8)
+    img = img.crop(img.getbbox())
+    img.save(os.path.join(out, filename), optimize=True)
+    return img.size
+
+
 def icon(font, out):
     o, w = bitmap(font, "O")
     img = Image.new("RGBA", (64, 64), (20, 26, 51, 255))
@@ -96,3 +109,4 @@ if __name__ == "__main__":
     os.makedirs(sys.argv[2], exist_ok=True)
     print("logo", logo(f, sys.argv[2]))
     icon(f, sys.argv[2])
+    print("404", title(f, sys.argv[2], "404", "404.png"))
