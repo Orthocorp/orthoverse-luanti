@@ -150,6 +150,50 @@ services:
     network_mode: none
     restart: unless-stopped
 
+  # Every night at OV_BACKUP_AT (UTC), a copy of the world, the sign-ins and
+  # the chain index on the backup drive (docker/backup/backup.js).
+  #   docker compose run --rm backup node backup.js now    back up now
+  #   docker compose run --rm backup node backup.js list   the backups there are
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    image: orthoverse/backup
+    user: "${OV_UID}:${OV_GID}"
+    environment:
+      OV_BACKUP_AT: ${OV_BACKUP_AT:-01:30}
+      OV_BACKUP_DAYS: ${OV_BACKUP_DAYS:-14}
+      OV_BACKUP_WEEKS: ${OV_BACKUP_WEEKS:-8}
+      OV_BACKUP_MONTHS: ${OV_BACKUP_MONTHS:-12}
+    volumes:
+      - ${OV_WORLD}:/world:ro
+      - ${OV_DATA}/auth:/data/auth:ro
+      - ${OV_DATA}/chain:/data/chain:ro
+      - ${OV_BACKUP:?set OV_BACKUP in .env}:/backup
+    network_mode: none
+    read_only: true
+    restart: unless-stopped
+
+  # Putting a backup back, with the game stopped (see docker/README.md):
+  #   docker compose stop luanti auth chain backup
+  #   docker compose run --rm restore <backup name>
+  #   docker compose up -d
+  # What was there before is moved to .before-restore-<time> folders, not deleted.
+  restore:
+    profiles: [tools]
+    image: orthoverse/backup
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    entrypoint: ["node", "/app/backup.js", "restore"]
+    user: "${OV_UID}:${OV_GID}"
+    volumes:
+      - ${OV_WORLD}:/world
+      - ${OV_DATA}/auth:/data/auth
+      - ${OV_DATA}/chain:/data/chain
+      - ${OV_BACKUP}:/backup:ro
+    network_mode: none
+
   # Run on demand: docker compose run --rm --build client
   client:
     profiles: [tools]
