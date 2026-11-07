@@ -80,6 +80,18 @@ const rpc = http.createServer((req, res) => {
 });
 await new Promise(r => rpc.listen(0, '127.0.0.1', r));
 
+// Stand-in Cloudflare Turnstile: the token "good" passes
+const turnstile = http.createServer((req, res) => {
+	let body = '';
+	req.on('data', c => body += c);
+	req.on('end', () => {
+		const f = new URLSearchParams(body);
+		res.writeHead(200, { 'content-type': 'application/json' });
+		res.end(JSON.stringify({ success: f.get('secret') === 'ts-secret' && f.get('response') === 'good' }));
+	});
+});
+await new Promise(r => turnstile.listen(0, '127.0.0.1', r));
+
 // The service
 const PORT = 18090;
 const svc = spawn(process.execPath, ['server.js'], {
@@ -95,6 +107,9 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_CHAIN_TOKENS: join(dir, 'no-chain-index.json'),
 		OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
 		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
+		OV_TURNSTILE_SITEKEY: 'ts-site', OV_TURNSTILE_SECRET: 'ts-secret',
+		OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
+		OV_REGISTER_PER_DAY: '3',
 		NODE_NO_WARNINGS: '1',
 	},
 	stdio: ['ignore', 'pipe', 'pipe'],
@@ -252,12 +267,119 @@ try {
 	r = await call('GET', '/api/reveal/status?address=' + carol.address);
 	check(r.body.placed === null, 'status for an address with no land: none');
 
+	// Password characters
+	cookie = '';
+	r = await call('GET', '/auth/config');
+	check(r.body.turnstile === 'ts-site', 'config: the Turnstile site key for the registration form');
+	r = await call('POST', '/auth/register', { name: 'Pat', password: 'short', turnstile: 'good' });
+	check(r.status === 400 && /at least 8/.test(r.body.error), 'register: a short password is refused');
+	r = await call('POST', '/auth/register', { name: 'alice_1', password: 'long enough pw', turnstile: 'good' });
+	check(r.status === 400 && /taken/.test(r.body.error), 'register: a wallet character\'s name is taken');
+	r = await call('POST', '/auth/register', { name: 'Pat', password: 'pat', turnstile: 'good' });
+	check(r.status === 400, 'register: the password cannot be the name (and is too short)');
+	r = await call('POST', '/auth/register', { name: 'Pat', password: 'correct horse', turnstile: 'bad' });
+	check(r.status === 400 && /robot/.test(r.body.error), 'register: a failed Turnstile check is refused');
+	r = await call('POST', '/auth/register', { name: 'Pat', password: 'correct horse', turnstile: 'good' });
+	check(r.status === 200 && r.body.name === 'Pat' && /^[0-9a-f]{32}$/.test(r.body.password) &&
+		r.body.hasPassword && !r.body.hasWallet && r.body.address === null && r.body.lands.length === 0,
+		'register: a character with a name and password, no wallet; a game password is given');
+	check(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(r.body.recoveryCode || ''), 'register: a recovery code is shown once');
+	const patCode = r.body.recoveryCode;
+	const patGame = r.body.password;
+	check(/HttpOnly/.test(r.setCookie), 'register: signed in at once');
+	r = await call('GET', '/auth/me');
+	check(r.body.name === 'Pat' && r.body.password === patGame && r.body.signedInWith === 'password', 'me: the password character');
+	const regP = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.pat;
+	check(regP && regP.name === 'Pat' && !regP.address && regP.pw && regP.rc &&
+		!JSON.stringify(regP).includes('correct horse') && !JSON.stringify(regP).includes(patCode.replace(/-/g, '')),
+		'registry.json: the character, with only hashes of the password and code');
+
+	await call('POST', '/auth/logout', {});
+	r = await call('POST', '/auth/login', { name: 'pat', password: 'wrong password' });
+	check(r.status === 400 && /do not match/.test(r.body.error), 'login: a wrong password is refused');
+	r = await call('POST', '/auth/login', { name: 'PAT', password: 'correct horse' });
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === patGame, 'login: name in any capitals and the password');
+	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'anything at all' });
+	check(r.status === 400 && /wallet/.test(r.body.error), 'login: a wallet character without a password is told to use the wallet');
+
+	// Changing the password ends the other sessions
+	const oldPatCookie = cookie;
+	r = await call('POST', '/auth/password', { password: 'battery staple' });
+	check(r.status === 400 && /current password/.test(r.body.error), 'password: the current one is needed');
+	r = await call('POST', '/auth/password', { current: 'correct horse', password: 'battery staple' });
+	check(r.status === 200 && r.body.recoveryCode === null, 'password: changed (the recovery code stays as it was)');
+	r = await call('GET', '/auth/me', null, { cookie: oldPatCookie });
+	check(r.body.signedIn === false, 'password: a session from before the change no longer works');
+	r = await call('GET', '/auth/me');
+	check(r.body.name === 'Pat', 'password: this browser stays signed in');
+
+	// Recovery
+	cookie = '';
+	r = await call('POST', '/auth/recover', { name: 'Pat', code: 'AAAA-BBBB-CCCC-DDDD', password: 'new password 1' });
+	check(r.status === 400, 'recover: a wrong code is refused');
+	r = await call('POST', '/auth/recover', { name: 'Pat', code: patCode.toLowerCase().replace(/-/g, ' '), password: 'new password 1' });
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.recoveryCode && r.body.recoveryCode !== patCode,
+		'recover: the code (any capitals and spacing) sets a new password, and a new code is given');
+	r = await call('POST', '/auth/recover', { name: 'Pat', code: patCode, password: 'new password 2' });
+	check(r.status === 400, 'recover: the old code no longer works');
+	cookie = '';
+	r = await call('POST', '/auth/login', { name: 'Pat', password: 'new password 1' });
+	check(r.status === 200, 'recover: the new password works');
+
+	// Linking a wallet to the password character
+	const erin = Wallet.createRandom();
+	r = await call('GET', '/auth/nonce?address=' + alice.address);
+	r = await call('POST', '/auth/link', { nonce: r.body.nonce, signature: await alice.signMessage(r.body.message) });
+	check(r.status === 400 && /already belongs/.test(r.body.error), 'link: a wallet that has a character already is refused');
+	r = await call('GET', '/auth/nonce?address=' + erin.address);
+	const ln = r.body;
+	r = await call('POST', '/auth/link', { nonce: ln.nonce, signature: await bob.signMessage(ln.message) });
+	check(r.status === 400, 'link: a signature by another wallet is refused');
+	r = await call('GET', '/auth/nonce?address=' + erin.address);
+	r = await call('POST', '/auth/link', { nonce: r.body.nonce, signature: await erin.signMessage(r.body.message) });
+	check(r.status === 200 && r.body.hasWallet && r.body.address === erin.address && r.body.name === 'Pat', 'link: the wallet is linked');
+	const regP2 = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.pat;
+	check(regP2.address === erin.address.toLowerCase() && regP2.pw, 'registry.json: the character now has the wallet and keeps its password');
+	cookie = '';
+	r = await call('GET', '/auth/nonce?address=' + erin.address);
+	r = await call('POST', '/auth/verify', { nonce: r.body.nonce, signature: await erin.signMessage(r.body.message) });
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === patGame && r.body.signedInWith === 'wallet',
+		'link: signing in with the wallet now gives the same character');
+
+	// A wallet character adds a password (no current one needed: the wallet proves it)
+	cookie = '';
+	r = await call('GET', '/auth/nonce?address=' + alice.address);
+	r = await call('POST', '/auth/verify', { nonce: r.body.nonce, signature: await alice.signMessage(r.body.message) });
+	r = await call('POST', '/auth/password', { password: 'alice password' });
+	check(r.status === 200 && r.body.hasPassword && /^[A-Z2-9-]{19}$/.test(r.body.recoveryCode || ''),
+		'a wallet character adds a password, and gets a recovery code');
+	cookie = '';
+	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'alice password' });
+	check(r.status === 200 && r.body.name === 'Alice_1' && r.body.lands.length === 2,
+		'and can then sign in with it, lands and all');
+
+	// Registration limit per address per day (3 in this test; Pat was the first)
+	cookie = '';
+	r = await call('POST', '/auth/register', { name: 'Quin', password: 'quin password', turnstile: 'good' });
+	check(r.status === 200, 'register: a second character from the same address');
+	cookie = '';
+	r = await call('POST', '/auth/register', { name: 'Rex', password: 'rex password', turnstile: 'good' });
+	cookie = '';
+	r = await call('POST', '/auth/register', { name: 'Sam', password: 'sam password', turnstile: 'good' });
+	check(r.status === 429 && /tomorrow/.test(r.body.error), 'register: the fourth in a day from one address is refused');
+
+	// Too many wrong passwords for one name
+	for (let i = 0; i < 10; i++) await call('POST', '/auth/login', { name: 'Quin', password: 'nope nope' + i });
+	r = await call('POST', '/auth/login', { name: 'Quin', password: 'quin password' });
+	check(r.status === 429, 'login: after 10 wrong passwords the name rests, even for the right one');
+
 } catch (e) {
 	failures.push('exception: ' + e.stack);
 	console.log(e);
 } finally {
 	svc.kill();
 	rpc.close();
+	turnstile.close();
 }
 
 if (failures.length) {

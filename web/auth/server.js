@@ -15,13 +15,19 @@
 //                  Orthoverse contract on Ethereum mainnet, refreshed every few
 //                  minutes
 //
+// Players without a wallet can make a character with a name and password
+// here instead (and link a wallet to it later, or add a password to a wallet
+// character). The password is checked here, never by the game: the game
+// password stays the derived one, so the game needs no change. A recovery
+// code, shown once, lets a player who forgets their password set a new one.
+//
 // Guests need none of this: the play page makes up a Guest-XXXXXX name and
 // password and keeps them in the browser.
 
 'use strict';
 
 import http from 'node:http';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, createHash, randomBytes, timingSafeEqual, scrypt } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -53,6 +59,13 @@ const HERALDRY = env.OV_HERALDRY || fileURLToPath(new URL(
 	existsSync(new URL('./heraldry', import.meta.url)) ? './heraldry/' : '../heraldry/', import.meta.url));
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
 const CHAIN_ID = 1;
+
+// Cloudflare Turnstile on the registration form (both empty: no check)
+const TURNSTILE_SITEKEY = env.OV_TURNSTILE_SITEKEY || '';
+const TURNSTILE_SECRET = env.OV_TURNSTILE_SECRET || '';
+const TURNSTILE_URL = env.OV_TURNSTILE_URL || 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+// New password characters per client address per day
+const REGISTER_PER_DAY = parseInt(env.OV_REGISTER_PER_DAY || '3', 10);
 
 const SESSION_DAYS = 30;
 const NONCE_TTL_MS = 10 * 60 * 1000;
@@ -110,10 +123,14 @@ mkdirSync(DATA_DIR, { recursive: true });
 const REGISTRY_FILE = join(DATA_DIR, 'registry.json');
 const OWNERS_FILE = join(DATA_DIR, 'owners.json');
 
+// players: lower-case name -> { name, since, address (wallet characters, or a
+// wallet linked later), pw: { s, h, v } (a password: salt, scrypt hash,
+// version; the version is in the session, so changing the password ends
+// other sessions), rc: { s, h } (the recovery code, the same way) }
 const registry = readJson(REGISTRY_FILE, { version: 1, players: {} });
 const nameOfAddress = new Map();   // lower-case address -> name
 for (const p of Object.values(registry.players)) {
-	nameOfAddress.set(p.address.toLowerCase(), p.name);
+	if (p.address) nameOfAddress.set(p.address.toLowerCase(), p.name);
 }
 
 function saveRegistry() {
@@ -263,7 +280,7 @@ async function balances(pairs) {
 
 // Wallets whose lands we look up: players, and anyone signed in since start-up
 // who has not chosen a name yet
-const watched = new Set(Object.values(registry.players).map(p => p.address.toLowerCase()));
+const watched = new Set(Object.values(registry.players).filter(p => p.address).map(p => p.address.toLowerCase()));
 
 // The holder of each token according to the daily chain index, if it has run
 function indexedHolders() {
@@ -378,11 +395,20 @@ Issued At: ${issued}
 Expiration Time: ${expires}`;
 }
 
-function makeSession(address) {
-	const payload = b64url(JSON.stringify({ a: address.toLowerCase(), e: Date.now() + SESSION_DAYS * 86400 * 1000 }));
+// A session is either a wallet's (a: address) or a password character's (n:
+// lower-case name, v: password version)
+function makeSession(who) {
+	const s = typeof who === 'string' ? { a: who.toLowerCase() } : who;
+	const payload = b64url(JSON.stringify({ ...s, e: Date.now() + SESSION_DAYS * 86400 * 1000 }));
 	return payload + '.' + b64url(hmac('session\n' + payload));
 }
 
+function passwordSession(entry) {
+	return makeSession({ n: entry.name.toLowerCase(), v: entry.pw.v });
+}
+
+// Who is signed in: { address (lower case, or null), name (or null), entry
+// (their registry entry, or null), wallet (signed in with the wallet) }, or null
 function readSession(req) {
 	const cookie = req.headers.cookie || '';
 	const m = cookie.match(/(?:^|;\s*)ov_session=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/);
@@ -390,12 +416,112 @@ function readSession(req) {
 	const want = hmac('session\n' + m[1]);
 	const got = Buffer.from(m[2], 'base64url');
 	if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
+	let s;
 	try {
-		const s = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8'));
-		if (!s.a || !s.e || s.e < Date.now()) return null;
-		return s.a;
+		s = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8'));
 	} catch (e) {
 		return null;
+	}
+	if (!s.e || s.e < Date.now()) return null;
+	if (s.a) {
+		const name = nameOfAddress.get(s.a) || null;
+		return { address: s.a, name, entry: name ? registry.players[name.toLowerCase()] : null, wallet: true };
+	}
+	if (s.n) {
+		const entry = registry.players[s.n];
+		if (!entry || !entry.pw || entry.pw.v !== s.v) return null;   // password changed since
+		return { address: entry.address ? entry.address.toLowerCase() : null, name: entry.name, entry, wallet: false };
+	}
+	return null;
+}
+
+// The session view of a password character (as readSession would give it)
+function readSessionOf(entry) {
+	return { address: entry.address ? entry.address.toLowerCase() : null, name: entry.name, entry, wallet: false };
+}
+
+// ---------------------------------------------------------------------------
+// Passwords and recovery codes
+
+function scryptHash(secret, salt) {
+	return new Promise((resolve, reject) =>
+		scrypt(secret, salt, 32, { N: 16384, r: 8, p: 1 }, (e, key) => e ? reject(e) : resolve(key)));
+}
+
+async function makeHash(secret) {
+	const salt = randomBytes(16);
+	return { s: salt.toString('base64'), h: (await scryptHash(secret, salt)).toString('base64') };
+}
+
+async function hashMatches(secret, stored) {
+	if (!stored || !stored.s || !stored.h) return false;
+	const got = await scryptHash(secret, Buffer.from(stored.s, 'base64'));
+	const want = Buffer.from(stored.h, 'base64');
+	return got.length === want.length && timingSafeEqual(got, want);
+}
+
+// A recovery code: 16 letters and digits in groups of four (no 0/O, 1/I)
+function makeRecoveryCode() {
+	const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	const bytes = randomBytes(16);
+	let code = '';
+	for (let i = 0; i < 16; i++) code += abc[bytes[i] % abc.length] + (i % 4 === 3 && i < 15 ? '-' : '');
+	return code;
+}
+const normalCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+function passwordProblem(password, name) {
+	if (typeof password !== 'string' || password.length < 8) return 'Passwords are at least 8 characters.';
+	if (password.length > 128) return 'Passwords are at most 128 characters.';
+	if (name && password.toLowerCase() === name.toLowerCase()) return 'The password cannot be the player name.';
+	return null;
+}
+
+function nameProblem(name) {
+	if (!NAME_RE.test(name)) return 'Names are 3 to 19 letters, digits, - and _, with no spaces.';
+	if (GUEST_RE.test(name)) return 'Names starting with "Guest" are kept for guests.';
+	if (registry.players[name.toLowerCase()] || accountExists(name)) {
+		return 'That name is taken (perhaps with different capitals). Choose another.';
+	}
+	return null;
+}
+
+// Failed sign-ins per name: after 10 within 15 minutes, that name rests for 15
+const failedLogins = new Map();   // lower-case name -> { n, until }
+function loginBlocked(name) {
+	const f = failedLogins.get(name);
+	return f && f.n >= 10 && Date.now() < f.until;
+}
+function loginFailed(name) {
+	const now = Date.now();
+	const f = failedLogins.get(name);
+	if (!f || now > f.until) failedLogins.set(name, { n: 1, until: now + 15 * 60000 });
+	else f.n++;
+}
+
+// New characters per client address per day
+const registrations = new Map();   // ip -> { n, reset }
+function registrationAllowed(req) {
+	const ip = clientIp(req);
+	const now = Date.now();
+	const r = registrations.get(ip);
+	if (!r || now > r.reset) { registrations.set(ip, { n: 1, reset: now + 86400000 }); return true; }
+	if (r.n >= REGISTER_PER_DAY) return false;
+	r.n++;
+	return true;
+}
+
+async function turnstileOk(req, token) {
+	if (!TURNSTILE_SECRET) return true;
+	if (!token) return false;
+	try {
+		const form = new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(token), remoteip: clientIp(req) });
+		const r = await fetch(TURNSTILE_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(8000) });
+		const j = await r.json();
+		return j.success === true;
+	} catch (e) {
+		log('Turnstile check failed:', e.message);
+		return false;
 	}
 }
 
@@ -476,7 +602,7 @@ function levelOf(land) {
 const ADMIN = String(env.OV_ADMIN || '');
 function mayVisit(address, name) {
 	if (ADMIN && name === ADMIN) return true;
-	if (!owners) return false;
+	if (!owners || !address) return false;
 	const a = address.toLowerCase();
 	return lands.some(l => owners.owners[l.token] === a && levelOf(l) % 8 === 7);
 }
@@ -485,16 +611,26 @@ function mayVisit(address, name) {
 const VISITS_FILE = join(DATA_DIR, 'visits.json');
 const visits = readJson(VISITS_FILE, { format: 1, visits: {} });
 
-function me(address) {
-	const name = nameOfAddress.get(address) || null;
+// What the pages are told about whoever is signed in (a wallet address, or a
+// session from readSession)
+function me(who) {
+	const sess = typeof who === 'string'
+		? { address: who, name: nameOfAddress.get(who) || null, wallet: true }
+		: who;
+	const name = sess.name || null;
+	const entry = name ? registry.players[name.toLowerCase()] : null;
+	const address = sess.address || null;
 	return {
 		signedIn: true,
-		address: getAddress(address),
+		address: address ? getAddress(address) : null,
 		name,
 		password: name ? gamePassword(name) : null,
 		exists: name ? accountExistsExact(name) : false,
-		lands: landsOf(address),
+		lands: address ? landsOf(address) : [],
 		canVisit: name ? mayVisit(address, name) : false,
+		hasPassword: !!(entry && entry.pw),
+		hasWallet: !!address,
+		signedInWith: sess.wallet ? 'wallet' : 'password',
 		ownersUpdated: owners ? owners.updated : null,
 	};
 }
@@ -550,30 +686,171 @@ const routes = {
 	},
 
 	'GET /auth/me': async (req, res) => {
-		const address = readSession(req);
-		if (!address) return send(res, 200, { signedIn: false });
-		send(res, 200, me(address));
+		const sess = readSession(req);
+		if (!sess) return send(res, 200, { signedIn: false });
+		send(res, 200, me(sess));
+	},
+
+	// Settings the pages need (the Turnstile site key, if registration uses it)
+	'GET /auth/config': async (req, res) => {
+		send(res, 200, { turnstile: TURNSTILE_SITEKEY || null });
+	},
+
+	// A new character with a name and password (no wallet)
+	'POST /auth/register': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const body = await readBody(req);
+		const name = String(body.name || '').trim();
+		const problem = nameProblem(name) || passwordProblem(body.password, name);
+		if (problem) return send(res, 400, { error: problem });
+		if (!await turnstileOk(req, body.turnstile)) {
+			return send(res, 400, { error: 'The check that you are not a robot did not pass. Please try again.' });
+		}
+		if (!registrationAllowed(req)) {
+			return send(res, 429, { error: 'Too many new characters from here today. Try again tomorrow.' });
+		}
+		const code = makeRecoveryCode();
+		const entry = {
+			name, since: new Date().toISOString(),
+			pw: { ...(await makeHash(body.password)), v: 1 },
+			rc: await makeHash(normalCode(code)),
+		};
+		registry.players[name.toLowerCase()] = entry;
+		saveRegistry();
+		log('new password character', name);
+		send(res, 200, { ...me({ address: null, name, wallet: false }), recoveryCode: code },
+			{ 'set-cookie': sessionCookie(req, passwordSession(entry), SESSION_DAYS * 86400) });
+	},
+
+	// Sign in with a name and password
+	'POST /auth/login': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const body = await readBody(req);
+		const key = String(body.name || '').trim().toLowerCase();
+		if (loginBlocked(key)) {
+			return send(res, 429, { error: 'Too many wrong passwords for this name. Wait 15 minutes, or use your recovery code.' });
+		}
+		const entry = registry.players[key];
+		if (entry && !entry.pw) {
+			return send(res, 400, { error: 'This character signs in with its wallet. Add a password on the Account page to use one.' });
+		}
+		if (!entry || !await hashMatches(String(body.password || ''), entry.pw)) {
+			loginFailed(key);
+			return send(res, 400, { error: 'That name and password do not match.' });
+		}
+		failedLogins.delete(key);
+		log('signed in with a password', entry.name);
+		send(res, 200, me(readSessionOf(entry)),
+			{ 'set-cookie': sessionCookie(req, passwordSession(entry), SESSION_DAYS * 86400) });
+	},
+
+	// Set or change the password (any signed-in character with a name). With a
+	// password already, the current one is needed, unless signed in with the
+	// wallet (which proves the character as well). The first time, a recovery
+	// code is made and shown once.
+	'POST /auth/password': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
+		const body = await readBody(req);
+		const entry = sess.entry;
+		if (entry.pw && !sess.wallet && !await hashMatches(String(body.current || ''), entry.pw)) {
+			return send(res, 400, { error: 'The current password is not right.' });
+		}
+		const problem = passwordProblem(body.password, entry.name);
+		if (problem) return send(res, 400, { error: problem });
+		entry.pw = { ...(await makeHash(body.password)), v: (entry.pw ? entry.pw.v : 0) + 1 };
+		let code = null;
+		if (!entry.rc) {
+			code = makeRecoveryCode();
+			entry.rc = await makeHash(normalCode(code));
+		}
+		saveRegistry();
+		log('password set for', entry.name);
+		// A wallet session stays as it is; a password session is renewed (the
+		// old one ended with the old password)
+		const headers = sess.wallet ? {} : { 'set-cookie': sessionCookie(req, passwordSession(entry), SESSION_DAYS * 86400) };
+		send(res, 200, { ...me(sess), recoveryCode: code }, headers);
+	},
+
+	// Forgotten password: the recovery code sets a new one (and is replaced)
+	'POST /auth/recover': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const body = await readBody(req);
+		const key = String(body.name || '').trim().toLowerCase();
+		if (loginBlocked(key)) return send(res, 429, { error: 'Too many tries for this name. Wait 15 minutes.' });
+		const entry = registry.players[key];
+		if (!entry || !entry.rc || !await hashMatches(normalCode(body.code), entry.rc)) {
+			loginFailed(key);
+			return send(res, 400, { error: 'That name and recovery code do not match.' });
+		}
+		const problem = passwordProblem(body.password, entry.name);
+		if (problem) return send(res, 400, { error: problem });
+		failedLogins.delete(key);
+		const code = makeRecoveryCode();
+		entry.pw = { ...(await makeHash(body.password)), v: (entry.pw ? entry.pw.v : 0) + 1 };
+		entry.rc = await makeHash(normalCode(code));
+		saveRegistry();
+		log('password recovered for', entry.name);
+		send(res, 200, { ...me(readSessionOf(entry)), recoveryCode: code },
+			{ 'set-cookie': sessionCookie(req, passwordSession(entry), SESSION_DAYS * 86400) });
+	},
+
+	// Link a wallet to a password character: a signed sign-in message (from
+	// /auth/nonce), as for signing in
+	'POST /auth/link': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const sess = readSession(req);
+		if (!sess || !sess.entry) return send(res, 401, { error: 'Sign in with your name and password first.' });
+		if (sess.address) return send(res, 400, { error: 'This character already has a wallet.' });
+		const body = await readBody(req);
+		const entry = nonces.get(String(body.nonce || ''));
+		if (!entry || entry.expires < Date.now()) {
+			return send(res, 400, { error: 'The request has expired. Please try again.' });
+		}
+		nonces.delete(String(body.nonce));
+		let signer;
+		try {
+			signer = verifyMessage(entry.message, String(body.signature || ''));
+		} catch (e) {
+			return send(res, 400, { error: 'The signature could not be read.' });
+		}
+		if (signer.toLowerCase() !== entry.address) {
+			return send(res, 400, { error: 'The signature is not from the wallet that asked.' });
+		}
+		const address = entry.address;
+		if (nameOfAddress.has(address)) {
+			return send(res, 400, { error: 'That wallet already belongs to the character ' + nameOfAddress.get(address) + '.' });
+		}
+		sess.entry.address = address;
+		nameOfAddress.set(address, sess.entry.name);
+		saveRegistry();
+		log('wallet', signer, 'linked to', sess.entry.name);
+		if (!watched.has(address)) {
+			watched.add(address);
+			try {
+				await serial(() => refreshWallet(address));
+			} catch (e) {
+				log('lands of', signer, 'not looked up yet:', e.message);
+			}
+		}
+		send(res, 200, me(readSession(req)));
 	},
 
 	// Choose the player name for this wallet (once)
 	'POST /auth/name': async (req, res) => {
 		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
-		const address = readSession(req);
-		if (!address) return send(res, 401, { error: 'Sign in with your wallet first.' });
+		const sess = readSession(req);
+		if (!sess || !sess.address) return send(res, 401, { error: 'Sign in with your wallet first.' });
+		const address = sess.address;
 		if (nameOfAddress.has(address)) {
 			return send(res, 400, { error: 'This wallet already has the player name ' + nameOfAddress.get(address) + '.' });
 		}
 		const body = await readBody(req);
 		const name = String(body.name || '').trim();
-		if (!NAME_RE.test(name)) {
-			return send(res, 400, { error: 'Names are 3 to 19 letters, digits, - and _, with no spaces.' });
-		}
-		if (GUEST_RE.test(name)) {
-			return send(res, 400, { error: 'Names starting with "Guest" are kept for guests.' });
-		}
-		if (registry.players[name.toLowerCase()] || accountExists(name)) {
-			return send(res, 400, { error: 'That name is taken (perhaps with different capitals). Choose another.' });
-		}
+		const problem = nameProblem(name);
+		if (problem) return send(res, 400, { error: problem });
 		registry.players[name.toLowerCase()] = { name, address, since: new Date().toISOString() };
 		nameOfAddress.set(address, name);
 		saveRegistry();
@@ -654,9 +931,9 @@ const routes = {
 	// level 7 holders). Kept for 10 minutes; the game checks who may.
 	'POST /auth/visit': async (req, res) => {
 		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
-		const address = readSession(req);
-		if (!address) return send(res, 401, { error: 'Sign in first.' });
-		const name = nameOfAddress.get(address);
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		const { address, name } = sess;
 		if (!name) return send(res, 400, { error: 'Choose a player name first.' });
 		if (!mayVisit(address, name)) {
 			return send(res, 403, { error: 'Arriving anywhere is for holders of a level 7 land.' });

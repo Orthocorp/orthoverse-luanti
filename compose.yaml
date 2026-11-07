@@ -72,6 +72,10 @@ services:
       OV_PUBLIC_URL: ${OV_PUBLIC_URL:-https://orthoverse.land}
       # The admin may visit any spot from the map, as may holders of a level 7 land
       OV_ADMIN: ${OV_ADMIN:-}
+      # Cloudflare Turnstile on the registration form for password characters
+      # (both empty: no check)
+      OV_TURNSTILE_SITEKEY: ${OV_TURNSTILE_SITEKEY:-}
+      OV_TURNSTILE_SECRET: ${OV_TURNSTILE_SECRET:-}
     volumes:
       - ${OV_DATA}/auth:/data
       - ${OV_WORLD}:/world:ro
