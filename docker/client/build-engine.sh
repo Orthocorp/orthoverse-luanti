@@ -17,17 +17,43 @@ for p in /patches/*.patch; do
 	git -C sources/luanti apply "$p"
 done
 
-rm -rf build/luanti
-if [[ -f /cache/luanti/CMakeCache.txt && "$(cat /cache/commit 2>/dev/null || true)" == "$COMMIT" ]]; then
-	echo "engine: incremental"
-	ln -s /cache/luanti build/luanti
-	INCREMENTAL=true ./build_luanti.sh
-else
+full_build() {
 	echo "engine: full"
+	rm -rf build/luanti
 	INCREMENTAL=false ./build_luanti.sh
 	rm -rf /cache/luanti /cache/commit
 	cp -a build/luanti /cache/luanti
 	echo "$COMMIT" > /cache/commit
+}
+
+# Emscripten builds its ports (SDL2, zlib, libpng...) into its own cache, in
+# the image, the first time something links against them. A full build does
+# that while CMake configures; an incremental one re-runs CMake against the
+# saved configuration and needs them there already (when an earlier step of
+# the image changed, Docker starts that cache afresh). So link a tiny program
+# with the engine's flags and ports first.
+warm_ports() {
+	bash -c 'source ./common.sh
+		cd "$(mktemp -d)"
+		echo "int main(void) { return 0; }" > warm.c
+		emcc $CFLAGS -sUSE_SDL=2 --use-port=zlib --use-port=libjpeg --use-port=libpng \
+			--use-port=freetype --use-port=ogg --use-port=vorbis --use-port=sqlite3 \
+			$LDFLAGS warm.c -o warm.js'
+}
+
+rm -rf build/luanti
+if [[ -f /cache/luanti/CMakeCache.txt && "$(cat /cache/commit 2>/dev/null || true)" == "$COMMIT" ]]; then
+	echo "engine: incremental"
+	warm_ports || echo "engine: could not build the ports first"
+	ln -s /cache/luanti build/luanti
+	if ! INCREMENTAL=true ./build_luanti.sh; then
+		# Whatever went wrong, a full build starts clean
+		echo "engine: the incremental build failed; building in full"
+		rm -f build/luanti
+		full_build
+	fi
+else
+	full_build
 fi
 
 # Our own engine textures (web/client/textures/) over the engine's
