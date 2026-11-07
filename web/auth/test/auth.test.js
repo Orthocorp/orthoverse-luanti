@@ -3,7 +3,7 @@
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -35,7 +35,11 @@ const erc1155 = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
 	'function castleLevel(uint256 tokenId) view returns (uint256)',
+	'function revealedTokenIds(uint256 tokenId) view returns (bool)',
 ]);
+// A newcomer who reveals their own token during the test
+const dave = Wallet.createRandom();
+const revealed = new Set();
 // Castle levels on the stand-in chain
 const castle = { '0xa1': 3n };
 
@@ -56,6 +60,9 @@ const rpc = http.createServer((req, res) => {
 		const out = batch.map(r => {
 			const tx = erc1155.parseTransaction({ data: r.params[0].data });
 			if (!tx) return { jsonrpc: '2.0', id: r.id, result: '0x' + '0'.repeat(64) };   // owner() and the like
+			if (tx.name === 'revealedTokenIds') {
+				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('revealedTokenIds', [revealed.has(tx.args[0])]) };
+			}
 			if (tx.name === 'castleLevel') {
 				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('castleLevel', [castle['0x' + tx.args[0].toString(16)] || 0n]) };
 			}
@@ -85,6 +92,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_AUTH_DB: join(dir, 'auth.sqlite'),
 		OV_LANDS: join(dir, 'lands.json'),
 		OV_CHAIN_TOKENS: join(dir, 'no-chain-index.json'),
+		OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
 		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
 		NODE_NO_WARNINGS: '1',
 	},
@@ -208,6 +216,24 @@ try {
 	check(r.body.level === 3 && r.body.cached && rpcCalls === before, 'a second check within 15 seconds is answered without asking the chain');
 	r = await call('POST', '/api/levels/check', { key: 'nowhere' });
 	check(r.status === 404, 'level check: an unknown land is refused');
+
+	// Revealing a land on the lands page
+	r = await call('POST', '/api/reveal/check', { address: dave.address });
+	check(r.status === 200 && r.body.revealed === false, 'reveal check: not revealed yet');
+	check(!existsSync(join(dir, 'data', 'index-now')), 'and the chain service is not asked to index');
+	revealed.add(BigInt(dave.address));
+	holder['0x' + BigInt(dave.address).toString(16)] = dave.address;
+	r = await call('POST', '/api/reveal/check', { address: dave.address });
+	check(r.body.revealed === true && existsSync(join(dir, 'data', 'index-now')), 'revealed: the chain service is asked to index now');
+	r = await call('GET', '/api/reveal/status?address=' + dave.address);
+	check(r.body.placed === null, 'status: no land yet');
+	writeFileSync(join(dir, 'new-lands.json'), JSON.stringify({ lands: { '9:9': { name: 'Daveholm', token: dave.address.toLowerCase(), level: 0 } } }));
+	r = await call('GET', '/api/reveal/status?address=' + dave.address);
+	check(r.body.placed && r.body.placed.key === '9:9' && r.body.placed.name === 'Daveholm', 'status: the land, once the chain service has placed it');
+	const own3 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
+	check(own3.owners[dave.address.toLowerCase()] === dave.address.toLowerCase(), 'and its holder noted at once (checked on the contract)');
+	r = await call('GET', '/api/reveal/status?address=' + carol.address);
+	check(r.body.placed === null, 'status for an address with no land: none');
 
 } catch (e) {
 	failures.push('exception: ' + e.stack);

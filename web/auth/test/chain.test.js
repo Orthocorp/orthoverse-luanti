@@ -163,6 +163,7 @@ try {
 	// First run: the whole history
 	let r = await runNode(['chain.js', '--once']);
 	check(r.code === 0, 'first run finishes');
+
 	check(refused > 0, `ranges the endpoint refuses are split (${refused} refused, ${getLogsCalls} eth_getLogs)`);
 	const tokens = JSON.parse(readFileSync(join(dir, 'chain', 'tokens.json'), 'utf8'));
 	check(tokens.block === head - 64, 'indexed to 64 blocks behind the head');
@@ -294,6 +295,27 @@ try {
 	check(r.code === 1 && /may not keep history that old/.test(r.out), 'refused old history is explained');
 	historyExpired = false;
 
+
+	// Running for good: asked to index now (after a reveal), it does not wait
+	// for the next daily run
+	{
+		const req = join(dir, 'index-now');
+		const p = spawn(process.execPath, ['chain.js'], { cwd, stdio: ['ignore', 'pipe', 'pipe'],
+			env: { ...env, OV_CHAIN_REQUEST: req, OV_CHAIN_REQUEST_GAP_MS: '0', OV_CHAIN_REQUEST_POLL_MS: '200' } });
+		let out = '';
+		p.stdout.on('data', d => out += d);
+		p.stderr.on('data', d => out += d);
+		const runs = () => (out.match(/chain indexed to block/g) || []).length;
+		for (let i = 0; i < 100 && runs() < 1; i++) await new Promise(r2 => setTimeout(r2, 100));
+		await new Promise(r2 => setTimeout(r2, 600));
+		check(runs() === 1, 'running for good: one run, then it waits');
+		writeFileSync(req, 'now');
+		for (let i = 0; i < 100 && runs() < 2; i++) await new Promise(r2 => setTimeout(r2, 100));
+		check(runs() === 2 && /asked to index now/.test(out), 'asked to index now: a second run straight away');
+		await new Promise(r2 => setTimeout(r2, 800));
+		check(runs() === 2, 'the same request is not taken twice');
+		p.kill();
+	}
 } catch (e) {
 	failures.push('exception: ' + e.stack);
 	console.log(e);

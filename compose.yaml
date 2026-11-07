@@ -97,6 +97,8 @@ services:
       OV_CHAIN_EVERY_HOURS: ${OV_CHAIN_EVERY_HOURS:-24}
     volumes:
       - ${OV_DATA}/chain:/chain
+      # The auth service asks for an index now (index-now) after a reveal
+      - ${OV_DATA}/auth:/requests:ro
     networks: [outside]
     read_only: true
     restart: unless-stopped

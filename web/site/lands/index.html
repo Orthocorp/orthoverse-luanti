@@ -103,11 +103,30 @@
   </section>
   <div id="problem" class="panel problem" role="alert" hidden><strong id="problem-title"></strong> <span id="problem-text"></span></div>
 
+  <section id="reveal" class="panel" hidden style="margin-top:24px">
+    <h2 style="margin-top:0">Your own land</h2>
+    <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
+      Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
+      common land until you give it a castle.</p>
+    <button id="reveal-go" class="btn gold" type="button">Reveal my land: pay 0.0004 ETH</button>
+    <div id="reveal-status" class="status" aria-live="polite"></div>
+  </section>
+
   <section id="mine" hidden>
     <h2>Lands you hold</h2>
     <div class="lands" id="my-lands"></div>
     <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
       crofts in the game, or give someone's land a castle upgrade below.</p>
+  </section>
+
+  <section id="give">
+    <h2>Give someone a land</h2>
+    <p>Reveal the land of any Ethereum address, as a present: it becomes theirs, placed in the world within a
+      few minutes.</p>
+    <input id="give-to" type="text" placeholder="Their address, 0x…" autocomplete="off" spellcheck="false"
+      aria-label="The address to give a land to" style="width:100%;max-width:420px;padding:10px 12px;font:inherit;color:var(--parchment);background:var(--night-3);border:2px solid #2b3466">
+    <div style="margin-top:12px"><button id="give-go" class="btn gold" type="button">Give a land: pay 0.0004 ETH</button></div>
+    <div id="give-status" class="status" aria-live="polite"></div>
   </section>
 
   <section id="gift">
@@ -129,12 +148,16 @@
   const CONTRACT = '0x118aeD2606D02C2545C6D7D2d1021e567cc08922';
   const MAINNET = '0x1';
   const FLIP_PRICE = 1000000000000000n;            // 0.001 ETH (FLIP_REALM_PRICE)
+  const REVEAL_PRICE = 400000000000000n;           // 0.0004 ETH (REVEAL_PRICE)
   const SEL = {                                    // function selectors
     upgrade: '0xc53b23f2',                         // upgradeCastleLevel(address)
     flip: '0x548edcee',                            // flipRealm(uint256)
     level: '0xc08db79d',                           // castleLevel(uint256)
     price: '0x5fcf37e9',                           // castlePrice(uint256)
     balance: '0x00fdd58e',                         // balanceOf(address,uint256)
+    reveal: '0xa475b5dd',                          // reveal()
+    gift: '0xcbfc4bce',                            // gift(address)
+    revealed: '0xe04813e2',                        // revealedTokenIds(uint256)
   };
   // What each level adds, within a realm (levels 8-15 are 0-7 futuristic)
   const GAINS = {
@@ -236,6 +259,7 @@
     p.textContent = 'Signed in as ' + (me.name || 'a wallet with no player name yet') + ' (' + short(me.address) + ').';
     $('who').append(p);
     $('net').hidden = !window.ethereum || await onMainnet();
+    await showReveal();
     const list = $('my-lands');
     list.innerHTML = '';
     $('none').hidden = me.lands.length > 0;
@@ -413,6 +437,101 @@
   const isMine = key => !!(me && me.signedIn && me.lands.some(l => l.key === key));
 
   // ------------------------------------------------------------------
+  // Revealing: your own land (reveal), or someone else's (gift)
+
+  async function isRevealed(address) {
+    return BigInt(await call(SEL.revealed + pad(address))) !== 0n;
+  }
+
+  // The reveal panel: only for a signed-in wallet whose own token is not
+  // revealed yet
+  async function showReveal() {
+    const panel = $('reveal');
+    panel.hidden = true;
+    if (!me || !me.signedIn || !window.ethereum || !await onMainnet()) return;
+    try {
+      panel.hidden = await isRevealed(me.address);
+    } catch (e) { /* cannot tell: leave it hidden */ }
+  }
+
+  // Send reveal() or gift(address), wait for it, then wait for the land
+  async function revealFor(address, own, btn, status) {
+    problem();
+    status.className = 'status';
+    if (!window.ethereum) { status.textContent = 'You need a wallet in this browser.'; return; }
+    if (!await onMainnet()) { status.className = 'status bad'; status.textContent = 'Switch your wallet to Ethereum mainnet first.'; return; }
+    btn.disabled = true;
+    try {
+      if (await isRevealed(address)) {
+        status.className = 'status bad';
+        status.textContent = own ? 'Your land is already revealed.' : 'That address\'s land is already revealed.';
+        return;
+      }
+      let from = await currentAccount();
+      if (!from) from = await chooseAccount();
+      if (own && from.toLowerCase() !== address.toLowerCase()) {
+        status.className = 'status bad';
+        status.textContent = 'Revealing reveals the land of the account that pays. Select ' + short(address) +
+          ' in your wallet (it is ' + short(from) + ' now) and try again.';
+        return;
+      }
+      status.textContent = 'Confirm in your wallet…';
+      const data = own ? SEL.reveal : SEL.gift + pad(address);
+      const tx = await window.ethereum.request({ method: 'eth_sendTransaction',
+        params: [{ from, to: CONTRACT, data, value: '0x' + REVEAL_PRICE.toString(16) }] });
+      status.innerHTML = '';
+      status.append('Sent. Waiting for it to be mined (usually under a minute): ');
+      const link = document.createElement('a');
+      link.href = 'https://etherscan.io/tx/' + tx; link.target = '_blank'; link.rel = 'noopener';
+      link.textContent = 'see it on Etherscan';
+      status.append(link);
+      let receipt = null;
+      for (let i = 0; i < 180 && !receipt; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        try { receipt = await window.ethereum.request({ method: 'eth_getTransactionReceipt', params: [tx] }); } catch (e) { /* keep waiting */ }
+      }
+      if (!receipt) { status.append(' It is taking a long time; check Etherscan.'); return; }
+      if (receipt.status !== '0x1') {
+        status.className = 'status bad';
+        status.textContent = 'The transaction failed on the chain; nothing changed and only the gas was spent.';
+        return;
+      }
+      status.textContent = 'Revealed. Placing the land in the world (a minute or two)…';
+      try { await api('POST', '/api/reveal/check', { address }); } catch (e) { /* the daily run will place it */ }
+      let placed = null;
+      for (let i = 0; i < 60 && !placed; i++) {
+        await new Promise(r => setTimeout(r, 10000));
+        try { placed = (await api('GET', '/api/reveal/status?address=' + address)).placed; } catch (e) { /* keep waiting */ }
+      }
+      if (!placed) {
+        status.textContent = 'Revealed. The land is taking longer than usual to be placed; it will be there by tomorrow at the latest.';
+        return;
+      }
+      status.className = 'status good';
+      status.innerHTML = '';
+      const [x, z] = placed.key.split(':');
+      status.append((own ? 'Your land is ' : 'Their land is ') + placed.name + ', at ' + placed.key + '. ');
+      const map = document.createElement('a');
+      map.href = '/map/#' + x + ':' + z; map.textContent = 'See it on the map';
+      status.append(map, own ? '. In the game, /home takes you there. Its terrain is built within a minute.' :
+        '. Its terrain is built within a minute.');
+      if (own) {
+        try { me = await api('GET', '/auth/me'); } catch (e) { /* keep the old */ }
+        landsByKey.set(placed.key, { x: +x, z: +z, n: placed.name, l: 0, t: address.toLowerCase() });
+        const list = $('my-lands');
+        list.innerHTML = '';
+        $('none').hidden = me.lands.length > 0;
+        for (const l of me.lands) list.append(await landPanel(l.key, true));
+      }
+    } catch (e) {
+      status.className = 'status bad';
+      status.textContent = walletError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ------------------------------------------------------------------
   // Finding any land
 
   function search(q) {
@@ -466,6 +585,16 @@
       } catch (e) { problem('Not switched:', walletError(e)); }
     };
     $('search').addEventListener('input', e => search(e.target.value));
+    $('reveal-go').onclick = () => revealFor(me.address, true, $('reveal-go'), $('reveal-status'));
+    $('give-go').onclick = () => {
+      const to = $('give-to').value.trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(to)) {
+        $('give-status').className = 'status bad';
+        $('give-status').textContent = 'That is not an Ethereum address (0x and 40 hexadecimal digits).';
+        return;
+      }
+      revealFor(to, false, $('give-go'), $('give-status'));
+    };
     if (window.ethereum && window.ethereum.on) {
       window.ethereum.on('chainChanged', () => show());
     }

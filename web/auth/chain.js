@@ -25,7 +25,7 @@
 
 'use strict';
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -596,8 +596,20 @@ const once = process.argv.includes('--once');
 log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN} (${METHOD === 'transfers' ? 'alchemy_getAssetTransfers' : 'eth_getLogs'}), data in ${DIR}` +
 	(once ? '' : `, every ${EVERY_MS / 3600000} h`));
 
+// Asked to index now: the auth service writes this file when someone has just
+// revealed a token on the lands page, so the land is placed in a minute
+// rather than at the next daily run. Looked for every 15 seconds; at most one
+// extra run a minute.
+const REQUEST_FILE = env.OV_CHAIN_REQUEST || '/requests/index-now';
+const REQUEST_GAP_MS = parseInt(env.OV_CHAIN_REQUEST_GAP_MS || '60000', 10);
+const REQUEST_POLL_MS = parseInt(env.OV_CHAIN_REQUEST_POLL_MS || '15000', 10);
+function requestedAfter(t) {
+	try { return statSync(REQUEST_FILE).mtimeMs > t; } catch (e) { return false; }
+}
+
 for (;;) {
 	let wait = EVERY_MS;
+	const started = Date.now();
 	try {
 		await run();
 	} catch (e) {
@@ -606,6 +618,13 @@ for (;;) {
 		wait = Math.min(EVERY_MS, 3600 * 1000);
 	}
 	if (once) break;
-	await sleep(wait);
+	const until = Date.now() + wait;
+	while (Date.now() < until) {
+		await sleep(REQUEST_POLL_MS);
+		if (requestedAfter(started) && Date.now() - started > REQUEST_GAP_MS) {
+			log('asked to index now (a token was revealed on the lands page)');
+			break;
+		}
+	}
 }
 db.close();

@@ -195,6 +195,7 @@ addNewLands();
 const LEVELS_FILE = join(DATA_DIR, 'levels.json');
 const freshLevels = readJson(LEVELS_FILE, { format: 1, levels: {} });
 const levelChecked = new Map();   // key -> time of the last check (ms)
+let lastIndexRequest = 0;
 
 let owners = readJson(OWNERS_FILE, null);   // { updated, contract, owners: {token: holder|null} }
 let ownersError = null;
@@ -211,6 +212,7 @@ const erc1155 = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
 	'function castleLevel(uint256 tokenId) view returns (uint256)',
+	'function revealedTokenIds(uint256 tokenId) view returns (bool)',
 ]);
 
 async function rpcBatch(calls) {
@@ -578,6 +580,47 @@ const routes = {
 		writeJsonAtomic(LEVELS_FILE, freshLevels);
 		log(`level of ${land.name} (${land.key}) read from the contract: ${level}`);
 		return send(res, 200, { key: land.key, level });
+	},
+
+	// Just after a reveal (or a gift) on the lands page: check on the contract
+	// that the address's token is revealed, and ask the chain service to index
+	// now, so its land is placed within a minute
+	'POST /api/reveal/check': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		let body;
+		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
+		const address = String(body && body.address || '');
+		if (!isAddress(address)) return send(res, 400, { error: 'That is not an Ethereum address.' });
+		const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('revealedTokenIds', [BigInt(address)]) }]);
+		const revealed = erc1155.decodeFunctionResult('revealedTokenIds', r)[0];
+		if (revealed && Date.now() - lastIndexRequest > 30000) {
+			lastIndexRequest = Date.now();
+			writeFileSync(join(DATA_DIR, 'index-now'), new Date().toISOString() + ' ' + address.toLowerCase() + '\n');
+			log(`token ${address.toLowerCase()} revealed: asked the chain service to index now`);
+		}
+		return send(res, 200, { revealed });
+	},
+
+	// Whether the land of the token with this ID (an address) has been placed
+	'GET /api/reveal/status': async (req, res, url) => {
+		if (limited(req, 60)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const address = url.searchParams.get('address') || '';
+		if (!isAddress(address)) return send(res, 400, { error: 'That is not an Ethereum address.' });
+		const token = address.toLowerCase();
+		addNewLands();
+		const land = lands.find(l => l.token === token || l.token === '0x' + token.slice(2).padStart(40, '0'));
+		if (!land) return send(res, 200, { placed: null });
+		// A token just revealed is held by the address it was revealed for:
+		// checked on the contract and noted at once, so the game lets them
+		// build without waiting for the next full refresh
+		if (owners && owners.owners[land.token] !== token) {
+			const [held] = await balances([[address, land.token]]);
+			if (held) {
+				owners.owners[land.token] = token;
+				writeJsonAtomic(OWNERS_FILE, owners);
+			}
+		}
+		return send(res, 200, { placed: { key: land.key, name: land.name } });
 	},
 
 	'GET /auth/exists': async (req, res, url) => {
