@@ -100,8 +100,13 @@ Lands are built from their current castle level, not the 2023 one in
 `OV_DATA/chain/land-levels.json` each day, and the game, checking every minute,
 makes a land again when its level has changed (a castle built up, or the realm
 flipped), four at a time (`docker compose logs luanti | grep "made again"`).
-Only that land's mapchunk is made again; anything built on it is lost, so tell
-holders that upgrading a castle or flipping the realm rebuilds the land.
+Only that land's mapchunk is made again, and only the tiles of it (16 x 16,
+36 to a land) that nobody has built on: the game records every tile where a
+player has placed or dug a block, and keeps those tiles exactly as they are,
+chests and furnaces included. So a castle whose tiles have been built on keeps
+its old shape there. Lands built on before tiles were recorded (November 2026)
+are kept whole. The log says how many tiles were kept ("made again at level 5,
+2 of 36 tiles kept as built").
 
 ### The admin and privileges
 

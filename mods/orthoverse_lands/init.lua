@@ -148,8 +148,51 @@ end
 core.after(30, save_changes)
 core.register_on_shutdown(write_changes)
 
+-- The tiles (16 x 16, 36 to a land) that players have built on: blocks
+-- placed or dug there. A castle upgrade makes a land again but keeps these
+-- tiles as they are. {key = {[tile index] = true}}
+local built = (function()
+	local s = storage:get_string("built")
+	local t = s ~= "" and core.parse_json(s) or {}
+	-- JSON has string keys; the tile indices are numbers
+	local out = {}
+	for key, tiles in pairs(t) do
+		out[key] = {}
+		for i in pairs(tiles) do out[key][tonumber(i)] = true end
+	end
+	return out
+end)()
+local built_unsaved = false
+
+local function save_built()
+	if not built_unsaved then return end
+	local t = {}
+	for key, tiles in pairs(built) do
+		t[key] = {}
+		for i in pairs(tiles) do t[key][tostring(i)] = true end
+	end
+	storage:set_string("built", core.write_json(t))
+	built_unsaved = false
+end
+local function save_built_loop()
+	save_built()
+	core.after(10, save_built_loop)
+end
+core.after(10, save_built_loop)
+core.register_on_shutdown(save_built)
+
 local function note_node(pos)
-	note_changed(C.land_of(pos.x, pos.z))
+	local lx, lz = C.land_of(pos.x, pos.z)
+	note_changed(lx, lz)
+	local key = C.key(lx, lz)
+	if orthoverse.lands[key] then
+		local tile = C.tile_index(C.local_uv(pos.x, pos.z))
+		built[key] = built[key] or {}
+		if not built[key][tile] then
+			built[key][tile] = true
+			built_unsaved = true
+		end
+	end
 end
 core.register_on_placenode(note_node)
 core.register_on_dignode(note_node)
@@ -166,6 +209,100 @@ local fixed_level = {}
 for key, land in pairs(data.lands) do fixed_level[key] = tonumber(land.level) or 0 end
 local function level_made(key)
 	return made_level[key] or fixed_level[key]
+end
+
+-- Builds from before tiles were recorded: a land players changed, and that
+-- was not made again or newly made since, is kept whole (all 36 tiles), so
+-- nothing built before is lost. Done once.
+if storage:get_string("built_backfilled") == "" then
+	local made = made_lands()
+	local n = 0
+	for key, when in pairs(changed) do
+		local new_land = made[key]
+		local by_players = orthoverse.lands[key] and not made_level[key]
+			and (not new_land or when > new_land + 60)
+		if by_players and not built[key] then
+			built[key] = {}
+			for i = 0, 35 do built[key][i] = true end
+			n = n + 1
+		end
+	end
+	built_unsaved = true
+	save_built()
+	storage:set_string("built_backfilled", "1")
+	core.log("action", ("[orthoverse_lands] %d lands built on before tiles were recorded: kept whole on upgrades"):format(n))
+end
+
+-- The built tiles of a land, as a list of {x1, x2, z1, z2} column bounds
+local function built_columns(key, lx, lz)
+	local cols = {}
+	for tile in pairs(built[key] or {}) do
+		local tu, tv = tile % 6, math.floor(tile / 6)
+		local xa, za = C.world_xz(lx, lz, tu * C.TILE, tv * C.TILE)
+		local xb, zb = C.world_xz(lx, lz, tu * C.TILE + C.TILE - 1, tv * C.TILE + C.TILE - 1)
+		cols[#cols + 1] = {math.min(xa, xb), math.max(xa, xb), math.min(za, zb), math.max(za, zb)}
+	end
+	return cols
+end
+
+-- Save everything in these columns of p1..p2: nodes, metadata (chests,
+-- furnaces, signs) and running node timers
+local function save_columns(p1, p2, cols)
+	core.load_area(p1, p2)
+	local vm = core.get_voxel_manip(p1, p2)
+	local emin, emax = vm:get_emerged_area()
+	local area = VoxelArea(emin, emax)
+	local data, p2d, light = vm:get_data(), vm:get_param2_data(), vm:get_light_data()
+	local saved = {nodes = {}, metas = {}}
+	for _, c in ipairs(cols) do
+		local n, p, l = {}, {}, {}
+		local k = 0
+		for z = c[3], c[4] do
+			for y = p1.y, p2.y do
+				local vi = area:index(c[1], y, z)
+				for _ = c[1], c[2] do
+					k = k + 1
+					n[k], p[k], l[k] = data[vi], p2d[vi], light[vi]
+					vi = vi + 1
+				end
+			end
+		end
+		saved.nodes[#saved.nodes + 1] = {c = c, n = n, p = p, l = l}
+		for _, pos in ipairs(core.find_nodes_with_meta(vector.new(c[1], p1.y, c[3]), vector.new(c[2], p2.y, c[4]))) do
+			local timer = core.get_node_timer(pos)
+			saved.metas[#saved.metas + 1] = {pos = pos, meta = core.get_meta(pos):to_table(),
+				timer = timer:is_started() and {timer:get_timeout(), timer:get_elapsed()} or nil}
+		end
+	end
+	return saved
+end
+
+local function restore_columns(p1, p2, saved)
+	local vm = core.get_voxel_manip(p1, p2)
+	local emin, emax = vm:get_emerged_area()
+	local area = VoxelArea(emin, emax)
+	local data, p2d, light = vm:get_data(), vm:get_param2_data(), vm:get_light_data()
+	for _, s in ipairs(saved.nodes) do
+		local c, k = s.c, 0
+		for z = c[3], c[4] do
+			for y = p1.y, p2.y do
+				local vi = area:index(c[1], y, z)
+				for _ = c[1], c[2] do
+					k = k + 1
+					data[vi], p2d[vi], light[vi] = s.n[k], s.p[k], s.l[k]
+					vi = vi + 1
+				end
+			end
+		end
+	end
+	vm:set_data(data)
+	vm:set_param2_data(p2d)
+	vm:set_light_data(light)
+	vm:write_to_map(true)
+	for _, m in ipairs(saved.metas) do
+		core.get_meta(m.pos):from_table(m.meta)
+		if m.timer then core.get_node_timer(m.pos):set(m.timer[1], m.timer[2]) end
+	end
 end
 
 local function make_terrain(key)
@@ -214,15 +351,19 @@ local function pump()
 		local p1, p2 = regen_area(tonumber(lx), tonumber(lz))
 		local level = land.level
 		remaking = remaking + 1
+		-- Tiles players have built on are kept as they are
+		local cols = built_columns(key, tonumber(lx), tonumber(lz))
+		local saved = #cols > 0 and save_columns(p1, p2, cols)
 		core.delete_area(p1, p2)
 		core.emerge_area(p1, p2, function(_, _, remaining)
 			if remaining > 0 then return end
+			if saved then restore_columns(p1, p2, saved) end
 			remaking = remaking - 1
 			queued[key] = nil
 			made_level[key] = level
 			storage:set_string("levels", core.write_json(made_level))
-			core.log("action", ("[orthoverse_lands] %s (%s) made again at level %d")
-				:format(land.name, key, level))
+			core.log("action", ("[orthoverse_lands] %s (%s) made again at level %d, %d of 36 tiles kept as built")
+				:format(land.name, key, level, #cols))
 			note_changed(tonumber(lx), tonumber(lz))
 			pump()
 		end)
