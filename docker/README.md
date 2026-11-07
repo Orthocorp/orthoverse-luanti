@@ -47,6 +47,7 @@ All commands from the repository directory (`~/orthoverse-luanti`).
 | Redraw the whole map and every token card (after generating the world again, or a change to the card design; about 10 minutes) | `docker compose run --rm --build map` |
 | Redraw only the lands that changed, now (mapwatch does it every 5 minutes) | `docker compose run --rm map update` |
 | Rebuild and install the browser game (engine patches or `play.html` changed) | `docker compose run --rm --build client` |
+| Put a changed `play.html` in place without building the game (the installed release stays) | `R=$(cat "$OV_DATA/play/RELEASE"); sed "s/%__RELEASE_UUID__%/$R/g" web/client/play.html \| sudo -u ovserver tee "$OV_DATA/play/index.html" >/dev/null` |
 | Stop everything | `docker compose down` |
 
 The client build only redoes what changed. The first build takes 20 to 40 minutes

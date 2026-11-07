@@ -8,9 +8,12 @@
 <style>
   :root { --bg: #0d1117; --panel: rgba(22, 27, 34, 0.94); --ink: #e6edf3; --quiet: #8b949e;
     --accent: #e3b341; --line: #30363d; }
-  html, body { margin: 0; height: 100%; background: #285abe; color: var(--ink);
+  html, body { margin: 0; height: 100%; background: #0c0a08; color: var(--ink);
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  #map { position: absolute; inset: 0; background: #285abe; }
+  #map { position: absolute; inset: 0; background: #0c0a08 url("cave.png") 0 0 / 1536px 1152px;
+    image-rendering: pixelated; }
+  #map .leaflet-tile { image-rendering: auto; }
+  .leaflet-cave-pane { pointer-events: none; }
   .panel { position: absolute; z-index: 1000; top: 12px; left: 12px; width: 300px;
     max-width: calc(100vw - 24px); box-sizing: border-box; background: var(--panel);
     border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
@@ -68,6 +71,40 @@
     bounds: L.latLngBounds([-HALF + 0.5, -HALF + 0.5], [HALF - 0.5, HALF - 0.5]),
   });
   L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Round the world, a torch-lit cave wall (cave.png, from the game's own
+  // stone, ore and torch textures: tools/make_cave.py) instead of the map's
+  // empty sea. One SVG shape with the world cut out of it, filled with the
+  // cave as a pattern, so the rock moves with the map. The world ends at the
+  // outer edge of the wall ring (lands +-58).
+  const EDGE = 58 * LAND + HALF_LAND, FAR = 1e6, CAVE_W = 1536, CAVE_H = 1152;
+  map.createPane('cave').style.zIndex = 250;   // above the tiles, below markers
+  const caveRenderer = L.svg({ pane: 'cave', padding: 1 });
+  L.polygon([
+    [[-FAR, -FAR], [FAR, -FAR], [FAR, FAR], [-FAR, FAR]],
+    [[-EDGE, -EDGE], [-EDGE, EDGE], [EDGE, EDGE], [EDGE, -EDGE]],
+  ], { renderer: caveRenderer, interactive: false, fillColor: 'url(#ov-cave)', fillOpacity: 1,
+       color: '#050302', weight: 4, opacity: 1 }).addTo(map);
+  // The pattern goes into the renderer's SVG, which exists once the map has
+  // a view (and the shape has been added)
+  map.whenReady(() => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const defs = document.createElementNS(NS, 'defs');
+    const pattern = document.createElementNS(NS, 'pattern');
+    pattern.setAttribute('id', 'ov-cave');
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('width', CAVE_W);
+    pattern.setAttribute('height', CAVE_H);
+    const img = document.createElementNS(NS, 'image');
+    img.setAttribute('href', 'cave.png');
+    img.setAttribute('width', CAVE_W);
+    img.setAttribute('height', CAVE_H);
+    img.setAttribute('image-rendering', 'pixelated');
+    img.setAttribute('preserveAspectRatio', 'none');
+    pattern.appendChild(img);
+    defs.appendChild(pattern);
+    caveRenderer._container.prepend(defs);
+  });
   map.fitBounds(worldBounds);
 
   // Land borders, drawn once zoomed in far enough to be useful
