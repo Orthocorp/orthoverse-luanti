@@ -38,6 +38,8 @@ First rough version of the world:
 - The name of the land you are on at the bottom left of the screen, in the Midnight
   font as on the cards, with its crest
   and headgear above it as on the token card (crests from castle level 1).
+- `/goto <land>`: teleport to a land by name (any part of it, accents optional) or
+  by old coordinates such as `12:-3`, for players with the teleport privilege.
 - The minimap for everyone, shown from the moment they join (no mapping kit needed);
   V cycles through close, wide and off. The radar (caves) is for the admin only.
 

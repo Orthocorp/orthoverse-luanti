@@ -315,3 +315,74 @@ core.register_chatcommand("whereami", {
 			key, land.name, land.level, h and (", " .. h.name) or "")
 	end,
 })
+
+-- /goto <land>: teleport to a land by name (or old coordinates such as 12:-3),
+-- for players with the teleport privilege. You arrive on the land's southern
+-- side, facing north towards its centre, on the ground.
+local function plain(s)
+	return s:lower():gsub("\195[\164\165\160\161\162\163]", "a"):gsub("\195\182", "o")
+		:gsub("\195[\169\168\170\171]", "e"):gsub("%s+", " "):match("^%s*(.-)%s*$")
+end
+
+local function find_lands(query)
+	local q = plain(query)
+	local all = {}
+	for key, land in pairs(orthoverse.lands) do all[key] = land.name end
+	for key, h in pairs(orthoverse.henges) do all[key] = h.name or all[key] end
+	if all[q] then return {q}, all end
+	local cx, cz = q:match("^(%-?%d+)%s*:%s*(%-?%d+)$")
+	if cx and math.max(math.abs(tonumber(cx)), math.abs(tonumber(cz))) <= C.MAP_RADIUS then
+		return {tonumber(cx) .. ":" .. tonumber(cz)}, all     -- sea, by coordinates
+	end
+	local exact, partial = {}, {}
+	for key, name in pairs(all) do
+		local n = plain(name)
+		if n == q then exact[#exact + 1] = key
+		elseif n:find(q, 1, true) then partial[#partial + 1] = key end
+	end
+	if #exact > 0 then return exact, all end
+	table.sort(partial, function(a, b) return all[a] < all[b] end)
+	return partial, all
+end
+
+local ARRIVE_U, ARRIVE_V = 48, 88
+
+core.register_chatcommand("goto", {
+	params = "<land name or x:z>",
+	description = "Teleport to an Orthoverse land",
+	privs = {teleport = true},
+	func = function(name, param)
+		local player = core.get_player_by_name(name)
+		if not player then return false, "No player." end
+		if param:match("^%s*$") then return false, "Which land? /goto <land name or x:z>" end
+		local keys, all = find_lands(param)
+		all = all or {}
+		if #keys == 0 then return false, "No land called \"" .. param .. "\"." end
+		if #keys > 1 then
+			local names = {}
+			for i = 1, math.min(#keys, 8) do names[i] = all[keys[i]] .. " (" .. keys[i] .. ")" end
+			return false, ("%d lands match: %s%s"):format(#keys, table.concat(names, ", "),
+				#keys > 8 and ", ..." or "")
+		end
+		local key = keys[1]
+		local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+		local x, z = C.world_xz(tonumber(lx), tonumber(lz), ARRIVE_U, ARRIVE_V)
+		local top, bottom = vector.new(x, 120, z), vector.new(x, -20, z)
+		local label = all[key] and (all[key] .. " (" .. key .. ")") or ("the sea at " .. key)
+		core.emerge_area(bottom, top, function(_, _, remaining)
+			if remaining > 0 then return end
+			player = core.get_player_by_name(name)
+			if not player then return end
+			local y = top.y
+			while y > bottom.y do
+				local def = core.registered_nodes[core.get_node({x = x, y = y, z = z}).name]
+				if def and (def.walkable or def.liquidtype ~= "none") then break end
+				y = y - 1
+			end
+			player:set_pos({x = x, y = y + 1, z = z})
+			player:set_look_horizontal(0)    -- north, towards the centre
+			core.chat_send_player(name, "Welcome to " .. label .. ".")
+		end)
+		return true, "Going to " .. label .. "..."
+	end,
+})
