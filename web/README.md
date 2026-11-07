@@ -7,10 +7,12 @@ Everything served at orthoverse.land:
 | `/` | Landing page |
 | `/map/` | Zoomable map of the whole world, with land search and land details |
 | `/play/` | Luanti running in the browser (paradust7/luanti-wasm), joined to the Orthoverse |
-| `/lands/` | Your lands: holders upgrade a castle (`upgradeCastleLevel`) or flip the realm (`flipRealm`) from their own wallet; a wallet whose own token is not revealed yet can reveal it (`reveal`); anyone may gift an upgrade to any land, or give a land to any address (`gift`) |
+| `/account/` | Account: your lands (upgrade a castle with `upgradeCastleLevel`, flip the realm with `flipRealm`), revealing your own land (`reveal`), and for anyone: gift an upgrade to any land, or give a land to any address (`gift`). `/lands/` sends here |
+| `/css/site.css`, `/js/site.js` | What every page shares: the header (logo, Map, Account, Play, and signing in, with a player name chosen the first time), the footer, the wallet code |
 | `/proxy` | WebSocket the browser client uses to reach the game server |
 | `/auth/` | Wallet sign-in and player names (the auth service) |
 | `/api/metadata/` | Token and collection metadata, for the contract's `uri()` and `contractURI()` (the auth service) |
+| `/auth/visit` | POST `{x, z}`: arrive at that spot when you next join the game, within 10 minutes ("Visit this spot" on the map: the admin, `OV_ADMIN`, and holders of a level 7 land; the game checks again) |
 | `/api/reveal/check`, `/api/reveal/status` | POST `{address}` after a reveal or gift: checks on the contract that the token is revealed and asks the chain service to index now (`index-now` in the auth data, which the chain service watches), so the land is placed within a minute or two; GET `?address=` says whether its land has been placed, and where |
 | `/api/levels/check` | POST `{key}`: read one land's castle level from the contract now and hand it to the game (`levels.json` in the auth data), so an upgrade or flip is built within a minute instead of after the daily chain run |
 | `/map/lands/` | Each land from above, 384 pixels square (drawn with the map) |

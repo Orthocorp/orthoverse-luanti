@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account · The Orthoverse</title>
+<meta name="description" content="Your Orthoverse lands: reveal your own, upgrade their castles, flip their realm, or give lands and upgrades to others.">
+<link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<style>
+  * { box-sizing: border-box; }
+  html { background: var(--night); }
+  body { margin: 0; color: var(--parchment); font: 17px/1.6 var(--body-font); }
+  a { color: var(--gold); }
+  h1, h2, h3 { font-family: "Midnight", monospace; font-weight: normal; -webkit-font-smoothing: none; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  main { padding: 40px 16px 64px; }
+  h1 { font-size: 32px; line-height: 40px; margin: 0 0 8px; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze); }
+  h2 { font-size: 24px; line-height: 32px; margin: 48px 0 16px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  h3 { font-size: 16px; line-height: 24px; margin: 0; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  p { margin: 0 0 16px; max-width: 40em; }
+  .quiet { color: var(--quiet); }
+  .panel { background: var(--night-2); border: 3px solid var(--outline); padding: 20px;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .panel > h2:first-child { margin-top: 0; }
+  .lands { display: grid; gap: 24px; margin-top: 16px; }
+  .land { display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: start; }
+  .land img { width: 200px; height: 200px; image-rendering: pixelated; border: 3px solid var(--outline); background: var(--night-3); display: block; }
+  .land .facts { margin: 6px 0 16px; color: var(--quiet); font-size: 16px; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .choice { background: var(--night-3); border: 2px solid var(--line); padding: 16px; }
+  .choice ul { margin: 8px 0 16px; padding-left: 20px; font-size: 16px; }
+  .choice .note { font-size: 14px; color: var(--quiet); margin: 0 0 12px; }
+  .choice .ov-btn { width: 100%; padding: 14px 8px; }
+  .status { margin-top: 12px; font-size: 15px; min-height: 1.4em; }
+  .status.good { color: var(--good); } .status.bad { color: var(--bad); }
+  .field { width: 100%; max-width: 420px; padding: 10px 12px; font: inherit; color: var(--parchment);
+    background: var(--night-3); border: 2px solid var(--line); }
+  .field:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  #results { list-style: none; padding: 0; margin: 8px 0 0; max-width: 420px; }
+  #results button { width: 100%; text-align: left; background: none; border: 0; color: var(--parchment); font: inherit;
+    padding: 6px 8px; cursor: pointer; }
+  #results button:hover, #results button:focus { background: var(--night-2); }
+  @media (max-width: 640px) {
+    .land { grid-template-columns: 1fr; }
+    .land img { width: 100%; height: auto; aspect-ratio: 1; }
+  }
+</style>
+<script src="/js/site.js" defer></script>
+</head>
+<body>
+<div id="ov-header"></div>
+
+<main class="wrap">
+  <h1>Account</h1>
+  <p class="quiet">Your Orthoverse lands: reveal your own, build up their castles, flip their realm. Payments go
+    to the Orthoverse contract from your own wallet; this site never holds your keys or your ETH.</p>
+
+  <section id="out" class="panel" hidden>
+    <h2>Sign in to see your lands</h2>
+    <p>Sign in with your Ethereum wallet. If your address has no land yet, you can reveal it here.</p>
+    <button id="signin" class="ov-btn go" type="button">Sign in</button>
+  </section>
+
+  <section id="net" class="panel" hidden style="margin-top:16px">
+    <p>Your wallet is on another network. Lands live on Ethereum mainnet.</p>
+    <button id="switch" class="ov-btn" type="button">Switch to Ethereum mainnet</button>
+  </section>
+
+  <section id="reveal" class="panel" hidden style="margin-top:24px">
+    <h2>Your own land</h2>
+    <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
+      Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
+      common land until you give it a castle.</p>
+    <button id="reveal-go" class="ov-btn gold" type="button">Reveal my land: pay 0.0004 ETH</button>
+    <div id="reveal-status" class="status" aria-live="polite"></div>
+  </section>
+
+  <section id="mine" hidden>
+    <h2>Your lands</h2>
+    <div class="lands" id="my-lands"></div>
+    <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
+      crofts in the game, or give someone a land or a castle upgrade below.</p>
+  </section>
+
+  <section>
+    <h2>Any land</h2>
+    <p>Anyone may pay for a castle upgrade on any land, as a gift. Only a land's holder can flip it.</p>
+    <input id="search" class="field" type="search" placeholder="A land's name or coordinates, such as 12:-3"
+      autocomplete="off" aria-label="Find a land">
+    <ul id="results"></ul>
+    <div class="lands" id="found"></div>
+  </section>
+
+  <section>
+    <h2>Give someone a land</h2>
+    <p>Reveal the land of any Ethereum address, as a present: it becomes theirs, placed in the world within a
+      few minutes.</p>
+    <input id="give-to" class="field" type="text" placeholder="Their address, 0x…" autocomplete="off"
+      spellcheck="false" aria-label="The address to give a land to">
+    <div style="margin-top:12px"><button id="give-go" class="ov-btn gold" type="button">Give a land: pay 0.0004 ETH</button></div>
+    <div id="give-status" class="status" aria-live="polite"></div>
+  </section>
+</main>
+
+<div id="ov-footer"></div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+  const W = OV.wallet;
+  const FLIP_PRICE = 1000000000000000n;            // 0.001 ETH (FLIP_REALM_PRICE)
+  const REVEAL_PRICE = 400000000000000n;           // 0.0004 ETH (REVEAL_PRICE)
+  const SEL = {                                    // function selectors
+    upgrade: '0xc53b23f2',                         // upgradeCastleLevel(address)
+    flip: '0x548edcee',                            // flipRealm(uint256)
+    level: '0xc08db79d',                           // castleLevel(uint256)
+    price: '0x5fcf37e9',                           // castlePrice(uint256)
+    balance: '0x00fdd58e',                         // balanceOf(address,uint256)
+    reveal: '0xa475b5dd',                          // reveal()
+    gift: '0xcbfc4bce',                            // gift(address)
+    revealed: '0xe04813e2',                        // revealedTokenIds(uint256)
+  };
+  // What each level adds, within a realm (levels 8-15 are 0-7 futuristic)
+  const GAINS = {
+    1: ['The land becomes yours alone: a croft is common land until it has a castle',
+        'Creative mode on the land: every block, no damage', 'A castle', 'A crest on the token and in the game'],
+    2: ['Fly and fast on your land', 'A bigger castle'],
+    3: ['Noclip on your land', 'A bigger castle'],
+    4: ['A baron\'s cap above the crest, and an animal on it', 'A bigger castle'],
+    5: ['A coronet above the crest', 'A bigger castle'],
+    6: ['A bigger castle'],
+    7: ['A crown above the crest', 'The largest castle', 'Arrive anywhere you click on the map'],
+  };
+  const $ = id => document.getElementById(id);
+  const el = OV.el;
+  let me = null, landsByKey = new Map(), cards = {};
+
+  const landInfo = key => { const l = landsByKey.get(key); return l ? { key, name: l.n, token: l.t, level: l.l } : null; };
+  const isMine = key => !!(me && me.signedIn && me.lands.some(l => l.key === key));
+  const ready = async () => W.present() && await W.onMainnet();
+
+  // Progress messages with an Etherscan link
+  function sayer(status) {
+    return (text, link) => {
+      status.className = 'status';
+      status.textContent = text + ' ';
+      if (link) status.append(el('a', { href: link, target: '_blank', rel: 'noopener' }, 'See it on Etherscan'));
+    };
+  }
+  function fail(status, text) { status.className = 'status bad'; status.textContent = text; }
+  async function needMainnet(status) {
+    if (!W.present()) { fail(status, 'You need a wallet in this browser.'); return false; }
+    if (!await W.onMainnet()) { fail(status, 'Switch your wallet to Ethereum mainnet first.'); return false; }
+    return true;
+  }
+
+  // ------------------------------------------------------------------
+  // Signed in or not
+
+  async function show() {
+    const signedIn = me && me.signedIn;
+    $('out').hidden = !!signedIn;
+    $('mine').hidden = !signedIn;
+    $('net').hidden = !signedIn || !W.present() || await W.onMainnet();
+    $('reveal').hidden = true;
+    if (!signedIn) return;
+    if (await ready()) {
+      try { $('reveal').hidden = BigInt(await W.call(SEL.revealed + W.pad(me.address))) !== 0n; } catch (e) { /* cannot tell */ }
+    }
+    const list = $('my-lands');
+    list.innerHTML = '';
+    $('none').hidden = me.lands.length > 0;
+    for (const l of me.lands) list.append(await landPanel(l.key, true));
+  }
+
+  // ------------------------------------------------------------------
+  // A land: its card, level, and what can be done
+
+  async function liveLevel(info) {
+    if (await ready()) {
+      try { return Number(BigInt(await W.call(SEL.level + W.pad(info.token)))); } catch (e) { /* fall back */ }
+    }
+    return info.level;
+  }
+
+  async function landPanel(key, mine) {
+    const info = landInfo(key) || { key, name: key, token: null, level: 0 };
+    const body = el('div');
+    const box = el('article', { class: 'land panel' },
+      el('img', { src: cards[key] ? '/map/cards/' + cards[key] : '/img/icon.png', alt: 'The token card of ' + info.name, loading: 'lazy' }),
+      body);
+    await fill(body, info, mine);
+    return box;
+  }
+
+  function choice(title, gains, note, price, gold, onPay) {
+    const status = el('div', { class: 'status', 'aria-live': 'polite' });
+    const btn = el('button', { class: 'ov-btn' + (gold ? ' gold' : ''), type: 'button' }, 'Pay ' + W.eth(price));
+    btn.onclick = () => onPay(btn, status);
+    return el('div', { class: 'choice' }, el('h3', {}, title),
+      el('ul', {}, ...gains.map(g => el('li', {}, g))), el('p', { class: 'note' }, note), btn, status);
+  }
+
+  async function fill(body, info, mine) {
+    body.innerHTML = '';
+    const level = await liveLevel(info);
+    const tier = level % 8, futuristic = level >= 8;
+    const [x, z] = info.key.split(':');
+    const choices = el('div', { class: 'choices' });
+    body.append(el('h3', {}, info.name),
+      el('p', { class: 'facts' }, 'Level ' + tier + ' in the ' + (futuristic ? 'futuristic' : 'fantasy') + ' realm' +
+        (level === 0 ? ', a croft: common land' : '') + '. ',
+        el('a', { href: '/map/#' + x + ':' + z }, 'On the map'),
+        info.token ? ' · ' : '',
+        info.token ? el('a', { href: 'https://opensea.io/item/ethereum/' + OV.CONTRACT.toLowerCase() + '/' + BigInt(info.token).toString(),
+          target: '_blank', rel: 'noopener' }, 'On OpenSea') : ''),
+      choices);
+    if (!info.token) return;
+
+    if (tier >= 7) {
+      choices.append(el('div', { class: 'choice' }, el('h3', {}, 'Highest level'),
+        el('p', { class: 'note', style: 'margin-top:8px' }, 'This castle cannot be built up further.')));
+    } else {
+      let price = null;
+      if (await ready()) { try { price = BigInt(await W.call(SEL.price + W.pad(info.token))); } catch (e) { /* unknown */ } }
+      if (price === null) price = 8000000000000000n * (2n ** BigInt(tier));
+      choices.append(choice('Upgrade to level ' + (tier + 1), GAINS[tier + 1],
+        'The land is rebuilt with the bigger castle; every tile anyone has built on stays as it is.', price, true,
+        (btn, status) => pay(btn, status, info, SEL.upgrade + W.pad(info.token.slice(-40)), price, false)));
+    }
+    if (mine) {
+      const to = futuristic ? 'fantasy' : 'futuristic';
+      const gains = futuristic
+        ? ['Meadows, woods and a castle in place of tarmac and towers', level === 8 ? 'At level 0 the land becomes a croft again: common land, where anyone signed in may mine and build' : 'Same castle level, fantasy style']
+        : ['Tarmac, glass domes and towers in place of meadows and keeps', level === 0 ? 'The croft stops being common land: it becomes yours alone' : 'Same castle level, futuristic style'];
+      choices.append(choice('Flip to the ' + to + ' realm', gains,
+        'Flipping back later costs the same. Tiles anyone has built on stay as they are.', FLIP_PRICE, false,
+        (btn, status) => pay(btn, status, info, SEL.flip + W.pad(info.token), FLIP_PRICE, true)));
+    }
+  }
+
+  // Upgrade or flip: send, wait, then have the game read the new level
+  async function pay(btn, status, info, data, value, holderOnly) {
+    if (!await needMainnet(status)) return;
+    btn.disabled = true;
+    try {
+      const from = (await W.current()) || (await W.choose());
+      if (holderOnly && BigInt(await W.call(SEL.balance + W.pad(from) + W.pad(info.token))) % 2n !== 1n) {
+        return fail(status, 'The account selected in your wallet (' + W.short(from) + ') does not hold ' + info.name +
+          '. Select the one that does and try again.');
+      }
+      await W.send({ from, data, value }, sayer(status));
+      let level = null;
+      try { level = (await OV.api('POST', '/api/levels/check', { key: info.key })).level; } catch (e) { /* the daily run will */ }
+      status.className = 'status good';
+      status.textContent = (level !== null ? info.name + ' is now level ' + (level % 8) + ' in the ' +
+        (level >= 8 ? 'futuristic' : 'fantasy') + ' realm. ' : 'Done. ') +
+        'The game rebuilds the land in a minute or two; its token picture follows within a day.';
+      setTimeout(() => fill(btn.closest('.land').querySelector('div'), info, holderOnly || isMine(info.key)), 4000);
+      if (level !== null && level % 8 === 7) OV.refresh();   // may now arrive anywhere
+    } catch (e) {
+      fail(status, W.error(e));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Revealing: your own land (reveal), or someone else's (gift)
+
+  async function revealFor(address, own, btn, status) {
+    if (!await needMainnet(status)) return;
+    btn.disabled = true;
+    try {
+      if (BigInt(await W.call(SEL.revealed + W.pad(address))) !== 0n) {
+        return fail(status, own ? 'Your land is already revealed.' : 'That address\'s land is already revealed.');
+      }
+      const from = (await W.current()) || (await W.choose());
+      if (own && from.toLowerCase() !== address.toLowerCase()) {
+        return fail(status, 'Revealing reveals the land of the account that pays. Select ' + W.short(address) +
+          ' in your wallet (it is ' + W.short(from) + ' now) and try again.');
+      }
+      await W.send({ from, data: own ? SEL.reveal : SEL.gift + W.pad(address), value: REVEAL_PRICE }, sayer(status));
+      status.textContent = 'Revealed. Placing the land in the world (a minute or two)…';
+      try { await OV.api('POST', '/api/reveal/check', { address }); } catch (e) { /* the daily run will place it */ }
+      let placed = null;
+      for (let i = 0; i < 60 && !placed; i++) {
+        await new Promise(r => setTimeout(r, 10000));
+        try { placed = (await OV.api('GET', '/api/reveal/status?address=' + address)).placed; } catch (e) { /* again */ }
+      }
+      if (!placed) return void (status.textContent = 'Revealed. The land is taking longer than usual to be placed; it will be there by tomorrow at the latest.');
+      const [x, z] = placed.key.split(':');
+      status.className = 'status good';
+      status.textContent = (own ? 'Your land is ' : 'Their land is ') + placed.name + ', at ' + placed.key + '. ';
+      status.append(el('a', { href: '/map/#' + x + ':' + z }, 'See it on the map'),
+        own ? '. In the game, /home takes you there. Its terrain is built within a minute.' : '. Its terrain is built within a minute.');
+      if (own) {
+        landsByKey.set(placed.key, { x: +x, z: +z, n: placed.name, l: 0, t: address.toLowerCase() });
+        await OV.refresh();
+      }
+    } catch (e) {
+      fail(status, W.error(e));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Finding any land
+
+  function search(q) {
+    const results = $('results');
+    results.innerHTML = '';
+    q = q.trim().toLowerCase();
+    if (!q) return;
+    const m = q.match(/^(-?\d+)\s*:\s*(-?\d+)$/);
+    const hits = m ? [landInfo(+m[1] + ':' + +m[2])].filter(Boolean)
+      : [...landsByKey.keys()].map(landInfo).filter(l => l.name.toLowerCase().includes(q)).slice(0, 8);
+    for (const l of hits) results.append(el('li', {}, el('button', { type: 'button', onclick: () => pick(l.key) }, l.name + ' (' + l.key + ')')));
+  }
+
+  async function pick(key) {
+    $('results').innerHTML = '';
+    $('search').value = landInfo(key) ? landInfo(key).name : key;
+    $('found').innerHTML = '';
+    $('found').append(await landPanel(key, isMine(key)));
+    $('found').scrollIntoView({ block: 'nearest' });
+  }
+
+  // ------------------------------------------------------------------
+  // Start
+
+  (async () => {
+    try {
+      const [lands, index] = await Promise.all([
+        fetch('/map/lands.json').then(r => r.json()),
+        fetch('/map/cards/index.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => ({})),
+      ]);
+      for (const l of lands.lands) if (!l.h) landsByKey.set(l.x + ':' + l.z, l);
+      cards = index;
+    } catch (e) { /* lands without names; the panels still work by coordinates */ }
+    $('signin').onclick = OV.signIn;
+    $('switch').onclick = async () => { try { await W.toMainnet(); show(); } catch (e) { /* stays */ } };
+    $('search').addEventListener('input', e => search(e.target.value));
+    $('reveal-go').onclick = () => revealFor(me.address, true, $('reveal-go'), $('reveal-status'));
+    $('give-go').onclick = () => {
+      const to = $('give-to').value.trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return fail($('give-status'), 'That is not an Ethereum address (0x and 40 hexadecimal digits).');
+      revealFor(to, false, $('give-go'), $('give-status'));
+    };
+    if (window.ethereum && window.ethereum.on) window.ethereum.on('chainChanged', () => show());
+    OV.on(m => { me = m; show(); });
+    const fromHash = () => {
+      const hash = decodeURIComponent(location.hash.slice(1));
+      if (/^-?\d+:-?\d+$/.test(hash)) pick(hash);
+    };
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+  })();
+  });
+</script>
+</body>
+</html>

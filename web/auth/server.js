@@ -163,7 +163,7 @@ const lands = (() => {
 	for (const [key, land] of Object.entries(data.lands)) {
 		if (land.token && /^0x[0-9a-fA-F]{1,64}$/.test(land.token)) {
 			const snap = /^0x[0-9a-fA-F]{40}$/.test(land.owner_snapshot || '') ? land.owner_snapshot.toLowerCase() : null;
-			list.push({ key, name: land.name, token: land.token.toLowerCase(), snapshot: snap });
+			list.push({ key, name: land.name, token: land.token.toLowerCase(), snapshot: snap, level: Number(land.level) || 0 });
 		}
 	}
 	return list;
@@ -179,7 +179,7 @@ function addNewLands() {
 	for (const [key, land] of Object.entries(data.lands)) {
 		if (landKeys.has(key) || !land || !/^0x[0-9a-fA-F]{40,64}$/.test(land.token || '')) continue;
 		const snap = /^0x[0-9a-fA-F]{40}$/.test(land.owner_snapshot || '') ? land.owner_snapshot.toLowerCase() : null;
-		lands.push({ key, name: String(land.name || key), token: land.token.toLowerCase(), snapshot: snap });
+		lands.push({ key, name: String(land.name || key), token: land.token.toLowerCase(), snapshot: snap, level: Number(land.level) || 0 });
 		landKeys.add(key);
 		n++;
 	}
@@ -413,7 +413,9 @@ function clientIp(req) {
 	return String(req.headers['cf-connecting-ip'] ||
 		(req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket.remoteAddress || '?').trim();
 }
-function limited(req, max = 30) {
+// Requests per minute from one address (OV_AUTH_RATE, for tests)
+const RATE = parseInt(env.OV_AUTH_RATE || '30', 10);
+function limited(req, max = RATE) {
 	const ip = clientIp(req);
 	const now = Date.now();
 	const h = hits.get(ip) || { n: 0, reset: now + 60000 };
@@ -459,6 +461,30 @@ function readBody(req) {
 	});
 }
 
+// A land's castle level now: read from the contract after an upgrade on the
+// lands page, else the chain index, else lands.json
+function levelOf(land) {
+	const fresh = freshLevels.levels[land.key];
+	if (fresh) return fresh.level;
+	const data = readJson(CHAIN_TOKENS, null);
+	const t = data && data.tokens && data.tokens[land.token];
+	return t && Number.isInteger(t.level) ? t.level : land.level;
+}
+
+// Who may arrive at any spot clicked on the map: the admin, and holders of a
+// land at castle level 7 (either realm). The game checks again on arrival.
+const ADMIN = String(env.OV_ADMIN || '');
+function mayVisit(address, name) {
+	if (ADMIN && name === ADMIN) return true;
+	if (!owners) return false;
+	const a = address.toLowerCase();
+	return lands.some(l => owners.owners[l.token] === a && levelOf(l) % 8 === 7);
+}
+
+// Where players asked to arrive (from the map), read by the game when they join
+const VISITS_FILE = join(DATA_DIR, 'visits.json');
+const visits = readJson(VISITS_FILE, { format: 1, visits: {} });
+
 function me(address) {
 	const name = nameOfAddress.get(address) || null;
 	return {
@@ -468,6 +494,7 @@ function me(address) {
 		password: name ? gamePassword(name) : null,
 		exists: name ? accountExistsExact(name) : false,
 		lands: landsOf(address),
+		canVisit: name ? mayVisit(address, name) : false,
 		ownersUpdated: owners ? owners.updated : null,
 	};
 }
@@ -563,7 +590,7 @@ const routes = {
 	// a flip) and hand it to the game. Anyone may ask; one look per land every
 	// 15 seconds.
 	'POST /api/levels/check': async (req, res) => {
-		if (limited(req, 20)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
 		let body;
 		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
 		const land = lands.find(l => l.key === String(body && body.key));
@@ -621,6 +648,29 @@ const routes = {
 			}
 		}
 		return send(res, 200, { placed: { key: land.key, name: land.name } });
+	},
+
+	// Arrive at a spot on the map when you next join the game (the admin and
+	// level 7 holders). Kept for 10 minutes; the game checks who may.
+	'POST /auth/visit': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const address = readSession(req);
+		if (!address) return send(res, 401, { error: 'Sign in first.' });
+		const name = nameOfAddress.get(address);
+		if (!name) return send(res, 400, { error: 'Choose a player name first.' });
+		if (!mayVisit(address, name)) {
+			return send(res, 403, { error: 'Arriving anywhere is for holders of a level 7 land.' });
+		}
+		let body;
+		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
+		const x = Math.round(Number(body && body.x)), z = Math.round(Number(body && body.z));
+		const EDGE = 58 * 96 + 47;
+		if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > EDGE || Math.abs(z) > EDGE) {
+			return send(res, 400, { error: 'That is outside the world.' });
+		}
+		visits.visits[name.toLowerCase()] = { name, x, z, at: new Date().toISOString(), t: Math.floor(Date.now() / 1000) };
+		writeJsonAtomic(VISITS_FILE, visits);
+		return send(res, 200, { name, x, z });
 	},
 
 	'GET /auth/exists': async (req, res, url) => {

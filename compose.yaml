@@ -70,6 +70,8 @@ services:
       OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
       OV_CHAIN_TOKENS: /chain/tokens.json
       OV_PUBLIC_URL: ${OV_PUBLIC_URL:-https://orthoverse.land}
+      # The admin may visit any spot from the map, as may holders of a level 7 land
+      OV_ADMIN: ${OV_ADMIN:-}
     volumes:
       - ${OV_DATA}/auth:/data
       - ${OV_WORLD}:/world:ro

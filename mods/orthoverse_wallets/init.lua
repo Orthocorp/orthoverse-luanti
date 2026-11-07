@@ -253,6 +253,42 @@ core.register_chatcommand("mylands", {
 	end,
 })
 
+------------------------------------------------------------------------------
+-- Arriving where you clicked on the map: the website (POST /auth/visit, for
+-- the admin and holders of a level 7 land) writes visits.json; on joining
+-- within 10 minutes the player is put there. Checked again here: the
+-- teleport privilege, or a land at castle level 7 (either realm) held now.
+
+local VISIT_FOR = 600   -- seconds a visit waits for the player to join
+
+local function may_visit(name)
+	if core.check_player_privs(name, {teleport = true}) then return true end
+	local wallet = wallet_of(name)
+	if not wallet then return false end
+	for _, land in pairs(LANDS) do
+		if owner_of(land) == wallet and (tonumber(land.level) or 0) % 8 == 7 then return true end
+	end
+	return false
+end
+
+local storage = core.get_mod_storage()
+core.register_on_joinplayer(function(player)
+	local name = player:get_player_name()
+	local raw = read_file("visits.json")
+	local data = raw and core.parse_json(raw)
+	local v = type(data) == "table" and type(data.visits) == "table" and data.visits[name:lower()]
+	if type(v) ~= "table" or v.name ~= name or not tonumber(v.x) or not tonumber(v.z) or not tonumber(v.t) then return end
+	if os.time() - tonumber(v.t) > VISIT_FOR then return end
+	if storage:get_string("visit:" .. name) == tostring(v.at) then return end   -- already taken
+	storage:set_string("visit:" .. name, tostring(v.at))
+	if not may_visit(name) then return end
+	local x, z = math.floor(tonumber(v.x)), math.floor(tonumber(v.z))
+	local land, key = orthoverse.land_at(vector.new(x, 0, z))
+	local h = HENGES[key]
+	local label = h and h.name or land and (land.name .. " (" .. key .. ")") or ("the sea at " .. key)
+	core.after(1, function() orthoverse.teleport_to(name, x, z, label, 0) end)
+end)
+
 -- /home: to one of your own lands (any holder; no privilege needed). This
 -- takes the place of Minetest Game's /home (sethome), which needs a privilege
 -- players here do not have.

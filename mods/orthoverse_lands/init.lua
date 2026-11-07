@@ -522,12 +522,9 @@ end
 
 local ARRIVE_U, ARRIVE_V = 48, 88
 
--- Teleport `name` to the land at `key` ("x:z"): on its southern side, facing
--- north towards its centre, on the ground (generating the area if need be).
--- `label` is what the welcome says.
-function orthoverse.teleport_to_land(name, key, label)
-	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
-	local x, z = C.world_xz(tonumber(lx), tonumber(lz), ARRIVE_U, ARRIVE_V)
+-- Teleport `name` to node x, z, standing on the ground there (generating the
+-- area if need be), facing `yaw` (0 = north). `label` is what the welcome says.
+function orthoverse.teleport_to(name, x, z, label, yaw)
 	local top, bottom = vector.new(x, 120, z), vector.new(x, -20, z)
 	core.emerge_area(bottom, top, function(_, _, remaining)
 		if remaining > 0 then return end
@@ -540,9 +537,17 @@ function orthoverse.teleport_to_land(name, key, label)
 			y = y - 1
 		end
 		player:set_pos({x = x, y = y + 1, z = z})
-		player:set_look_horizontal(0)    -- north, towards the centre
+		player:set_look_horizontal(yaw or 0)
 		core.chat_send_player(name, "Welcome to " .. label .. ".")
 	end)
+end
+
+-- Teleport `name` to the land at `key` ("x:z"): on its southern side, facing
+-- north towards its centre
+function orthoverse.teleport_to_land(name, key, label)
+	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+	local x, z = C.world_xz(tonumber(lx), tonumber(lz), ARRIVE_U, ARRIVE_V)
+	orthoverse.teleport_to(name, x, z, label, 0)
 end
 
 core.register_chatcommand("goto", {

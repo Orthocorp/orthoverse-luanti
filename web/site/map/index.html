@@ -3,50 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Orthoverse Map</title>
+<title>Map · The Orthoverse</title>
+<link rel="icon" type="image/png" href="/img/icon.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/site.js" defer></script>
 <style>
-  :root { --bg: #0d1117; --panel: rgba(22, 27, 34, 0.94); --ink: #e6edf3; --quiet: #8b949e;
-    --accent: #e3b341; --line: #30363d; }
+  :root { --panel: rgba(30, 39, 80, 0.95); --ink: #efe6d0; --accent: #f5c64a; }
   html, body { margin: 0; height: 100%; background: #0c0a08; color: var(--ink);
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  /* The site header on top, the map filling the rest of the window */
+  body { display: flex; flex-direction: column; }
+  #stage { position: relative; flex: 1; min-height: 0; }
   #map { position: absolute; inset: 0; background: #0c0a08 url("cave.png") 0 0 / 1536px 1152px;
     image-rendering: pixelated; }
   #map .leaflet-tile { image-rendering: auto; }
   .leaflet-cave-pane { pointer-events: none; }
   .panel { position: absolute; z-index: 1000; top: 12px; left: 12px; width: 300px;
     max-width: calc(100vw - 24px); box-sizing: border-box; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .panel h1 { font-size: 18px; margin: 0 0 2px; }
+    border: 3px solid var(--outline); padding: 12px 14px; box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .panel h1 { margin: 0 0 4px; font: 16px/24px "Midnight", monospace; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
   .panel .sub { color: var(--quiet); font-size: 13px; margin: 0 0 10px; }
   .panel a { color: var(--accent); }
   .panel input { width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit;
-    color: var(--ink); background: #0d1117; border: 1px solid var(--line); border-radius: 6px; }
+    color: var(--ink); background: var(--night-3); border: 2px solid var(--line); border-radius: 0; }
   .panel input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   #results { list-style: none; margin: 6px 0 0; padding: 0; max-height: 40vh; overflow-y: auto; }
   #results li { padding: 5px 6px; border-radius: 4px; cursor: pointer; }
-  #results li:hover, #results li:focus { background: #21262d; outline: none; }
+  #results li:hover, #results li:focus { background: var(--night-3); outline: none; }
   #results .meta { color: var(--quiet); font-size: 12px; }
   #info { margin-top: 10px; font-size: 14px; }
   #info:empty { display: none; }
   #info .name { font-weight: 600; font-size: 16px; }
   #info .row { color: var(--quiet); }
   #info code { font-size: 11.5px; word-break: break-all; color: var(--ink); }
-  .links { margin-top: 10px; font-size: 13px; }
+  #info .acts { margin-top: 8px; display: grid; gap: 4px; }
+  #info .acts a { color: var(--accent); }
   .leaflet-tooltip { font: 13px system-ui, sans-serif; }
   .leaflet-container a.leaflet-popup-close-button { color: var(--quiet); }
 </style>
 </head>
 <body>
+<div id="ov-header"></div>
+<div id="stage">
 <div id="map"></div>
 <div class="panel">
-  <h1>The Orthoverse</h1>
-  <p class="sub">Every land is an Orthoverse token.</p>
+  <h1>The map</h1>
+  <p class="sub">Every land is an Orthoverse token. Click one, or find it:</p>
   <input id="search" type="search" placeholder="Find a land by name or token ID" autocomplete="off"
          aria-label="Find a land by name or token ID">
   <ul id="results"></ul>
   <div id="info" aria-live="polite"></div>
-  <div class="links"><a href="/play/">Play in your browser</a> · <a href="/lands/">Your lands</a> · <a href="/">Home</a></div>
+</div>
 </div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
@@ -71,6 +79,9 @@
     bounds: L.latLngBounds([-HALF + 0.5, -HALF + 0.5], [HALF - 0.5, HALF - 0.5]),
   });
   L.control.zoom({ position: 'topright' }).addTo(map);
+  // The site header arrives after the map has measured its space (and wraps
+  // on narrow screens): keep the map the size of its stage
+  new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('stage'));
 
   // Round the world, a torch-lit cave wall (cave.png, from the game's own
   // stone, ore and torch textures: tools/make_cave.py) instead of the map's
@@ -159,6 +170,30 @@
     return level >= 8 ? 'Futuristic realm, level ' + (level - 8) : 'Level ' + level;
   }
 
+  const CONTRACT = '0x118aed2606d02c2545c6d7d2d1021e567cc08922';
+  let lastClick = null;   // the node clicked, for "visit this spot"
+
+  function actions(lx, lz, land) {
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const link = (href, text, external) => {
+      const a = document.createElement('a');
+      a.href = href; a.textContent = text;
+      if (external) { a.target = '_blank'; a.rel = 'noopener'; }
+      acts.append(a);
+    };
+    const me = window.OV && OV.me;
+    if (!land.h) {
+      const mine = me && me.signedIn && me.lands && me.lands.some(l => l.key === landKey(lx, lz));
+      link('/account/#' + landKey(lx, lz), mine ? 'Your land: upgrade or flip it' : 'Gift this land a castle upgrade');
+      link('https://opensea.io/item/ethereum/' + CONTRACT + '/' + BigInt(land.t).toString(), 'This token on OpenSea', true);
+    }
+    if (me && me.canVisit && lastClick) {
+      link('/play/?visit=' + lastClick.x + ',' + lastClick.z, 'Visit this spot in the game (' + lastClick.x + ', ' + lastClick.z + ')');
+    }
+    return acts;
+  }
+
   function show(lx, lz, land) {
     if (highlight) highlight.remove();
     highlight = L.rectangle(landBounds(lx, lz), {
@@ -177,25 +212,24 @@
       const code = document.createElement('code');
       code.textContent = land.t;
       tok.append('Token ', code);
-      info.append(name, row, tok);
-      if (!land.h) {
-        const act = document.createElement('div');
-        act.className = 'row';
-        const a = document.createElement('a');
-        a.href = '/lands/#' + landKey(lx, lz);
-        a.textContent = 'Upgrade or flip this land';
-        act.append(a);
-        info.append(act);
-      }
+      info.append(name, row, tok, actions(lx, lz, land));
     } else {
       name.textContent = 'Open sea';
       row.textContent = 'Land ' + landKey(lx, lz) + ' is not revealed yet';
       info.append(name, row);
+      if (window.OV && OV.me && OV.me.canVisit && lastClick) info.append(actions(lx, lz, { h: true }));
     }
+    shown = [lx, lz, land];
     try { history.replaceState(null, '', '#' + landKey(lx, lz)); } catch (e) { /* fine */ }
   }
 
+  let shown = null;
+  // Signing in or out changes the links
+  if (window.OV) OV.on(() => { if (shown) show(...shown); });
+  else document.addEventListener('DOMContentLoaded', () => OV.on(() => { if (shown) show(...shown); }));
+
   function flyTo(lx, lz) {
+    lastClick = null;
     map.flyToBounds(landBounds(lx, lz), { maxZoom: 5.5, duration: 0.8 });
     show(lx, lz, byKey.get(landKey(lx, lz)));
   }
@@ -203,6 +237,7 @@
   map.on('click', (e) => {
     const { lx, lz, land } = landAt(e.latlng);
     if (Math.max(Math.abs(lx), Math.abs(lz)) > 58) return;
+    lastClick = { x: Math.floor(e.latlng.lng), z: Math.floor(e.latlng.lat) };
     show(lx, lz, land);
   });
 

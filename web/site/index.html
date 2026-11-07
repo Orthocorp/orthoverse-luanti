@@ -14,6 +14,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/site.js" defer></script>
 <style>
   /* The Midnight font: 8 x 8 pixels, used only at multiples of 8 px */
   @font-face { font-family: "Midnight"; src: url("/fonts/midnight.ttf") format("truetype"); font-display: swap; }
@@ -113,10 +115,9 @@
   .steps p { margin: 0; }
   kbd, code { font: 16px/1 "Midnight", monospace; background: #0c1024; padding: 2px 6px; border: 2px solid #2b3466; }
 
-  footer { padding: 48px 16px 64px; color: var(--quiet); font-size: 16px; border-top: 3px solid var(--night-2); }
-  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
-  footer p { margin: 0; }
-  footer .doom { color: var(--gold); }
+  /* The site header lies over the picture; the big logo below is the page's own */
+  .hero .ov-bar.over { position: absolute; top: 0; left: 0; right: 0; }
+  .hero .ov-bar.over .ov-logo { visibility: hidden; }
 
   @media (max-width: 760px) {
     .feature, .feature.flip { grid-template-columns: 1fr; gap: 24px; }
@@ -131,6 +132,7 @@
 <body>
 
 <header class="hero">
+  <div id="ov-header" class="over"></div>
   <h1 style="margin:0"><img class="logo" src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></h1>
   <p class="tagline pixel">Every Orthoverse token is a land you can walk on.</p>
   <div class="actions">
@@ -208,23 +210,17 @@
           <p>Go to <a href="/play/">orthoverse.land/play</a> on a desktop or laptop. The game runs in the
             browser, with nothing to install.</p></li>
         <li><h3 class="pixel">Sign in</h3>
-          <p>Connect your wallet and choose a player name, which stays with that wallet. No wallet? Play
-            as a guest and explore.</p></li>
+          <p>Press <b>Sign in</b> at the top of any page, connect your wallet and choose a player name, which
+            stays with that wallet. No wallet? Play as a guest and explore.</p></li>
         <li><h3 class="pixel">Find your land</h3>
-          <p>Press <kbd>T</kbd> and type <code>/mylands</code> to see your lands. The bottom left of the
-            screen always shows which land you are on.</p></li>
+          <p>Your lands are on your <a href="/account/">Account</a> page, where you can also reveal your own.
+            In the game, press <kbd>T</kbd> and type <code>/home</code> to go there.</p></li>
       </ol>
     </div>
   </section>
 </main>
 
-<footer>
-  <div class="wrap">
-    <p>Runs on <a href="https://www.luanti.org">Luanti</a>, the open-source block game engine, with Minetest Game.
-      Hold a land? <a href="/lands/">Upgrade its castle or flip its realm</a>.</p>
-    <p class="doom pixel">The Orthoverse: doomed since 2022</p>
-  </div>
-</footer>
+<div id="ov-footer"></div>
 
 <script>
   // A few lands, highest castles first, as their token cards. The map service

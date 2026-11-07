@@ -1,0 +1,94 @@
+/* The Orthoverse: what every page shares. The site header and footer
+   (drawn by /js/site.js), the sign-in panel, block buttons, colours and
+   the Midnight font. Pages add their own styles after this. */
+
+@font-face { font-family: "Midnight"; src: url("/fonts/midnight.ttf") format("truetype"); font-display: swap; }
+
+:root {
+  --night: #141a33;      /* Lords of Midnight blue */
+  --night-2: #1e2750;
+  --night-3: #0c1024;
+  --parchment: #efe6d0;
+  --quiet: #b3b8d0;
+  --gold: #f5c64a;
+  --bronze: #7a4a17;
+  --grass: #5d9b3a;
+  --stone: #8d8a84;
+  --outline: #1c1208;
+  --bad: #ff8a80;
+  --good: #6ee7a0;
+  --line: #2b3466;
+  --body-font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.pixel { font-family: "Midnight", monospace; font-weight: normal; letter-spacing: 0; -webkit-font-smoothing: none; }
+
+/* Block buttons */
+.ov-btn { display: inline-block; padding: 12px 18px; font: 16px/16px "Midnight", monospace; color: #fff;
+  text-decoration: none; cursor: pointer; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  border: 3px solid var(--outline); border-radius: 0; background: var(--stone);
+  box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
+.ov-btn.go { background: var(--grass); }
+.ov-btn.gold { background: #b9852a; }
+.ov-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.ov-btn:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
+.ov-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ov-btn:focus-visible, .ov-bar a:focus-visible, .ov-bar button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* The header */
+.ov-bar { position: relative; z-index: 1100; display: flex; align-items: center; gap: 24px;
+  padding: 10px 16px; background: rgba(20, 26, 51, 0.96); border-bottom: 3px solid var(--outline);
+  font: 16px/1.4 var(--body-font); color: var(--parchment); }
+.ov-bar.over { background: linear-gradient(rgba(20, 26, 51, 0.85), rgba(20, 26, 51, 0)); border-bottom: 0; }
+.ov-bar .ov-logo img { display: block; width: 166px; height: auto; image-rendering: pixelated; }
+.ov-bar nav { display: flex; align-items: center; gap: 20px; flex: 1; }
+.ov-bar nav a { color: var(--parchment); text-decoration: none; font: 16px/16px "Midnight", monospace;
+  text-shadow: 2px 2px 0 var(--outline); padding: 6px 2px; }
+.ov-bar nav a:hover, .ov-bar nav a[aria-current="page"] { color: var(--gold); }
+.ov-bar nav a.ov-btn { padding: 10px 16px; color: #fff; }
+.ov-bar .ov-who { position: relative; margin-left: auto; }
+.ov-bar .ov-who > button { font: 16px/16px "Midnight", monospace; }
+.ov-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 240px; padding: 12px;
+  background: var(--night-2); border: 3px solid var(--outline); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35); }
+.ov-menu p { margin: 0 0 10px; font-size: 14px; color: var(--quiet); word-break: break-all; }
+.ov-menu a, .ov-menu button.ov-link { display: block; width: 100%; text-align: left; padding: 6px 0; color: var(--gold);
+  background: none; border: 0; font: 16px var(--body-font); cursor: pointer; text-decoration: underline; }
+.ov-burger { display: none; }
+
+@media (max-width: 720px) {
+  .ov-bar { flex-wrap: wrap; gap: 12px; }
+  .ov-bar .ov-logo img { width: 125px; }
+  .ov-burger { display: inline-block; margin-left: auto; order: 2; }
+  .ov-bar .ov-who { order: 3; margin-left: 0; }
+  .ov-bar nav { order: 4; flex-basis: 100%; display: none; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .ov-bar.open nav { display: flex; }
+}
+
+/* The footer */
+.ov-foot { padding: 32px 16px 48px; color: var(--quiet); background: var(--night);
+  border-top: 3px solid var(--night-2); font: 15px/1.6 var(--body-font); }
+.ov-foot .ov-foot-in { max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 12px 32px;
+  justify-content: space-between; }
+.ov-foot nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.ov-foot a { color: var(--gold); }
+.ov-foot .ov-doom { color: var(--gold); font: 16px/24px "Midnight", monospace; }
+
+/* The sign-in panel */
+.ov-dialog { width: min(480px, calc(100vw - 32px)); padding: 0; color: var(--parchment); background: var(--night-2);
+  border: 3px solid var(--outline); box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.4); font: 16px/1.55 var(--body-font); }
+.ov-dialog::backdrop { background: rgba(8, 10, 22, 0.7); }
+.ov-dialog .ov-d-in { padding: 24px; }
+.ov-dialog h2 { margin: 0 0 12px; font: 24px/32px "Midnight", monospace; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+.ov-dialog p { margin: 0 0 14px; }
+.ov-dialog .ov-quiet { color: var(--quiet); font-size: 14px; }
+.ov-dialog label { display: block; margin: 0 0 6px; color: var(--quiet); font-size: 14px; }
+.ov-dialog input { width: 100%; padding: 10px 12px; font: inherit; color: var(--parchment); background: var(--night-3);
+  border: 2px solid var(--line); border-radius: 0; }
+.ov-dialog input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.ov-dialog .ov-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
+.ov-dialog .ov-close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--quiet);
+  font: 24px/1 var(--body-font); cursor: pointer; }
+.ov-dialog .ov-msg { min-height: 1.4em; margin-top: 12px; font-size: 14px; }
+.ov-dialog .ov-msg.bad { color: var(--bad); }
+.ov-dialog a { color: var(--gold); }
+[hidden] { display: none !important; }

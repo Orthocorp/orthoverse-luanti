@@ -88,6 +88,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		...process.env,
 		OV_AUTH_PORT: String(PORT), OV_AUTH_HOST: '127.0.0.1',
 		OV_AUTH_SECRET: 'x'.repeat(40),
+		OV_AUTH_RATE: '200',
 		OV_DATA_DIR: join(dir, 'data'),
 		OV_AUTH_DB: join(dir, 'auth.sqlite'),
 		OV_LANDS: join(dir, 'lands.json'),
@@ -177,6 +178,22 @@ try {
 
 	r = await call('GET', '/auth/me');
 	check(r.body.name === 'Alice_1' && r.body.password === password, 'the session remembers the player; same password each time');
+
+	// Arriving where you click on the map: the admin and level 7 holders
+	r = await call('GET', '/auth/me');
+	check(r.body.canVisit === false, 'visit: not for a holder without a level 7 land');
+	r = await call('POST', '/auth/visit', { x: 100, z: -50 });
+	check(r.status === 403, 'visit refused for them');
+	castle['0xa2'] = 7n;
+	await call('POST', '/api/levels/check', { key: '3:4' });
+	r = await call('GET', '/auth/me');
+	check(r.body.canVisit === true, 'visit: allowed once a land they hold is level 7');
+	r = await call('POST', '/auth/visit', { x: 100.4, z: -50 });
+	check(r.status === 200 && r.body.x === 100 && r.body.z === -50, 'visit recorded (rounded to a node)');
+	const vis = JSON.parse(readFileSync(join(dir, 'data', 'visits.json'), 'utf8')).visits.alice_1;
+	check(vis && vis.name === 'Alice_1' && vis.x === 100 && Number.isInteger(vis.t), 'visits.json for the game: name, place, time');
+	r = await call('POST', '/auth/visit', { x: 999999, z: 0 });
+	check(r.status === 400, 'a spot outside the world is refused');
 
 	// Another wallet cannot take the name
 	const saved = cookie;

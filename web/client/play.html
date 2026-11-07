@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Play the Orthoverse</title>
 <link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/site.js"></script>
 <style>
   /* The page runs cross-origin isolated (the game needs threads), so it uses
      only files from this site: the logo, the Midnight font, a screenshot */
@@ -19,12 +21,14 @@
   /* Before the game starts: a henge at dusk behind everything */
   body.front { background: linear-gradient(rgba(20, 26, 51, 0.55), rgba(20, 26, 51, 0.88)),
     url("/img/henge.jpg") center / cover fixed no-repeat, var(--bg); }
-  main { max-width: 560px; margin: 0 auto; padding: 40px 16px 48px; }
+  main { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
   .pixel, h1, h2 { font-family: "Midnight", monospace; font-weight: normal; -webkit-font-smoothing: none; }
   h1 { margin: 0 0 16px; text-align: center; font-size: 24px; line-height: 32px; color: var(--accent);
     text-shadow: 2px 2px 0 var(--bronze); }
   h1 img { display: block; width: 498px; max-width: 100%; height: auto; margin: 0 auto;
     image-rendering: pixelated; }
+  .visit { margin-top: 10px; font-size: 14px; color: var(--good); }
+  .visit.no { color: var(--quiet); }
   h2 { font-size: 16px; line-height: 24px; margin: 0 0 8px; color: var(--accent); text-shadow: 2px 2px 0 var(--bronze); }
   .sub { color: #fff; margin: 0 0 24px; text-align: center; text-shadow: 0 0 6px var(--bg), 1px 1px 0 var(--line); }
   .panel { background: var(--panel); border: 3px solid var(--line); padding: 20px;
@@ -37,15 +41,15 @@
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .hint { font-size: 13px; color: var(--quiet); margin-top: 4px; }
   /* Block buttons, as on the home page */
-  .go { margin-top: 14px; width: 100%; padding: 14px 12px; font: 16px/16px "Midnight", monospace;
+  main .go { margin-top: 14px; width: 100%; padding: 14px 12px; font: 16px/16px "Midnight", monospace;
     color: #fff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45); background: var(--grass);
     border: 3px solid var(--line); border-radius: 0; cursor: pointer;
     box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
-  .go.second { background: var(--stone); }
-  .go:hover:not(:disabled) { filter: brightness(1.1); }
-  .go:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
-  .go:disabled { opacity: 0.55; cursor: progress; }
-  .go:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  main .go.second { background: var(--stone); }
+  main .go:hover:not(:disabled) { filter: brightness(1.1); }
+  main .go:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
+  main .go:disabled { opacity: 0.55; cursor: progress; }
+  main .go:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   .who { margin-top: 10px; font-size: 14px; color: var(--quiet); }
   .who b { color: var(--ink); font-weight: 600; }
   .who .good { color: var(--good); }
@@ -68,8 +72,9 @@
 </style>
 </head>
 <body class="front">
+<div id="ov-header"></div>
 <main id="page">
-  <h1><a href="/"><img src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></a></h1>
+  <h1><img src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></h1>
   <p class="sub">Every land is an Orthoverse token. Walk them in your browser.</p>
 
   <div id="problem" class="problem" role="alert" hidden>
@@ -79,29 +84,24 @@
     <div id="problem-raw" class="raw"></div>
   </div>
 
-  <!-- Wallet players -->
+  <!-- Wallet players: signing in is in the site header -->
   <section class="panel" aria-labelledby="wallet-title">
-    <h2 id="wallet-title">Sign in with your wallet</h2>
-    <p>Any wallet may mine and build on the crofts, the common lands; token holders also build on their own castles. Signing in costs nothing.</p>
-
     <div id="wallet-out">
-      <button id="wallet-signin" class="go" type="button" disabled>Loading…</button>
-      <div id="no-wallet" class="hint" hidden>No wallet found in this browser. Install MetaMask (or a
-        similar wallet) and reload, or play as a guest below.</div>
+      <h2 id="wallet-title">Sign in to build</h2>
+      <p>Signed in with an Ethereum wallet, anyone may mine and build on the crofts, the common lands; holders
+        also build on their own lands. Signing in costs nothing.</p>
+      <button id="wallet-signin" class="go" type="button">Sign in</button>
     </div>
-
-    <form id="name-form" hidden novalidate>
-      <label for="name">Choose your player name</label>
-      <input id="name" name="username" maxlength="19" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <div class="hint">3 to 19 letters, digits, - and _. It stays with this wallet for good.</div>
-      <button id="name-go" class="go" type="submit">Take this name and enter</button>
-    </form>
-
+    <div id="wallet-name" hidden>
+      <h2>Choose your player name</h2>
+      <p>You are signed in. Choose the name you will have in the game.</p>
+      <button id="wallet-choose" class="go" type="button">Choose your name</button>
+    </div>
     <div id="wallet-in" hidden>
+      <h2 id="wallet-hello"></h2>
       <button id="wallet-play" class="go" type="button" disabled>Loading…</button>
       <div class="who" id="wallet-who"></div>
-      <button id="wallet-signout" class="linkish" type="button">Sign out</button>
-      · <a href="/lands/" style="font-size:14px">Your lands: upgrade or flip</a>
+      <div id="visit" class="visit" hidden></div>
     </div>
   </section>
 
@@ -120,9 +120,10 @@
       downloads the game engine (tens of megabytes); later visits load it from your browser.</li>
     <li>Walk with W A S D, jump with space, open your inventory with I, chat with T.
       <code>/whereami</code> tells you whose land you are on, <code>/mylands</code> lists yours.</li>
-    <li><a href="/map/">See the map of the Orthoverse</a></li>
+    <li><code>/home</code> takes you to your own land.</li>
   </ul>
 </main>
+<div id="ov-footer"></div>
 
 <script src="%__RELEASE_UUID__%/launcher.js"></script>
 <script>
@@ -133,7 +134,6 @@
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
   const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
   const GUEST_KEY = 'orthoverse.guest';   // localStorage: this browser's guest
-  const NAME_RE = /^[A-Za-z0-9_-]{3,19}$/;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
@@ -155,18 +155,14 @@
     } catch (e) { return false; }
   }
 
-  async function api(method, path, body) {
-    const res = await fetch(path, {
-      method,
-      headers: body ? { 'content-type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'same-origin',
-    });
-    let data = {};
-    try { data = await res.json(); } catch (e) { /* not JSON */ }
-    if (!res.ok) throw new Error(data.error || ('The sign-in service answered ' + res.status + '.'));
-    return data;
-  }
+  const api = (method, path, body) => OV.api(method, path, body);
+
+  // From the map: /play/?visit=x,z (the admin and level 7 holders arrive there)
+  const visit = (() => {
+    const m = new URLSearchParams(location.search).get('visit');
+    const v = m && m.match(/^(-?\d+),(-?\d+)$/);
+    return v ? { x: +v[1], z: +v[2] } : null;
+  })();
 
   // ------------------------------------------------------------------
   // Explaining what went wrong
@@ -223,20 +219,13 @@
   // ------------------------------------------------------------------
   // Wallet players
 
-  function hex(text) {
-    return '0x' + Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, '0')).join('');
-  }
-
   function showWallet() {
     const signedIn = me && me.signedIn;
     $('wallet-out').hidden = !!signedIn;
-    $('name-form').hidden = !(signedIn && !me.name);
+    $('wallet-name').hidden = !(signedIn && !me.name);
     $('wallet-in').hidden = !(signedIn && me.name);
-    $('no-wallet').hidden = !!window.ethereum || !!signedIn;
-    const signinBtn = $('wallet-signin');
-    signinBtn.disabled = !window.ethereum;
-    signinBtn.textContent = 'Sign in with wallet';
     if (signedIn && me.name) {
+      $('wallet-hello').textContent = 'Welcome, ' + me.name;
       const play = $('wallet-play');
       play.disabled = !ready;
       play.textContent = ready ? 'Enter as ' + me.name : 'Loading the game…';
@@ -251,80 +240,17 @@
       } else {
         held.className = n ? 'good' : '';
         held.textContent = n ? `holds ${n} land${n === 1 ? '' : 's'}: ` +
-          me.lands.slice(0, 4).map(l => l.name).join(', ') + (n > 4 ? '…' : '') : 'holds no lands (you can explore, not build)';
+          me.lands.slice(0, 4).map(l => l.name).join(', ') + (n > 4 ? '…' : '') : 'holds no lands: you can build on the crofts';
       }
       who.append(held);
+      const v = $('visit');
+      v.hidden = !visit;
+      if (visit) {
+        v.className = 'visit' + (me.canVisit ? '' : ' no');
+        v.textContent = me.canVisit ? `You will arrive at ${visit.x}, ${visit.z}, the spot you chose on the map.`
+          : 'Arriving where you click on the map is for holders of a level 7 land; you will arrive where you left off.';
+      }
     }
-  }
-
-  // The account to sign in with. Asking for the accounts permission again makes
-  // MetaMask (and most wallets) show its account picker every time, so a player
-  // with several addresses can choose; plain eth_requestAccounts would just
-  // return the account already connected. Wallets without that request fall
-  // back to it.
-  async function chooseAccount() {
-    try {
-      const perms = await window.ethereum.request({
-        method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
-      const caveat = (perms || []).flatMap(p => p.caveats || [])
-        .find(c => c.type === 'restrictReturnedAccounts');
-      if (caveat && caveat.value && caveat.value[0]) return caveat.value[0];
-    } catch (e) {
-      // Turned down by the player: stop here. Not supported: fall through.
-      if (e && e.code === 4001) throw e;
-    }
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    return accounts && accounts[0];
-  }
-
-  async function signIn() {
-    hideProblem();
-    const btn = $('wallet-signin');
-    btn.disabled = true;
-    btn.textContent = 'Check your wallet…';
-    try {
-      const address = await chooseAccount();
-      if (!address) throw new Error('The wallet did not share an account.');
-      const n = await api('GET', '/auth/nonce?address=' + encodeURIComponent(address));
-      const signature = await window.ethereum.request({ method: 'personal_sign', params: [hex(n.message), address] });
-      me = await api('POST', '/auth/verify', { nonce: n.nonce, signature });
-      showWallet();
-      if (!me.name) $('name').focus();
-    } catch (e) {
-      const declined = e && (e.code === 4001 || /reject|denied|cancel/i.test(e.message || ''));
-      showProblem(declined ? 'Signing in was cancelled' : 'Could not sign in',
-        declined ? 'Your wallet did not sign the message. Try again when you are ready.' : (e.message || String(e)), null, '');
-      showWallet();
-    }
-  }
-
-  async function chooseName(ev) {
-    ev.preventDefault();
-    hideProblem();
-    const name = $('name').value.trim();
-    if (!NAME_RE.test(name)) {
-      return showProblem('That name cannot be used', 'Player names are 3 to 19 letters, digits, - and _, with no spaces.', null, '');
-    }
-    if (/^guest/i.test(name)) {
-      return showProblem('That name cannot be used', 'Names starting with "Guest" are kept for guests.', null, '');
-    }
-    $('name-go').disabled = true;
-    try {
-      me = await api('POST', '/auth/name', { name });
-      showWallet();
-      if (ready) enter('wallet');
-    } catch (e) {
-      showProblem('That name cannot be used', e.message, null, '');
-    } finally {
-      $('name-go').disabled = false;
-    }
-  }
-
-  async function signOut() {
-    try { await api('POST', '/auth/logout', {}); } catch (e) { /* signed out anyway */ }
-    me = { signedIn: false };
-    hideProblem();
-    showWallet();
   }
 
   // ------------------------------------------------------------------
@@ -399,7 +325,12 @@
     again.textContent = 'Back to the Orthoverse';
     again.onclick = () => location.reload();
     p.append(h, s, again);
-    document.body.appendChild(p);
+    const head = document.createElement('div');
+    head.id = 'ov-header';
+    const foot = document.createElement('div');
+    foot.id = 'ov-footer';
+    document.body.append(head, p, foot);
+    OV.mount();
   };
 
   async function enter(kind) {
@@ -409,8 +340,9 @@
     try {
       if (kind === 'wallet') {
         me = await api('GET', '/auth/me');   // fresh password and account state
-        if (!me.signedIn || !me.name) { showWallet(); return; }
+        if (!me.signedIn || !me.name) { OV.set(me); return; }
         name = me.name; password = me.password; exists = me.exists;
+        if (visit && me.canVisit) await api('POST', '/auth/visit', visit);
       } else {
         if (!guest) makeGuest();
         name = guest.name; password = guest.password;
@@ -437,6 +369,7 @@
     mtl.setConf('viewing_range', 120);
 
     $('page').remove();
+    OV.unmount();
     document.body.classList.remove('front');
     mtl.launch(args);
   }
@@ -444,10 +377,9 @@
   // ------------------------------------------------------------------
   // Start
 
-  $('wallet-signin').addEventListener('click', signIn);
-  $('name-form').addEventListener('submit', chooseName);
+  $('wallet-signin').addEventListener('click', () => OV.signIn());
+  $('wallet-choose').addEventListener('click', () => OV.signIn());
   $('wallet-play').addEventListener('click', () => enter('wallet'));
-  $('wallet-signout').addEventListener('click', signOut);
   $('guest-play').addEventListener('click', () => enter('guest'));
 
   guest = load('local', GUEST_KEY);
@@ -464,8 +396,8 @@
     showProblem(title, text, action, known ? '' : retry.reason);
   }
 
-  api('GET', '/auth/me').then((data) => { me = data; showWallet(); })
-    .catch(() => { me = { signedIn: false }; showWallet(); });
+  // Who is signed in: from the site header (js/site.js)
+  OV.on((data) => { me = data; showWallet(); });
 </script>
 </body>
 </html>
