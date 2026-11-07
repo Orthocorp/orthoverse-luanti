@@ -87,10 +87,12 @@
   <!-- Wallet players: signing in is in the site header -->
   <section class="panel" aria-labelledby="wallet-title">
     <div id="wallet-out">
-      <h2 id="wallet-title">Sign in to build</h2>
-      <p>Signed in with an Ethereum wallet, anyone may mine and build on the crofts, the common lands; holders
-        also build on their own lands. Signing in costs nothing.</p>
+      <h2 id="wallet-title">Sign in to play</h2>
+      <p>Sign in with your name and password, or with an Ethereum wallet, and your character keeps what you
+        carry and achieve. Holders build on their own lands; anyone signed in may mine and build on the crofts,
+        the common lands (characters without a wallet after their first hour of play).</p>
       <button id="wallet-signin" class="go" type="button">Sign in</button>
+      <button id="wallet-register" class="go second" type="button">Make a character</button>
     </div>
     <div id="wallet-name" hidden>
       <h2>Choose your player name</h2>
@@ -229,19 +231,20 @@
       const play = $('wallet-play');
       play.disabled = !ready;
       play.textContent = ready ? 'Enter as ' + me.name : 'Loading the game…';
-      const short = me.address.slice(0, 6) + '…' + me.address.slice(-4);
       const n = me.lands.length;
       const who = $('wallet-who');
       who.textContent = '';
-      who.append('Wallet ' + short + ' · ');
       const held = document.createElement('span');
-      if (me.ownersUpdated === null) {
+      if (!me.address) {
+        held.textContent = 'No wallet linked: you can link one on the Account page to hold lands';
+      } else if (me.ownersUpdated === null) {
         held.textContent = 'checking which lands it holds';
       } else {
         held.className = n ? 'good' : '';
         held.textContent = n ? `holds ${n} land${n === 1 ? '' : 's'}: ` +
           me.lands.slice(0, 4).map(l => l.name).join(', ') + (n > 4 ? '…' : '') : 'holds no lands: you can build on the crofts';
       }
+      if (me.address) who.append('Wallet ' + me.address.slice(0, 6) + '…' + me.address.slice(-4) + ' · ');
       who.append(held);
       const v = $('visit');
       v.hidden = !visit;
@@ -383,7 +386,8 @@
   // ------------------------------------------------------------------
   // Start
 
-  $('wallet-signin').addEventListener('click', () => OV.signIn());
+  $('wallet-signin').addEventListener('click', () => OV.signIn('signin'));
+  $('wallet-register').addEventListener('click', () => OV.signIn('register'));
   $('wallet-choose').addEventListener('click', () => OV.signIn());
   $('wallet-play').addEventListener('click', () => enter('wallet'));
   $('guest-play').addEventListener('click', () => enter('guest'));

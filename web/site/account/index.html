@@ -40,6 +40,8 @@
   .field { width: 100%; max-width: 420px; padding: 10px 12px; font: inherit; color: var(--parchment);
     background: var(--night-3); border: 2px solid var(--line); }
   .field:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  #pw-form label { display: inline-block; margin-top: 8px; font-size: 15px; }
   #results { list-style: none; padding: 0; margin: 8px 0 0; max-width: 420px; }
   #results button { width: 100%; text-align: left; background: none; border: 0; color: var(--parchment); font: inherit;
     padding: 6px 8px; cursor: pointer; }
@@ -60,9 +62,38 @@
     to the Orthoverse contract from your own wallet; this site never holds your keys or your ETH.</p>
 
   <section id="out" class="panel" hidden>
-    <h2>Sign in to see your lands</h2>
-    <p>Sign in with your Ethereum wallet. If your address has no land yet, you can reveal it here.</p>
-    <button id="signin" class="ov-btn go" type="button">Sign in</button>
+    <h2>Sign in</h2>
+    <p>Sign in with your player name and password, or with your Ethereum wallet. With a wallet you see your
+      lands here, and if your address has no land yet, you can reveal it.</p>
+    <div class="row">
+      <button id="signin" class="ov-btn go" type="button">Sign in</button>
+      <button id="register" class="ov-btn" type="button">Make a character</button>
+    </div>
+  </section>
+
+  <section id="character" class="panel" hidden style="margin-top:16px">
+    <h2>Your character</h2>
+    <p id="char-name"></p>
+    <h3>Wallet</h3>
+    <p id="char-wallet" class="quiet"></p>
+    <div id="char-link" hidden>
+      <button id="link-go" class="ov-btn gold" type="button">Link a wallet</button>
+      <div id="link-status" class="status" aria-live="polite"></div>
+    </div>
+    <h3 style="margin-top:16px">Password</h3>
+    <p id="char-pw" class="quiet"></p>
+    <form id="pw-form" novalidate>
+      <div id="pw-current-box">
+        <label for="pw-current" class="quiet">Current password</label><br>
+        <input id="pw-current" class="field" type="password" maxlength="128" autocomplete="current-password">
+      </div>
+      <label for="pw-new" class="quiet">New password: at least 8 characters</label><br>
+      <input id="pw-new" class="field" type="password" maxlength="128" autocomplete="new-password"><br>
+      <label for="pw-new2" class="quiet">The new password again</label><br>
+      <input id="pw-new2" class="field" type="password" maxlength="128" autocomplete="new-password">
+      <div style="margin-top:12px"><button id="pw-go" class="ov-btn" type="submit">Set the password</button></div>
+      <div id="pw-status" class="status" aria-live="polite"></div>
+    </form>
   </section>
 
   <section id="net" class="panel" hidden style="margin-top:16px">
@@ -91,6 +122,8 @@
     <div class="lands" id="my-lands"></div>
     <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
       crofts in the game, or give someone a land or a castle upgrade below.</p>
+    <p id="nowallet" class="quiet" hidden>Lands belong to Ethereum wallets. Link a wallet to your character (above)
+      to see and build on the lands it holds, or to reveal your own.</p>
   </section>
 
   <section>
@@ -171,10 +204,13 @@
     const signedIn = me && me.signedIn;
     $('out').hidden = !!signedIn;
     $('mine').hidden = !signedIn;
-    $('net').hidden = !signedIn || !W.present() || await W.onMainnet();
+    $('net').hidden = !signedIn || !me.address || !W.present() || await W.onMainnet();
     $('reveal').hidden = true;
     $('placing').hidden = true;
+    showCharacter();
     if (!signedIn) return;
+    $('nowallet').hidden = !!me.address;
+    if (!me.address) { $('my-lands').innerHTML = ''; $('none').hidden = true; return; }
     if (await ready()) {
       let revealed = null;
       try { revealed = BigInt(await W.call(SEL.revealed + W.pad(me.address))) !== 0n; } catch (e) { /* cannot tell */ }
@@ -219,6 +255,65 @@
       await OV.refresh();
     } catch (e) {
       /* leave it to the next visit */
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // The character: wallet and password
+
+  function showCharacter() {
+    const signedIn = me && me.signedIn && me.name;
+    $('character').hidden = !signedIn;
+    if (!signedIn) return;
+    $('char-name').textContent = 'You are ' + me.name + ' in the game, signed in here with ' +
+      (me.signedInWith === 'wallet' ? 'your wallet.' : 'your password.');
+    $('char-wallet').textContent = me.address
+      ? 'Linked to ' + me.address + '. Its lands are yours in the game.'
+      : 'No wallet linked. Link one to hold lands, build on them and reveal your own. A wallet can belong to only one character.';
+    $('char-link').hidden = !!me.address;
+    $('link-go').disabled = !W.present();
+    if (!W.present()) $('link-status').textContent = 'You need a wallet (such as MetaMask) in this browser to link one.';
+    $('char-pw').textContent = me.hasPassword
+      ? 'You can sign in with your name and password' + (me.address ? ' as well as with your wallet.' : '.')
+      : 'No password yet: add one to sign in without your wallet, on any computer.';
+    $('pw-current-box').hidden = !me.hasPassword || me.signedInWith === 'wallet';
+    $('pw-go').textContent = me.hasPassword ? 'Change the password' : 'Add a password';
+  }
+
+  async function linkWallet() {
+    const status = $('link-status');
+    status.className = 'status';
+    status.textContent = '';
+    $('link-go').disabled = true;
+    try {
+      await OV.linkWallet();
+      status.className = 'status good';
+      status.textContent = 'Wallet linked.';
+    } catch (e) {
+      fail(status, e.message);
+    } finally {
+      $('link-go').disabled = false;
+    }
+  }
+
+  async function setPassword(ev) {
+    ev.preventDefault();
+    const status = $('pw-status');
+    const password = $('pw-new').value;
+    if (password.length < 8) return fail(status, 'Passwords are at least 8 characters.');
+    if (password !== $('pw-new2').value) return fail(status, 'The two new passwords are not the same.');
+    $('pw-go').disabled = true;
+    try {
+      const r = await OV.api('POST', '/auth/password', { current: $('pw-current').value, password });
+      $('pw-current').value = $('pw-new').value = $('pw-new2').value = '';
+      status.className = 'status good';
+      status.textContent = 'Password set.';
+      OV.set(r);
+      if (r.recoveryCode) OV.showRecoveryCode(r.recoveryCode);
+    } catch (e) {
+      fail(status, e.message);
+    } finally {
+      $('pw-go').disabled = false;
     }
   }
 
@@ -388,10 +483,14 @@
       for (const l of lands.lands) if (!l.h) landsByKey.set(l.x + ':' + l.z, l);
       cards = index;
     } catch (e) { /* lands without names; the panels still work by coordinates */ }
-    $('signin').onclick = OV.signIn;
+    $('signin').onclick = () => OV.signIn('signin');
+    $('register').onclick = () => OV.signIn('register');
+    $('link-go').onclick = linkWallet;
+    $('pw-form').addEventListener('submit', setPassword);
+    if (location.hash === '#new') OV.on(m => { if (m && !m.signedIn && !OV._newShown) { OV._newShown = true; OV.signIn('register'); } });
     $('switch').onclick = async () => { try { await W.toMainnet(); show(); } catch (e) { /* stays */ } };
     $('search').addEventListener('input', e => search(e.target.value));
-    $('reveal-go').onclick = () => revealFor(me.address, true, $('reveal-go'), $('reveal-status'));
+    $('reveal-go').onclick = () => me.address && revealFor(me.address, true, $('reveal-go'), $('reveal-status'));
     $('give-go').onclick = () => {
       const to = $('give-to').value.trim();
       if (!/^0x[0-9a-fA-F]{40}$/.test(to)) return fail($('give-status'), 'That is not an Ethereum address (0x and 40 hexadecimal digits).');
