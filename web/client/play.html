@@ -28,6 +28,18 @@
   h1 img { display: block; width: 498px; max-width: 100%; height: auto; margin: 0 auto;
     image-rendering: pixelated; }
   .visit { margin-top: 10px; font-size: 14px; color: var(--good); }
+  /* Phones and tablets: a card instead of the game */
+  .phone { max-width: 480px; margin: 0 auto; padding: 32px 16px 48px; text-align: center; }
+  .phone .card { background: var(--panel); border: 3px solid var(--line); padding: 24px 20px;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .phone img { width: 256px; max-width: 80%; height: auto; image-rendering: pixelated; display: block; margin: 0 auto 20px; }
+  .phone h1 { font-size: 24px; line-height: 32px; margin: 0 0 12px; }
+  .phone p { margin: 0 0 16px; color: var(--ink); }
+  .phone .quiet { color: var(--quiet); font-size: 15px; }
+  .phone .ways { display: grid; gap: 12px; margin-top: 8px; }
+  .phone .ways .ov-btn { display: block; text-align: center; line-height: 24px; }
+  .phone .anyway { display: inline-block; margin-top: 20px; color: var(--quiet); font-size: 14px; }
+  .phone .copied { min-height: 1.4em; margin: 8px 0 0; color: var(--good); font-size: 14px; }
   .visit.no { color: var(--quiet); }
   h2 { font-size: 16px; line-height: 24px; margin: 0 0 8px; color: var(--accent); text-shadow: 2px 2px 0 var(--bronze); }
   .sub { color: #fff; margin: 0 0 24px; text-align: center; text-shadow: 0 0 6px var(--bg), 1px 1px 0 var(--line); }
@@ -73,6 +85,26 @@
 </head>
 <body class="front">
 <div id="ov-header"></div>
+<!-- Phones and tablets cannot run the game: this instead (see PHONE below) -->
+<main id="phone" class="phone" hidden>
+  <div class="card">
+    <img src="/img/computer.png" width="64" height="52" alt="A computer showing a castle on a green hill">
+    <h1>The Orthoverse needs a computer</h1>
+    <p>The game runs in the browser on a desktop or laptop, in a recent Chrome, Edge or Firefox, with a
+      keyboard and mouse. Phones and tablets cannot run it.</p>
+    <div class="ways">
+      <button id="send-link" class="ov-btn go" type="button">Send this link to your computer</button>
+    </div>
+    <p id="copied" class="copied" aria-live="polite"></p>
+    <p class="quiet">Meanwhile, on your phone you can explore the world and look after your lands:</p>
+    <div class="ways">
+      <a class="ov-btn" href="/map/">Explore the map</a>
+      <a class="ov-btn" href="/account/">Your account</a>
+    </div>
+  </div>
+  <a class="anyway" href="?anyway=1">I am on a computer: let me in</a>
+</main>
+
 <main id="page">
   <h1><img src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></h1>
   <p class="sub">Every land is an Orthoverse token. Walk them in your browser.</p>
@@ -282,7 +314,38 @@
   globalThis.orthoverseJoinError = (reason) => { joinError = String(reason || ''); };
 
   const progress = new Map();
-  const mtl = new LuantiLauncher();
+  // Phones and tablets: the card above, and no engine download (tens of
+  // megabytes). iPads call themselves Macs: a Mac with a touch screen is one.
+  // ?anyway=1 lets in a computer mistaken for a tablet.
+  const PHONE = (() => {
+    if (new URLSearchParams(location.search).has('anyway')) return false;
+    const ua = navigator.userAgent || '';
+    if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+    if (/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i.test(ua)) return true;
+    return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  })();
+
+  if (PHONE) {
+    $('page').hidden = true;
+    $('phone').hidden = false;
+    const link = location.origin + '/play/';
+    $('send-link').onclick = async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: 'The Orthoverse', text: 'Play the Orthoverse on my computer', url: link });
+          return;
+        }
+        await navigator.clipboard.writeText(link);
+        $('copied').textContent = 'Link copied: ' + link;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;   // the share sheet was closed
+        $('copied').textContent = 'The link is ' + link;
+      }
+    };
+  }
+
+  const mtl = PHONE ? null : new LuantiLauncher();
+  if (mtl) {
   mtl.onprogress = (name, fraction) => {
     progress.set(name, fraction);
     const parts = [...progress.entries()].filter(([, f]) => f < 1).map(([n, f]) => `${n} ${Math.round(f * 100)}%`);
@@ -332,6 +395,7 @@
     document.body.append(head, p, foot);
     OV.mount();
   };
+  }
 
   async function enter(kind) {
     if (!ready || !mtl.isReady()) return;
