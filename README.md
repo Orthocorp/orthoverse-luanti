@@ -35,6 +35,8 @@ First rough version of the world:
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
   cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
   forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
+- The name of the land you are on at the bottom left of the screen, with its crest
+  and headgear above it as on the token card (crests from castle level 1).
 - The minimap for everyone, shown from the moment they join (no mapping kit needed);
   V cycles through close, wide and off. The radar (caves) is for the admin only.
 
@@ -49,6 +51,7 @@ mods/animals/                Animalia and Creatura (animals), vendored by tools/
 mods/orthoverse_animals/     which animals spawn where in the Orthoverse
 mods/orthoverse_skins/       player skins and the Skin tab
 mods/orthoverse_minimap/     the minimap for every player, on when they join
+mods/orthoverse_landhud/     the land you are on and its crest, at the bottom left
 mods/orthoverse_wallets/     who may join (wallet players, guests) and who may build where
 mods/orthoverse_creative/    creative mode on your own lands, abilities by castle level
 mods/orthoverse_lands/       land data (data/lands.json) and coordinate helpers
@@ -61,6 +64,7 @@ tools/build_lands.py         rebuilds lands.json from source-data
 tools/assemble.sh            refreshes mods/mtg from Minetest Game
 tools/render_map.py          offline top-down render from map.sqlite
 tools/mapslice.py            offline node counts and vertical slices (debugging)
+tools/split_crests.py        one PNG per crest, for orthoverse_landhud (run by the image build)
 compose.yaml, docker/         running it all on Docker Compose (see docker/README.md)
 web/                         orthoverse.land: site, map, proxy, browser game (see web/README.md)
 ```
@@ -94,6 +98,7 @@ permissions; current owners will come from the chain.
 
 ```
 tools/assemble.sh                          # once: pull in Minetest Game mods
+python3 tools/split_crests.py web/heraldry mods/orthoverse_landhud/crests   # once: crests (needs Pillow)
 ln -s "$PWD" <luanti>/games/orthoverse     # make the game visible to Luanti
 ```
 

@@ -2,6 +2,14 @@
 # the Orthoverse game. Build context: the repository root.
 
 # ---------------------------------------------------------------------------
+# The crests, one small PNG each, for the land display (orthoverse_landhud)
+FROM python:3.12.7-slim-bookworm AS crests
+RUN pip install --no-cache-dir pillow==11.0.0
+COPY tools/split_crests.py /tmp/
+COPY web/heraldry /tmp/heraldry
+RUN python /tmp/split_crests.py /tmp/heraldry /tmp/crests
+
+# ---------------------------------------------------------------------------
 FROM ubuntu:22.04 AS build
 
 # Ubuntu 22.04's packaged LuaJIT (2017) is too old for Luanti 5.18, so LuaJIT
@@ -48,6 +56,7 @@ RUN ! ldd /opt/luanti/bin/luantiserver | grep "not found" \
 ARG GAME=/opt/luanti/share/luanti/games/orthoverse
 COPY game.conf minetest.conf ${GAME}/
 COPY mods ${GAME}/mods
+COPY --from=crests /tmp/crests ${GAME}/mods/orthoverse_landhud/crests
 
 COPY docker/luanti/entrypoint.sh /usr/local/bin/orthoverse-server
 # The server runs as the world's owner (compose sets the user); HOME only

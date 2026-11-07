@@ -7,3 +7,5 @@
 # lands.json, never inside an image
 source-data
 .env
+# Crests cut for a server run from the repository; the image cuts its own
+mods/orthoverse_landhud/crests
