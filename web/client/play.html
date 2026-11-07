@@ -256,14 +256,33 @@
     }
   }
 
+  // The account to sign in with. Asking for the accounts permission again makes
+  // MetaMask (and most wallets) show its account picker every time, so a player
+  // with several addresses can choose; plain eth_requestAccounts would just
+  // return the account already connected. Wallets without that request fall
+  // back to it.
+  async function chooseAccount() {
+    try {
+      const perms = await window.ethereum.request({
+        method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
+      const caveat = (perms || []).flatMap(p => p.caveats || [])
+        .find(c => c.type === 'restrictReturnedAccounts');
+      if (caveat && caveat.value && caveat.value[0]) return caveat.value[0];
+    } catch (e) {
+      // Turned down by the player: stop here. Not supported: fall through.
+      if (e && e.code === 4001) throw e;
+    }
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    return accounts && accounts[0];
+  }
+
   async function signIn() {
     hideProblem();
     const btn = $('wallet-signin');
     btn.disabled = true;
     btn.textContent = 'Check your wallet…';
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const address = accounts && accounts[0];
+      const address = await chooseAccount();
       if (!address) throw new Error('The wallet did not share an account.');
       const n = await api('GET', '/auth/nonce?address=' + encodeURIComponent(address));
       const signature = await window.ethereum.request({ method: 'personal_sign', params: [hex(n.message), address] });
