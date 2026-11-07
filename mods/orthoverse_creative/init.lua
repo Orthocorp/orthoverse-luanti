@@ -1,11 +1,12 @@
 -- orthoverse_creative: creative mode on your own lands, more of it the higher
 -- the land's castle level.
 --
--- On a land your wallet holds, from castle level 1, you are in creative mode:
+-- On a land your wallet holds, from castle level 2, you are in creative mode:
 -- every block in the inventory's Creative tab, nothing used up, no damage. A
 -- croft (level 0) is common land, where everyone builds with what they carry,
 -- holder included, so there is no creative mode there (creative blocks would
--- end up in other players' hands). Your own inventory is
+-- end up in other players' hands). At level 1 the land is yours alone, and
+-- you build with what you carry. In creative mode your own inventory is
 -- put away and your creative one (empty the first time, then as you left it)
 -- takes its place. Step off the land and it all goes back, so nothing taken
 -- from the Creative tab ever leaves the land.
@@ -13,7 +14,9 @@
 -- The land's castle level adds abilities (LEVELS below; the contract's levels
 -- 8-15 are 0-7 with the futuristic style flag, so they count as 0-7). They
 -- follow the land you stand on: walk from a level 2 land of yours to a level 0
--- one and fly and noclip go.
+-- one and fly and noclip go. Abilities that are not on the land itself
+-- (/goto, arriving where you click on the map) are in orthoverse_lands and
+-- orthoverse_wallets; they are listed here only for the hints.
 --
 -- Players who can build anywhere (protection_bypass: the admin) are left alone.
 -- orthoverse.creative.allowed decides where a player is creative: other mods
@@ -23,13 +26,20 @@ local S = core.get_translator and core.get_translator("orthoverse_creative") or 
 
 -- What each castle level adds, on top of the levels below it. Privileges here
 -- are granted while the player stands on the land and taken away when they
--- leave it. To move an ability to another level, move it here.
+-- leave it; `dig` is the instant-digging hand. To move an ability to another
+-- level, move it here (and in the website's list, web/site/account). `also`
+-- names abilities that live elsewhere, for the hints.
 local LEVELS = {
-	[1] = { privs = { "creative" } },
-	[2] = { privs = { "fly", "fast" } },
-	[3] = { privs = { "noclip" } },
+	[2] = { privs = { "creative" } },
+	[3] = { privs = { "fly" } },
+	[4] = { privs = { "fast" } },
+	[5] = { privs = { "noclip" } },
+	[6] = { dig = true, also = { "/goto to any land" } },
+	[7] = { also = { "arriving anywhere you click on the map" } },
 }
+local CREATIVE_LEVEL = 2
 local PRIV_NAMES = { fly = "fly (K)", fast = "fast (J)", noclip = "noclip (H)" }
+local DIG_NAME = "instant digging with your hand"
 
 local LISTS = { "main", "craft" }
 local KEY = "orthoverse_creative:"      -- player meta keys
@@ -38,12 +48,12 @@ local CHECK_EVERY = 0.5
 orthoverse.creative = { LEVELS = LEVELS }
 
 -- Whether `name` is creative at `pos`: on a land their wallet holds, at castle
--- level 1 or more (in either realm)
+-- level 2 or more (in either realm)
 function orthoverse.creative.allowed(name, pos)
 	local w = orthoverse.wallets
 	if w.is_guest(name) then return false end
 	local land, key = orthoverse.land_at(pos)
-	if not land or orthoverse.henges[key] or (tonumber(land.level) or 0) % 8 < 1 then return false end
+	if not land or orthoverse.henges[key] or (tonumber(land.level) or 0) % 8 < CREATIVE_LEVEL then return false end
 	local wallet = w.wallet_of(name)
 	return wallet ~= nil and wallet == w.owner_of(land)
 end
@@ -67,11 +77,30 @@ end
 
 local ALL_PRIVS = privs_for(7)
 
+-- Whether a level gives the instant-digging hand
+local function digs_at(level)
+	for l = 0, level do
+		if (LEVELS[l] or {}).dig then return true end
+	end
+	return false
+end
+
+-- What one level adds, as names
+local function names_at(l)
+	local def = LEVELS[l] or {}
+	local names = {}
+	for _, p in ipairs(def.privs or {}) do
+		if p ~= "creative" then names[#names + 1] = PRIV_NAMES[p] or p end
+	end
+	if def.dig then names[#names + 1] = DIG_NAME end
+	for _, a in ipairs(def.also or {}) do names[#names + 1] = a end
+	return names
+end
+
 -- The next level that adds something, and what it adds (for the hint)
 local function next_ability(level)
 	for l = level + 1, 7 do
-		local names = {}
-		for _, p in ipairs((LEVELS[l] or {}).privs or {}) do names[#names + 1] = PRIV_NAMES[p] or p end
+		local names = names_at(l)
 		if #names > 0 then return l, table.concat(names, " and ") end
 	end
 end
@@ -111,6 +140,44 @@ local function refresh_inventory_page(player)
 		sfinv.set_page(player, sfinv.get_homepage_name(player))
 	else
 		sfinv.set_player_inventory_formspec(player)
+	end
+end
+
+------------------------------------------------------------------------------
+-- Instant digging: a hand in the player's "hand" list, which Luanti uses in
+-- place of the usual one when they hold nothing. Only ever there while they
+-- are in creative mode on a land of that level.
+
+local HAND = "orthoverse_creative:hand"
+local digtime = 42      -- as Minetest Game's creative hand: maxlevel 256 makes it ~0.16 s
+local caps = { times = { digtime, digtime, digtime }, uses = 0, maxlevel = 256 }
+core.register_tool(HAND, {
+	description = "Instant digging",
+	inventory_image = "wieldhand.png",
+	wield_image = "wieldhand.png",
+	wield_scale = { x = 1, y = 1, z = 2.5 },
+	range = 10,
+	groups = { not_in_creative_inventory = 1 },
+	tool_capabilities = {
+		full_punch_interval = 0.9,
+		max_drop_level = 0,
+		groupcaps = {
+			crumbly = caps, cracky = caps, snappy = caps, choppy = caps,
+			oddly_breakable_by_hand = caps,
+			dig_immediate = { times = { [2] = digtime, [3] = 0 }, uses = 0, maxlevel = 256 },
+		},
+		damage_groups = { fleshy = 1 },
+	},
+	on_drop = function(itemstack) return itemstack end,
+})
+
+local function set_hand(player, on)
+	local inv = player:get_inventory()
+	if on then
+		if inv:get_size("hand") < 1 then inv:set_size("hand", 1) end
+		inv:set_stack("hand", 1, ItemStack(HAND))
+	elseif inv:get_size("hand") > 0 then
+		inv:set_size("hand", 0)
 	end
 end
 
@@ -179,6 +246,7 @@ local function abilities_text(level)
 		if PRIV_NAMES[p] then names[#names + 1] = PRIV_NAMES[p] end
 	end
 	table.sort(names)
+	if digs_at(level) then names[#names + 1] = DIG_NAME end
 	local text = S("Every block is in the inventory's Creative tab")
 	if #names > 0 then text = text .. "; " .. table.concat(names, ", ") end
 	text = text .. "."
@@ -197,6 +265,7 @@ local function enter(player, level)
 	meta:set_string(KEY .. "on", "1")
 	meta:set_int(KEY .. "level", level)
 	set_privs(player, privs_for(level))
+	set_hand(player, digs_at(level))
 	refresh_inventory_page(player)
 	core.chat_send_player(name, S("Your land (level @1): creative mode. Your own inventory is kept safe until you leave.", level) ..
 		" " .. abilities_text(level))
@@ -209,7 +278,9 @@ local function change_level(player, level)
 	if meta:get_int(KEY .. "level") == level then return end
 	meta:set_int(KEY .. "level", level)
 	local added, removed = set_privs(player, privs_for(level))
-	if #added > 0 or #removed > 0 then
+	local had = player:get_inventory():get_size("hand") > 0
+	set_hand(player, digs_at(level))
+	if #added > 0 or #removed > 0 or had ~= digs_at(level) then
 		core.chat_send_player(player:get_player_name(),
 			S("This land is level @1.", level) .. " " .. abilities_text(level))
 	end
@@ -221,6 +292,7 @@ local function leave(player, quiet)
 	save_lists(player, "creative")
 	load_lists(player, "own")
 	set_privs(player, {})      -- also sees to leaving through walls
+	set_hand(player, false)
 	meta:set_string(KEY .. "granted", "")
 	meta:set_string(KEY .. "on", "")
 	refresh_inventory_page(player)
@@ -268,6 +340,7 @@ end)())
 -- are on their land
 core.register_on_joinplayer(function(player)
 	if is_creative(player) then leave(player, true) end
+	set_hand(player, false)
 end)
 
 core.register_on_leaveplayer(function(player)

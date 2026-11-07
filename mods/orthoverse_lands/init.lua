@@ -550,13 +550,26 @@ function orthoverse.teleport_to_land(name, key, label)
 	orthoverse.teleport_to(name, x, z, label, 0)
 end
 
+-- Who may use /goto: the teleport privilege (admins), or a land at castle
+-- level GOTO_LEVEL or higher (either realm) held now
+orthoverse.GOTO_LEVEL = 6
+function orthoverse.may_goto(name)
+	if core.check_player_privs(name, {teleport = true}) then return true end
+	local w = orthoverse.wallets
+	return w ~= nil and (w.highest_level(name) or -1) >= orthoverse.GOTO_LEVEL
+end
+
 core.register_chatcommand("goto", {
 	params = "<land name or x:z>",
-	description = "Teleport to an Orthoverse land",
-	privs = {teleport = true},
+	description = "Teleport to an Orthoverse land (holders of a level 6 land and up)",
+	privs = {},
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
 		if not player then return false, "No player." end
+		if not orthoverse.may_goto(name) then
+			return false, "/goto is for holders of a land at castle level " .. orthoverse.GOTO_LEVEL ..
+				" or higher. /home takes you to your own lands."
+		end
 		if param:match("^%s*$") then return false, "Which land? /goto <land name or x:z>" end
 		local keys, all = find_lands(param)
 		all = all or {}

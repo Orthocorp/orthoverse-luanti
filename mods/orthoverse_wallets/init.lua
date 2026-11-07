@@ -261,14 +261,24 @@ core.register_chatcommand("mylands", {
 
 local VISIT_FOR = 600   -- seconds a visit waits for the player to join
 
+-- The highest castle level (0-7, either realm) among the lands `name`'s
+-- wallet holds now, or nil if it holds none
+local function highest_level(name)
+	local wallet = wallet_of(name)
+	if not wallet then return nil end
+	local best
+	for key, land in pairs(LANDS) do
+		if not HENGES[key] and owner_of(land) == wallet then
+			local level = (tonumber(land.level) or 0) % 8
+			if not best or level > best then best = level end
+		end
+	end
+	return best
+end
+
 local function may_visit(name)
 	if core.check_player_privs(name, {teleport = true}) then return true end
-	local wallet = wallet_of(name)
-	if not wallet then return false end
-	for _, land in pairs(LANDS) do
-		if owner_of(land) == wallet and (tonumber(land.level) or 0) % 8 == 7 then return true end
-	end
-	return false
+	return (highest_level(name) or 0) >= 7
 end
 
 local storage = core.get_mod_storage()
@@ -369,5 +379,6 @@ orthoverse.wallets = {
 	owner_of = owner_of,
 	may_build = may_build,
 	is_croft = is_croft,
+	highest_level = highest_level,
 	updated = function() return owners_updated end,
 }
