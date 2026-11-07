@@ -3,7 +3,9 @@
 -- Its name in the Midnight font (as on the cards), and above it the land's crest with its headgear, as on the token
 -- card: a crest from castle level 1, a baron's cap from 4, a coronet from 5, a
 -- crown at 7 (the contract's levels 8-15 are 0-7 with the futuristic style
--- flag). A henge shows its name; the sea and the rim show nothing.
+-- flag). A henge shows its name; the sea and the rim show nothing. On a land
+-- your wallet holds, the name is gold, with a line under it ("Your land, level
+-- 4"; "Your croft, common land").
 --
 -- Crests are single small PNGs in crests/ (cut from web/heraldry by
 -- tools/split_crests.py when the server image is built), sent embedded in the
@@ -20,6 +22,9 @@ local CREST_W, CREST_H, GEAR_H = 20, 25, 7
 local MARGIN = 12           -- from the screen's edges
 local NAME_WIDTH = 260      -- names wider than this at 3x (10 letters) are drawn at 2x
 local GAP = 8               -- between the name and the crest
+local LINE_GAP = 4          -- between the line under the name and the name
+local GOLD = "#f5c64a"      -- your own land's name (the site's gold)
+local QUIET = "#efe6d0"     -- the line under it (the site's parchment)
 
 ------------------------------------------------------------------------------
 -- Text in the Midnight font, pieced together from its letters
@@ -54,13 +59,17 @@ local function glyphs(codes, atlas, dx, dy)
 	return parts
 end
 
--- The texture for `text`, and its size in font pixels
-local function text_texture(text)
+-- The texture for `text` (white, or tinted `colour`), and its size in font
+-- pixels. The letters are white, so tinting the whole picture colours them
+-- and leaves the shadow dark.
+local function text_texture(text, colour)
 	local codes = codepoints(text)
 	local w, h = #codes * 8 + 1, 9
 	local parts = glyphs(codes, "orthoverse_midnight_shadow.png", 1, 1)
 	for _, p in ipairs(glyphs(codes, "orthoverse_midnight.png", 0, 0)) do parts[#parts + 1] = p end
-	return ("[combine:%dx%d:%s"):format(w, h, table.concat(parts, ":")), w, h
+	local tex = ("[combine:%dx%d:%s"):format(w, h, table.concat(parts, ":"))
+	if colour then tex = tex .. "^[multiply:" .. colour end
+	return tex, w, h
 end
 
 ------------------------------------------------------------------------------
@@ -114,24 +123,37 @@ local function gear_texture(level)
 end
 
 ------------------------------------------------------------------------------
--- What to show at a position: name, crest texture, headgear texture
+-- What to show at a position for a player: name, crest texture, headgear
+-- texture, and if the land is theirs, the line under the name
 
-local function display_at(pos)
+local function yours(pname, land, key)
+	local w = orthoverse.wallets
+	if not w or w.is_guest(pname) then return nil end
+	local wallet = w.wallet_of(pname)
+	if not wallet or wallet ~= w.owner_of(land) then return nil end
+	local level = (tonumber(land.level) or 0) % 8
+	if w.is_croft(land, key) then return "Your croft, common land" end
+	if level == 0 then return "Your land" end
+	return "Your land, level " .. level
+end
+
+local function display_at(pos, pname)
 	local land, key = orthoverse.land_at(pos)
 	if not land then return nil end
 	local henge = orthoverse.henges[key]
 	if henge then return henge.name or land.name end
+	local line = yours(pname, land, key)
 	local level = (tonumber(land.level) or 0) % 8
-	if level == 0 then return land.name end
+	if level == 0 then return land.name, nil, nil, line end
 	local n = crest_number(land)
 	local crest = n and crest_texture(n)
-	return land.name, crest, crest and gear_texture(level)
+	return land.name, crest, crest and gear_texture(level), line
 end
 
 ------------------------------------------------------------------------------
 -- The HUD
 
-local huds = {}     -- name -> {name = id, crest = id, gear = id, shown = "..."}
+local huds = {}     -- name -> {line = id, name = id, crest = id, gear = id, shown = "..."}
 
 local function image(player, texture, scale, y)
 	return player:hud_add({
@@ -164,14 +186,22 @@ local function show(player)
 	local pname = player:get_player_name()
 	local h = huds[pname]
 	if not h then return end
-	local name, crest, gear = display_at(player:get_pos())
-	local shown = table.concat({name or "", crest or "", gear or ""}, "|")
+	local name, crest, gear, line = display_at(player:get_pos(), pname)
+	local shown = table.concat({name or "", crest or "", gear or "", line or ""}, "|")
 	if shown == h.shown then return end
 	h.shown = shown
-	-- The name sits on the bottom edge, the crest above it, the headgear on top
+	-- From the bottom edge up: the line (your land), the name, the crest, the
+	-- headgear
 	local y = -MARGIN
+	if name and line then
+		local texture, _, th = text_texture(line, QUIET)
+		set_image(player, h, "line", texture, 2, y)
+		y = y - th * 2 - LINE_GAP
+	else
+		set_image(player, h, "line", nil)
+	end
 	if name then
-		local texture, w, th = text_texture(name)
+		local texture, w, th = text_texture(name, line and GOLD or nil)
 		local scale = w * 3 <= NAME_WIDTH and 3 or 2
 		set_image(player, h, "name", texture, scale, y)
 		y = y - th * scale - GAP
