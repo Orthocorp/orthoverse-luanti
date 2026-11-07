@@ -91,7 +91,7 @@ web/                         orthoverse.land: site, map, proxy, browser game (se
   covers x and z from −48 to 47. With `chunksize = 6`, one mapchunk is one land.
 - Land keys use the old Orthoverse convention, `"x:z"` with z growing **south**.
   Luanti's z grows north, so the generator mirrors rows. North in the old world
-  is still north here: Pohjanhenge (0:−30) sits at Luanti z ≈ +2880.
+  is still north here: Norhenge (0:−30) sits at Luanti z ≈ +2880.
 - Tile index within a land: row (from the north) × 6 + column (from the west),
   matching hex digits 3 to 38 of the token ID.
 - Playable lands run from −56 to 56; ring 57 is the rim, ring 58 the wall.
