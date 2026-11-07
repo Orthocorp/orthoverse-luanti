@@ -18,6 +18,24 @@
   const NAME_RE = /^[A-Za-z0-9_-]{3,19}$/;
   OV.CONTRACT = CONTRACT;
 
+  // ------------------------------------------------------------------
+  // Phones and tablets: the Orthoverse needs a computer. Decided before the
+  // page is drawn (this script loads in the head), so the page never shows;
+  // a card takes its place. iPads call themselves Macs: a Mac with a touch
+  // screen is one. "I am on a computer" (or ?anyway=1) is remembered.
+  const COMPUTER_KEY = 'ov-computer';
+  OV.isPhone = (() => {
+    try {
+      if (new URLSearchParams(location.search).has('anyway')) localStorage.setItem(COMPUTER_KEY, '1');
+      if (localStorage.getItem(COMPUTER_KEY) === '1') return false;
+    } catch (e) { /* no storage: ask each time */ }
+    const ua = navigator.userAgent || '';
+    if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+    if (/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i.test(ua)) return true;
+    return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  })();
+  if (OV.isPhone) document.documentElement.classList.add('ov-is-phone');
+
   const el = (tag, attrs = {}, ...kids) => {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -314,7 +332,7 @@
       el('p', {}, 'Signed in with ' + me.address),
       el('a', { href: '/account/' }, 'Account: your lands'),
       el('button', { class: 'ov-link', type: 'button', onclick: OV.signOut }, 'Sign out'));
-    const btn = el('button', { class: 'ov-btn', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
+    const btn = el('button', { class: 'ov-btn signed', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
       onclick: () => { menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)); } }, me.name + ' ▾');
     who.append(btn, menu);
   }
@@ -347,6 +365,38 @@
     if (who && !who.contains(e.target)) { const m = who.querySelector('.ov-menu'); if (m) m.hidden = true; }
   });
 
-  const start = () => { OV.mount(); OV.refresh(); };
+  function phoneCard() {
+    const link = location.origin + '/play/';
+    const copied = el('p', { class: 'ov-copied', 'aria-live': 'polite' });
+    const send = el('button', { class: 'ov-btn go', type: 'button', onclick: async () => {
+      try {
+        if (navigator.share) { await navigator.share({ title: 'The Orthoverse', text: 'Play the Orthoverse on my computer', url: link }); return; }
+        await navigator.clipboard.writeText(link);
+        copied.textContent = 'Link copied: ' + link;
+      } catch (e) {
+        if (!(e && e.name === 'AbortError')) copied.textContent = 'The link is ' + link;
+      }
+    } }, 'Send this link to your computer');
+    const card = el('main', { class: 'ov-phone-card' },
+      el('img', { class: 'ov-phone-logo', src: '/img/logo.png', width: '498', height: '105', alt: 'The Orthoverse' }),
+      el('div', { class: 'ov-phone-in' },
+        el('img', { src: '/img/computer.png', width: '64', height: '52', alt: 'A computer showing a castle on a green hill' }),
+        el('h1', {}, 'The Orthoverse needs a computer'),
+        el('p', {}, 'The Orthoverse is a world you walk in your browser, on a desktop or laptop with a recent Chrome, ' +
+          'Edge or Firefox, a keyboard and a mouse. Phones and tablets cannot run it.'),
+        send, copied),
+      el('a', { class: 'ov-anyway', href: '#', onclick: (e) => {
+        e.preventDefault();
+        try { localStorage.setItem(COMPUTER_KEY, '1'); } catch (err) { /* then by the address */ }
+        location.search = location.search ? location.search + '&anyway=1' : '?anyway=1';
+      } }, 'I am on a computer: let me in'));
+    document.body.prepend(card);
+  }
+
+  const start = () => {
+    if (OV.isPhone) phoneCard();
+    OV.mount();
+    OV.refresh();
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

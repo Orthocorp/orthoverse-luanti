@@ -30,6 +30,7 @@
   box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
 .ov-btn.go { background: var(--grass); }
 .ov-btn.gold { background: #b9852a; }
+.ov-btn.signed { background: #1f9e95; }      /* turquoise: signed in */
 .ov-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .ov-btn:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
 .ov-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -99,3 +100,22 @@
 .ov-dialog .ov-msg.bad { color: var(--bad); }
 .ov-dialog a { color: var(--gold); }
 [hidden] { display: none !important; }
+
+/* Phones and tablets: only the "needs a computer" card (html.ov-is-phone is
+   set by /js/site.js before the page is drawn) */
+html.ov-is-phone, html.ov-is-phone body { min-height: 100%; background: #141a33; }
+html.ov-is-phone body { margin: 0;
+  background: linear-gradient(rgba(20, 26, 51, 0.6), rgba(20, 26, 51, 0.92)), url("/img/henge.jpg") center / cover fixed no-repeat, #141a33; }
+html.ov-is-phone body > *:not(.ov-phone-card):not(dialog) { display: none !important; }
+.ov-phone-card { box-sizing: border-box; max-width: 480px; margin: 0 auto; padding: 28px 16px 40px; text-align: center;
+  color: var(--parchment); font: 17px/1.55 var(--body-font); }
+.ov-phone-card .ov-phone-logo { width: 249px; max-width: 70%; height: auto; image-rendering: pixelated; margin: 0 auto 20px; display: block; }
+.ov-phone-in { background: rgba(30, 39, 80, 0.94); border: 3px solid var(--outline); padding: 24px 20px;
+  box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+.ov-phone-in img { width: 256px; max-width: 80%; height: auto; image-rendering: pixelated; display: block; margin: 0 auto 20px; }
+.ov-phone-in h1 { margin: 0 0 12px; font: 24px/32px "Midnight", monospace; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze);
+  -webkit-font-smoothing: none; }
+.ov-phone-in p { margin: 0 0 18px; }
+.ov-phone-in .ov-btn { display: block; width: 100%; line-height: 24px; }
+.ov-phone-in .ov-copied { min-height: 1.4em; margin: 10px 0 0; color: var(--good); font-size: 14px; word-break: break-all; }
+.ov-phone-card .ov-anyway { display: inline-block; margin-top: 20px; color: var(--quiet); font-size: 14px; }
