@@ -181,13 +181,14 @@
   };
 
   // Several addresses: one button each, resolving with the one chosen
-  function pickAddress(addresses) {
+  function pickAddress(addresses, selected) {
     return new Promise(resolve => {
       dialog.list.innerHTML = '';
       for (const a of addresses) {
-        dialog.list.append(el('button', { class: 'ov-btn', type: 'button', title: a,
+        const isSel = selected && a.toLowerCase() === selected.toLowerCase();
+        dialog.list.append(el('button', { class: 'ov-btn' + (isSel ? ' go' : ''), type: 'button', title: a,
           style: 'text-align:left;font:15px/1.4 var(--body-font);word-break:break-all',
-          onclick: () => resolve(a) }, a));
+          onclick: () => resolve(a) }, a, isSel ? el('br') : null, isSel ? '(selected in your wallet)' : null));
       }
       dialog.step1.hidden = true;
       dialog.stepPick.hidden = false;
@@ -195,13 +196,19 @@
     });
   }
 
-  async function signIn() {
+  async function signIn(direct) {
     dialog.signBtn.disabled = true;
     say('Check your wallet…');
     try {
-      const shared = await W.accounts();
-      if (!shared.length) throw new Error('The wallet did not share an account.');
-      const address = shared.length > 1 ? await pickAddress(shared) : shared[0];
+      let address = typeof direct === 'string' ? direct : null;
+      if (!address) {
+        // The account selected in the wallet first, then the others shared
+        const selected = await W.current();
+        let shared = await W.accounts();
+        if (!shared.length) throw new Error('The wallet did not share an account.');
+        if (selected) shared = [selected, ...shared.filter(a => a.toLowerCase() !== selected.toLowerCase())];
+        address = shared.length > 1 ? await pickAddress(shared, selected) : shared[0];
+      }
       dialog.stepPick.hidden = true;
       say('Sign the message in your wallet…');
       const n = await OV.api('GET', '/auth/nonce?address=' + encodeURIComponent(address));
@@ -232,6 +239,17 @@
     }
   }
 
+  // Sign in with one particular address (the one selected in the wallet)
+  OV.signInAs = address => {
+    if (!dialog) buildDialog();
+    dialog.step1.hidden = true;
+    dialog.stepPick.hidden = true;
+    dialog.step2.hidden = true;
+    say('');
+    if (!dialog.open) dialog.showModal();
+    signIn(address).then(() => { if (dialog.open && !dialog.step2.hidden) return; dialog.step1.hidden = false; });
+  };
+
   OV.signOut = async () => {
     try { await OV.api('POST', '/auth/logout', {}); } catch (e) { /* signed out anyway */ }
     OV.set({ signedIn: false });
@@ -261,7 +279,25 @@
     drawWho();
   }
 
+  // The wallet has another account selected than the one signed in: say so,
+  // and offer to sign in with it (MetaMask lists the selected account first)
+  let notice = null;
+  async function checkWalletAccount() {
+    if (notice) { notice.remove(); notice = null; }
+    const me = OV.me;
+    if (!bar || !me || !me.signedIn || !W.present()) return;
+    const selected = await W.current();
+    if (!selected || selected.toLowerCase() === me.address.toLowerCase()) return;
+    notice = el('div', { class: 'ov-notice', role: 'status' },
+      'Your wallet has ' + W.short(selected) + ' selected, but you are signed in as ' +
+        (me.name || W.short(me.address)) + ' (' + W.short(me.address) + '). ',
+      el('button', { class: 'ov-btn', type: 'button', onclick: () => OV.signInAs(selected) }, 'Sign in as ' + W.short(selected)));
+    bar.after(notice);
+  }
+  if (window.ethereum && window.ethereum.on) window.ethereum.on('accountsChanged', () => checkWalletAccount());
+
   function drawWho() {
+    checkWalletAccount();
     if (!who) return;
     who.innerHTML = '';
     const me = OV.me;
@@ -303,7 +339,7 @@
   };
   // Remove the header and footer (the game takes the whole window)
   OV.unmount = () => {
-    document.querySelectorAll('.ov-bar, .ov-foot').forEach(n => n.remove());
+    document.querySelectorAll('.ov-bar, .ov-foot, .ov-notice').forEach(n => n.remove());
     who = bar = null;
   };
 

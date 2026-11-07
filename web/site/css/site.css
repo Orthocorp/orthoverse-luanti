@@ -65,6 +65,12 @@
   .ov-bar.open nav { display: flex; }
 }
 
+/* The wallet has another account selected than the one signed in */
+.ov-notice { position: relative; z-index: 1099; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  justify-content: center; padding: 10px 16px; background: #3a2c10; color: var(--parchment);
+  border-bottom: 3px solid var(--outline); font: 15px/1.4 var(--body-font); text-align: center; }
+.ov-notice .ov-btn { padding: 8px 12px; font-size: 16px; }
+
 /* The footer */
 .ov-foot { padding: 32px 16px 48px; color: var(--quiet); background: var(--night);
   border-top: 3px solid var(--night-2); font: 15px/1.6 var(--body-font); }
