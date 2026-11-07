@@ -4,53 +4,261 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Orthoverse</title>
-<meta name="description" content="The Orthoverse: every Orthoverse token is a land in a voxel world you can walk in your browser.">
+<meta name="description" content="Every Orthoverse token is a land in a block world you can walk in your browser. Holders build on their own land; anyone may explore.">
+<meta property="og:title" content="The Orthoverse">
+<meta property="og:description" content="Every Orthoverse token is a land in a block world you can walk in your browser.">
+<meta property="og:image" content="https://orthoverse.land/img/og.jpg">
+<meta property="og:url" content="https://orthoverse.land/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --quiet: #8b949e; --accent: #e3b341; --line: #30363d; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 720px; margin: 0 auto; padding: 64px 16px 48px; }
-  h1 { font-size: 44px; line-height: 1.1; margin: 0 0 12px; letter-spacing: 0.01em; }
-  .lead { font-size: 20px; color: var(--quiet); margin: 0 0 32px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
-  .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; font-weight: 600;
-    text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--panel); }
-  .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
-  .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .preview { display: block; width: 100%; aspect-ratio: 1; border-radius: 10px;
-    border: 1px solid var(--line); background: #285abe; object-fit: cover; }
-  h2 { font-size: 20px; margin: 40px 0 8px; }
-  p { margin: 0 0 12px; }
-  a { color: var(--accent); }
-  footer { margin-top: 48px; color: var(--quiet); font-size: 14px; }
+  /* The Midnight font: 8 x 8 pixels, used only at multiples of 8 px */
+  @font-face { font-family: "Midnight"; src: url("/fonts/midnight.ttf") format("truetype"); font-display: swap; }
+
+  :root {
+    --night: #141a33;      /* Lords of Midnight blue: the page */
+    --night-2: #1e2750;    /* raised panels */
+    --parchment: #efe6d0;  /* text on night */
+    --quiet: #b3b8d0;
+    --gold: #f5c64a;       /* the logo's face */
+    --bronze: #7a4a17;
+    --grass: #5d9b3a;
+    --grass-dark: #3c6b22;
+    --stone: #8d8a84;
+    --outline: #1c1208;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--night); }
+  body { margin: 0; color: var(--parchment);
+    font: 18px/1.6 "Atkinson Hyperlegible", system-ui, sans-serif; }
+  img { max-width: 100%; display: block; }
+  a { color: var(--gold); }
+  a:focus-visible, .btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .pixel { font-family: "Midnight", monospace; font-weight: normal; letter-spacing: 0;
+    -webkit-font-smoothing: none; font-smooth: never; }
+
+  /* Hero: the world itself, the logo, two ways in */
+  .hero { position: relative; min-height: min(100vh, 900px); display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; text-align: center;
+    padding: clamp(48px, 12vh, 120px) 16px 120px;
+    background: #79b6ea url("/img/hero.jpg") center 30% / cover no-repeat; }
+  .hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 48px;
+    background: url("/img/grass-edge.png") 0 0 / 256px 48px repeat-x; image-rendering: pixelated; }
+  .hero::before { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(20, 26, 51, 0) 40%, rgba(20, 26, 51, 0.55) 100%); }
+  .hero > * { position: relative; z-index: 1; }
+  .logo { width: 996px; max-width: 94vw; height: auto; image-rendering: pixelated; margin: 0 auto;
+    filter: drop-shadow(0 6px 0 rgba(20, 26, 51, 0.35)); }
+  /* A one-pixel dark outline all round, as the game draws text over the world */
+  .tagline { font-size: 24px; line-height: 32px; margin: 32px 0 0; color: #fff; max-width: 30em;
+    text-shadow: -2px 0 0 var(--outline), 2px 0 0 var(--outline), 0 -2px 0 var(--outline),
+      0 2px 0 var(--outline), 3px 3px 0 var(--outline); }
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: auto; padding-top: 48px; }
+  .btn { display: inline-block; padding: 16px 24px; font-size: 16px; line-height: 16px; text-decoration: none;
+    color: #fff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+    border: 3px solid var(--outline); background: var(--stone);
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
+  .btn.go { background: var(--grass); }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
+  .hero .small { margin: 16px 0 0; font-size: 16px; color: #fff; max-width: 36em;
+    text-shadow: 0 0 6px var(--night), 0 0 2px var(--night), 1px 1px 0 var(--outline); }
+
+  /* Sections */
+  section { padding: 72px 16px; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h2 { font-size: 32px; line-height: 40px; margin: 0 0 16px; color: var(--gold);
+    text-shadow: 3px 3px 0 var(--bronze); }
+  h3 { font-size: 24px; line-height: 32px; margin: 0 0 12px; color: var(--gold);
+    text-shadow: 2px 2px 0 var(--bronze); }
+  p { margin: 0 0 16px; max-width: 34em; }
+
+  /* The tokens: cards as the marketplaces show them */
+  .intro { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 32px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
+    list-style: none; margin: 0; padding: 0; }
+  .cards a { display: block; text-decoration: none; color: var(--parchment); }
+  .cards img { width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; background: var(--night-2);
+    border: 3px solid var(--outline); }
+  .cards span { display: block; margin-top: 8px; font-size: 16px; line-height: 24px; overflow-wrap: anywhere; }
+  .cards a:hover img { border-color: var(--gold); }
+  .cards:empty { display: none; }
+
+  /* Features: picture and words side by side, alternating */
+  .feature { display: grid; grid-template-columns: 1.25fr 1fr; gap: 48px; align-items: center; margin: 0 auto 72px; }
+  .feature:last-child { margin-bottom: 0; }
+  .feature.flip { grid-template-columns: 1fr 1.25fr; }
+  .feature.flip figure { order: 2; }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+    border: 4px solid var(--outline); box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.35); }
+
+  /* The map: the islands from the air */
+  .map { position: relative; padding: 0; }
+  .map img { width: 100%; height: clamp(320px, 50vw, 560px); object-fit: cover; }
+  .map .over { position: absolute; inset: auto 0 0 0; padding: 48px 16px;
+    background: linear-gradient(to top, rgba(20, 26, 51, 0.92), rgba(20, 26, 51, 0)); }
+  .map p { color: #fff; }
+
+  /* Getting in: a real sequence, so numbered */
+  .steps { list-style: none; counter-reset: step; margin: 32px 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  .steps li { counter-increment: step; background: var(--night-2); padding: 24px;
+    border: 3px solid var(--outline); box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06); }
+  .steps li::before { content: counter(step); display: block; font-family: "Midnight", monospace;
+    font-size: 32px; line-height: 32px; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze); margin-bottom: 16px; }
+  .steps p { margin: 0; }
+  kbd, code { font: 16px/1 "Midnight", monospace; background: #0c1024; padding: 2px 6px; border: 2px solid #2b3466; }
+
+  footer { padding: 48px 16px 64px; color: var(--quiet); font-size: 16px; border-top: 3px solid var(--night-2); }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+  footer p { margin: 0; }
+  footer .doom { color: var(--gold); }
+
+  @media (max-width: 760px) {
+    .feature, .feature.flip { grid-template-columns: 1fr; gap: 24px; }
+    .feature.flip figure { order: 0; }
+    .steps { grid-template-columns: 1fr; }
+    h2 { font-size: 24px; line-height: 32px; }
+    .tagline { font-size: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>The Orthoverse</h1>
-  <p class="lead">Every Ethereum address has an Orthoverse token. Every revealed token is a
-    land, shaped by its token ID, in a voxel world you can walk.</p>
+
+<header class="hero">
+  <h1 style="margin:0"><img class="logo" src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></h1>
+  <p class="tagline pixel">Every Orthoverse token is a land you can walk.</p>
   <div class="actions">
-    <a class="btn primary" href="/play/">Play in your browser</a>
-    <a class="btn" href="/map/">Explore the map</a>
+    <a class="btn go pixel" href="/play/">Play in your browser</a>
+    <a class="btn pixel" href="/map/">Explore the map</a>
   </div>
-  <a href="/map/" aria-label="Open the map of the Orthoverse">
-    <img class="preview" src="/map/tiles/0/0/0.png" alt="The whole Orthoverse from above: nine island kingdoms in the sea">
-  </a>
+  <p class="small">Free, on a computer with a recent Chrome, Edge or Firefox. Sign in with your wallet to build, or come as a guest.</p>
+</header>
 
-  <h2>What is here</h2>
-  <p>Nine island kingdoms, one round each henge, with the lands of the tokens revealed so far.
-    A land's hills, lakes, woods and quarries come from its token ID; its level decides its castle,
-    and levels 8 and up flip it into the tarmac realm.</p>
-  <p>The world runs on <a href="https://www.luanti.org">Luanti</a>, the open-source voxel engine,
-    with Minetest Game: grow, dig, craft and build. Anyone may wander anywhere, as under the Finnish
-    everyman's right; building is for a land's owner.</p>
+<main>
+  <section id="lands">
+    <div class="wrap">
+      <div class="intro">
+        <h2 class="pixel">Every token is a land</h2>
+        <p>Each revealed Orthoverse token is a square of the world, 96 blocks a side. Its token ID shapes the
+          hills, lakes, woods and quarries; its castle level decides the castle. These are the tokens as
+          marketplaces show them, drawn from the world as it stands, so whatever a holder builds shows on
+          their token.</p>
+      </div>
+      <ul class="cards" id="cards" aria-label="Some of the lands"></ul>
+    </div>
+  </section>
 
-  <h2>Playing</h2>
-  <p>The browser version needs a desktop or laptop with a recent Chrome, Edge or Firefox.
-    The desktop Luanti app will be able to join too, once the server is open to it.</p>
+  <section id="world">
+    <div class="wrap">
+      <div class="feature">
+        <figure><img src="/img/castle.jpg" width="1280" height="720" loading="lazy"
+          alt="A dark stone castle with four towers among pine woods and mountains"></figure>
+        <div>
+          <h3 class="pixel">Build on your own land</h3>
+          <p>Sign in with the wallet that holds a land and you build there in creative mode: every block in
+            the game, nothing used up. Your own inventory waits for you when you step off.</p>
+        </div>
+      </div>
+      <div class="feature flip">
+        <figure><img src="/img/henge.jpg" width="1280" height="720" loading="lazy"
+          alt="A stone circle on a green plain, a green glowing gateway in its middle"></figure>
+        <div>
+          <h3 class="pixel">Travel by henge</h3>
+          <p>Nine stone circles stand at the hearts of nine island kingdoms. Walk through a gateway and you
+            come out at the next henge along, north, south, east or west.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <figure><img src="/img/futuristic.jpg" width="1280" height="720" loading="lazy"
+          alt="A tall white tower on black tarmac, with glass domes and stepped pyramids around it"></figure>
+        <div>
+          <h3 class="pixel">Two realms</h3>
+          <p>Some castles belong to the futuristic realm. There, tarmac, glass domes and towers take the place
+            of meadows and keeps.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-  <footer>The Orthoverse is doomed. It always was.</footer>
+  <section class="map" aria-labelledby="map-title">
+    <img src="/img/islands.jpg" width="1280" height="720" loading="lazy"
+      alt="The lands from high above: castles, lakes, woods and quarries running to the horizon">
+    <div class="over">
+      <div class="wrap">
+        <h2 class="pixel" id="map-title">Walk anywhere</h2>
+        <p>Anyone may wander the whole Orthoverse, as under the Finnish everyman's right. Building is for
+          each land's holder. Find any land by its name or token ID on the map.</p>
+        <a class="btn pixel" href="/map/">Explore the map</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <h2 class="pixel">Getting in</h2>
+      <ol class="steps">
+        <li><h3 class="pixel">Open the game</h3>
+          <p>Go to <a href="/play/">orthoverse.land/play</a> on a desktop or laptop. The game runs in the
+            browser, with nothing to install.</p></li>
+        <li><h3 class="pixel">Sign in</h3>
+          <p>Connect your wallet and choose a player name, which stays with that wallet. No wallet? Play
+            as a guest and explore.</p></li>
+        <li><h3 class="pixel">Find your land</h3>
+          <p>Press <kbd>T</kbd> and type <code>/mylands</code> to see your lands. The bottom left of the
+            screen always shows which land you are on.</p></li>
+      </ol>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap">
+    <p>Runs on <a href="https://www.luanti.org">Luanti</a>, the open-source block game engine, with Minetest Game.</p>
+    <p class="doom pixel">The Orthoverse is doomed. It always was.</p>
+  </div>
+</footer>
+
+<script>
+  // A few lands, highest castles first, as their token cards. The map service
+  // publishes the land list and the cards; if either is missing, the list stays
+  // empty and hidden.
+  (async () => {
+    try {
+      const [lands, index] = await Promise.all([
+        fetch('/map/lands.json').then(r => r.json()),
+        fetch('/map/cards/index.json', { cache: 'no-cache' }).then(r => r.json()),
+      ]);
+      const pick = lands.lands
+        .filter(l => !l.h && index[l.x + ':' + l.z])
+        .map(l => ({ l, r: (l.l % 8) + Math.random() }))
+        .sort((a, b) => b.r - a.r)
+        .slice(0, 8)
+        .map(p => p.l);
+      const list = document.getElementById('cards');
+      for (const l of pick) {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '/map/#' + l.x + ':' + l.z;
+        const img = document.createElement('img');
+        img.src = '/map/cards/' + index[l.x + ':' + l.z];
+        img.alt = 'The token card of ' + l.n;
+        img.loading = 'lazy';
+        img.width = 800; img.height = 800;
+        const span = document.createElement('span');
+        span.className = 'pixel';
+        span.textContent = l.n;
+        a.append(img, span);
+        li.append(a);
+        list.append(li);
+      }
+    } catch (e) { /* no map yet: nothing to show */ }
+  })();
+</script>
 </body>
 </html>
