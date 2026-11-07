@@ -166,7 +166,7 @@ try {
 
 	check(refused > 0, `ranges the endpoint refuses are split (${refused} refused, ${getLogsCalls} eth_getLogs)`);
 	const tokens = JSON.parse(readFileSync(join(dir, 'chain', 'tokens.json'), 'utf8'));
-	check(tokens.block === head - 64, 'indexed to 64 blocks behind the head');
+	check(tokens.block === head - 16, 'indexed to 16 blocks (about three minutes) behind the head');
 	check(tokens.tokens[alice].holder === carol, 'a sold token is held by the buyer');
 	check(tokens.tokens[bob].holder === carol, 'a token sold in a TransferBatch is held by the buyer');
 	check(tokens.tokens[dave].holder === dave, 'a revealed token is held by its revealer');
@@ -301,7 +301,8 @@ try {
 	{
 		const req = join(dir, 'index-now');
 		const p = spawn(process.execPath, ['chain.js'], { cwd, stdio: ['ignore', 'pipe', 'pipe'],
-			env: { ...env, OV_CHAIN_REQUEST: req, OV_CHAIN_REQUEST_GAP_MS: '0', OV_CHAIN_REQUEST_POLL_MS: '200' } });
+			env: { ...env, OV_CHAIN_REQUEST: req, OV_CHAIN_REQUEST_GAP_MS: '0', OV_CHAIN_REQUEST_POLL_MS: '200',
+				OV_CHAIN_REQUEST_FOR_MS: '60000' } });
 		let out = '';
 		p.stdout.on('data', d => out += d);
 		p.stderr.on('data', d => out += d);
@@ -314,6 +315,11 @@ try {
 		check(runs() === 2 && /asked to index now/.test(out), 'asked to index now: a second run straight away');
 		await new Promise(r2 => setTimeout(r2, 800));
 		check(runs() === 2, 'the same request is not taken twice');
+		// A reveal not indexed yet (still within the confirmations): runs
+		// again until its token turns up, then stops
+		writeFileSync(req, new Date().toISOString() + ' 0x' + 'ab'.repeat(20) + '\n');
+		for (let i = 0; i < 100 && runs() < 5; i++) await new Promise(r2 => setTimeout(r2, 100));
+		check(runs() >= 5, 'a revealed token not seen yet: it keeps running (' + runs() + ' runs)');
 		p.kill();
 	}
 } catch (e) {

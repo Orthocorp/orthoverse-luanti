@@ -57,7 +57,10 @@ const METHOD = env.OV_CHAIN_METHOD ||
 // With the transfers API, everything since before V2 was deployed
 const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || (METHOD === 'transfers' ? '14000000' : String(MERGE_BLOCK)), 10);
 const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '24') * 3600 * 1000;
-const CONFIRMATIONS = 64;       // stay this far behind the chain head (reorgs)
+// Stay this far behind the chain head, in case the newest blocks are
+// rewritten. Since the Merge, rewrites deeper than a block or two do not
+// happen in practice; 16 blocks is about three minutes.
+const CONFIRMATIONS = parseInt(env.OV_CHAIN_CONFIRMATIONS || '16', 10);
 const MAX_SPAN = 500000;        // blocks per eth_getLogs, at most
 const LEVEL_CALLS = 500;        // castleLevel calls per Multicall3 eth_call
 // Multicall3, the same address on every chain: many read calls in one
@@ -596,17 +599,25 @@ const once = process.argv.includes('--once');
 log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN} (${METHOD === 'transfers' ? 'alchemy_getAssetTransfers' : 'eth_getLogs'}), data in ${DIR}` +
 	(once ? '' : `, every ${EVERY_MS / 3600000} h`));
 
-// Asked to index now: the auth service writes this file when someone has just
-// revealed a token on the lands page, so the land is placed in a minute
-// rather than at the next daily run. Looked for every 15 seconds; at most one
-// extra run a minute.
+// Asked to index now: the auth service writes this file ("<time> <address>")
+// when someone has just revealed a token, so the land is placed within a few
+// minutes rather than at the next daily run. Looked for every 15 seconds. The
+// newest blocks are only read once CONFIRMATIONS have passed, so until the
+// revealed token turns up it runs again every minute, for up to 20 minutes.
 const REQUEST_FILE = env.OV_CHAIN_REQUEST || '/requests/index-now';
 const REQUEST_GAP_MS = parseInt(env.OV_CHAIN_REQUEST_GAP_MS || '60000', 10);
 const REQUEST_POLL_MS = parseInt(env.OV_CHAIN_REQUEST_POLL_MS || '15000', 10);
-function requestedAfter(t) {
-	try { return statSync(REQUEST_FILE).mtimeMs > t; } catch (e) { return false; }
+const REQUEST_FOR_MS = parseInt(env.OV_CHAIN_REQUEST_FOR_MS || String(20 * 60 * 1000), 10);
+function request() {
+	try {
+		const st = statSync(REQUEST_FILE);
+		const m = readFileSync(REQUEST_FILE, 'utf8').match(/0x[0-9a-fA-F]{40}/);
+		return { at: st.mtimeMs, token: m ? '0x' + m[0].slice(2).toLowerCase().padStart(40, '0') : null };
+	} catch (e) { return null; }
 }
+const known = token => !!db.prepare('SELECT 1 FROM tokens WHERE token_id = ?').get(token);
 
+let waiting = null;   // { token, until }: a reveal not indexed yet
 for (;;) {
 	let wait = EVERY_MS;
 	const started = Date.now();
@@ -618,13 +629,21 @@ for (;;) {
 		wait = Math.min(EVERY_MS, 3600 * 1000);
 	}
 	if (once) break;
+	if (waiting && (!waiting.token || known(waiting.token) || Date.now() > waiting.until)) {
+		if (waiting.token && !known(waiting.token)) log(`revealed token ${waiting.token} still not seen; the daily run will pick it up`);
+		waiting = null;
+	}
 	const until = Date.now() + wait;
 	while (Date.now() < until) {
 		await sleep(REQUEST_POLL_MS);
-		if (requestedAfter(started) && Date.now() - started > REQUEST_GAP_MS) {
+		if (Date.now() - started <= REQUEST_GAP_MS) continue;
+		const r = request();
+		if (r && r.at > started) {
 			log('asked to index now (a token was revealed on the lands page)');
+			waiting = { token: r.token, until: Date.now() + REQUEST_FOR_MS };
 			break;
 		}
+		if (waiting) break;   // again, until the revealed token is in
 	}
 }
 db.close();

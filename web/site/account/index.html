@@ -70,6 +70,13 @@
     <button id="switch" class="ov-btn" type="button">Switch to Ethereum mainnet</button>
   </section>
 
+  <section id="placing" class="panel" hidden style="margin-top:24px">
+    <h2>Your land is on its way</h2>
+    <p>Your address's land has been revealed on the chain, and is being placed in the world. This usually
+      takes a minute or two; it will appear under your lands below.</p>
+    <div id="placing-status" class="status" aria-live="polite"></div>
+  </section>
+
   <section id="reveal" class="panel" hidden style="margin-top:24px">
     <h2>Your own land</h2>
     <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
@@ -166,14 +173,53 @@
     $('mine').hidden = !signedIn;
     $('net').hidden = !signedIn || !W.present() || await W.onMainnet();
     $('reveal').hidden = true;
+    $('placing').hidden = true;
     if (!signedIn) return;
     if (await ready()) {
-      try { $('reveal').hidden = BigInt(await W.call(SEL.revealed + W.pad(me.address))) !== 0n; } catch (e) { /* cannot tell */ }
+      let revealed = null;
+      try { revealed = BigInt(await W.call(SEL.revealed + W.pad(me.address))) !== 0n; } catch (e) { /* cannot tell */ }
+      $('reveal').hidden = revealed !== false;
+      if (revealed) awaitOwnLand();
     }
     const list = $('my-lands');
     list.innerHTML = '';
     $('none').hidden = me.lands.length > 0;
     for (const l of me.lands) list.append(await landPanel(l.key, true));
+  }
+
+  // Your own token is revealed (here, or elsewhere such as Etherscan) but
+  // its land is not among yours yet: either it has not been placed in the
+  // world (ask the chain service to index now, and wait for it), or it has
+  // been sold (then nothing to show)
+  let watching = false;
+  async function awaitOwnLand() {
+    const token = me.address.toLowerCase();
+    if (watching || me.lands.some(l => (l.token || '').toLowerCase() === token)) return;
+    watching = true;
+    try {
+      let placed = (await OV.api('GET', '/api/reveal/status?address=' + me.address)).placed;
+      if (!placed) {
+        $('placing').hidden = false;
+        $('placing-status').textContent = 'Asking for it to be placed now…';
+        try { await OV.api('POST', '/api/reveal/check', { address: me.address }); } catch (e) { /* the daily run will */ }
+        for (let i = 0; i < 60 && !placed; i++) {
+          $('placing-status').textContent = 'Placing your land in the world…';
+          await new Promise(r => setTimeout(r, 10000));
+          try { placed = (await OV.api('GET', '/api/reveal/status?address=' + me.address)).placed; } catch (e) { /* again */ }
+        }
+        if (!placed) {
+          $('placing-status').textContent = 'It is taking longer than usual; it will be placed by tomorrow at the latest.';
+          return;
+        }
+      }
+      // Placed: the auth service notes the holder on asking for the status
+      const [x, z] = placed.key.split(':');
+      landsByKey.set(placed.key, landsByKey.get(placed.key) || { x: +x, z: +z, n: placed.name, l: 0, t: token });
+      $('placing').hidden = true;
+      await OV.refresh();
+    } catch (e) {
+      /* leave it to the next visit */
+    }
   }
 
   // ------------------------------------------------------------------
