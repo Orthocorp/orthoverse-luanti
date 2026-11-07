@@ -150,58 +150,25 @@ fast with J and noclip with H.
 - Player names and wallets are in `OV_DATA/auth/registry.json`. Back it up with the
   world: without it, wallet players cannot join as their players.
 
-### Backups
+### Characters with a name and password
 
-The backup service copies, every night at `OV_BACKUP_AT` (UTC), everything
-that cannot be made again: the world (`OV_WORLD`: the map, players, game
-passwords, mod storage), the wallet sign-ins (`OV_DATA/auth`) and the chain
-index (`OV_DATA/chain`). The map tiles and the browser game are left out: the
-map and client services draw them again.
-
-Set up the drive once (the `.orthoverse-backup` file is how the service knows
-the drive is mounted; without it, nothing is written):
-
-    sudo mkdir -p /mnt/backup/orthoverse
-    sudo touch /mnt/backup/orthoverse/.orthoverse-backup
-    sudo chown -R ovserver:ovserver /mnt/backup/orthoverse
-
-then set `OV_BACKUP=/mnt/backup/orthoverse` in `.env` and
-`docker compose up -d --build backup`. To be sure it works, take one now and
-look at it:
-
-    docker compose run --rm backup node backup.js now
-    docker compose run --rm backup node backup.js list
-
-Each backup is a folder named by its UTC time (`2026-11-08T0130`) holding
-`manifest.json`, the databases compressed (`.sqlite.zst`) and the other files
-as they are. Databases are copied with SQLite's own backup while the game runs
-and checked before they are kept. A folder ending in `.partial` is one that did
-not finish. Kept: every backup of the last 14 days, then one a week for 8 weeks
-and one a month for 12 months (`OV_BACKUP_DAYS`, `_WEEKS`, `_MONTHS`).
-`docker compose logs backup` shows each night's result.
-
-To put a backup back:
-
-    docker compose stop luanti auth chain backup
-    docker compose run --rm restore 2026-11-08T0130
-    docker compose up -d
-
-The files it replaces are moved to a `.before-restore-<time>` folder inside the
-world, `OV_DATA/auth` and `OV_DATA/chain`, so a restore can itself be undone.
-After a restore, `docker compose run --rm --build map` draws the map again to
-match.
-
-The backups live on the same machine. For a copy somewhere else as well, sync
-the backup folder to another disk or machine (rsync, rclone) after
-`OV_BACKUP_AT`.
-
-## History: before Docker
-
-Until 5 November 2026 the Orthoverse ran from systemd services and install
-scripts (removed from the repository since; see the git history). The old
-setup's leftovers under /mnt/ethereum/orthoverse can be deleted to free space:
-`luanti/` apart from `luanti/worlds/` (the world lives there), `node/`, `venv/`,
-`build/`, `game/`, `web/`, `orthoverse.conf` and `make-map.sh`. Keep `data/` and
-`backups/`. The systemd unit files `/etc/systemd/system/orthoverse.service` and
-`orthoverse-webproxy.service` and the nginx site
-`/etc/nginx/sites-available/orthoverse-web.conf` can go too.
+- Players without a wallet make a character on the site (Sign in, then Make a
+  character) with a name and password, and are shown a recovery code once.
+  A wallet can be linked to it later on the Account page, and wallet players can
+  add a password there. They are in `registry.json` too, with only scrypt hashes
+  of the password and recovery code; the game password is derived as for wallets.
+- Characters without a wallet mine and build on crofts after their first hour of
+  play (counted by the game); with a wallet, at once.
+- At most three new characters per address per day; ten wrong passwords for a
+  name rest it for 15 minutes.
+- The "are you a robot" check (Cloudflare Turnstile) is optional: create a
+  Turnstile widget for orthoverse.land in the Cloudflare dashboard, put its keys
+  in `OV_TURNSTILE_SITEKEY` and `OV_TURNSTILE_SECRET` in `.env`, and
+  `docker compose up -d auth`. On the play page (which cannot load Cloudflare's
+  script) registration is then sent to the Account page.
+- A player who has lost both their password and their recovery code: if their
+  character has a wallet, they sign in with it and set a new password on the
+  Account page. Otherwise the admin gives them a new recovery code:
+  `docker compose stop auth`, then
+  `docker compose run --rm auth node recovery-code.js <name>`, then
+  `docker compose start auth` (check first that the request is genuine).

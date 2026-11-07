@@ -1,16 +1,20 @@
 -- orthoverse_wallets: wallet players and guests.
 --
--- Two kinds of player can join:
+-- Three kinds of player can join:
 --   * wallet players: their name is bound to an Ethereum wallet by the auth
 --     service (web/auth), which writes registry.json;
+--   * password characters: made on the website with a name and password, in
+--     registry.json without a wallet until they link one;
 --   * guests: named Guest-XXXXXX (six hexadecimal digits) by the play page.
--- Anyone else (the old name-and-password accounts) is turned away.
+-- Anyone else is turned away.
 --
 -- Building: a wallet player may dig and build on the lands whose token their
 -- wallet holds now, according to owners.json (the auth service reads the
 -- Orthoverse contract on Ethereum mainnet), and on every croft: a land at
 -- castle level 0 is common land, where any wallet player may mine and build,
--- token or not (pure commons: anyone may dig anyone's blocks). Upgrading the
+-- token or not (pure commons: anyone may dig anyone's blocks). Password
+-- characters without a wallet may too, after their first hour of play (so a
+-- character made a minute ago cannot wreck a croft). Upgrading the
 -- castle makes the land its holder's alone; so does flipping it into the
 -- futuristic realm (level 8 is not a croft), until it is flipped back. A land's ground below and sky above
 -- go with it. Guests can explore but not build. Nobody builds on henges, the
@@ -27,11 +31,13 @@ local DIR = core.get_worldpath() .. "/orthoverse_auth"
 local GUEST_PATTERN = "^Guest%-%x%x%x%x%x%x$"
 local RELOAD_EVERY = 15   -- seconds
 local PLAY_URL = "orthoverse.land/play/"
+local ACCOUNT_URL = "orthoverse.land/account/"
+local CROFT_AFTER = 3600  -- seconds of play before a character without a wallet builds on crofts
 
 ------------------------------------------------------------------------------
 -- The auth service's files
 
-local registry = {}     -- lower-case name -> {name, address}
+local registry = {}     -- lower-case name -> {name, address (nil for a password character without a wallet)}
 local owners = nil      -- token -> owner address (or false), nil if unknown
 local owners_updated = nil
 local last_raw = {}
@@ -51,8 +57,8 @@ local function reload()
 		if type(data) == "table" and type(data.players) == "table" then
 			registry = {}
 			for key, p in pairs(data.players) do
-				if type(p) == "table" and type(p.name) == "string" and type(p.address) == "string" then
-					registry[key] = {name = p.name, address = p.address:lower()}
+				if type(p) == "table" and type(p.name) == "string" then
+					registry[key] = {name = p.name, address = type(p.address) == "string" and p.address:lower() or nil}
 				end
 			end
 			last_raw.registry = raw
@@ -77,13 +83,46 @@ local function reload()
 end
 
 reload()
+
+-- Time played, per player, in mod storage (so it is known while they are away)
+local storage = core.get_mod_storage()
+local unsaved
+local function played(name)
+	return storage:get_int("played:" .. name) + math.floor(unsaved and unsaved[name] or 0)
+end
+
+-- Seconds played since last written down, per player online
+unsaved = {}
+local function save_played(name)
+	local secs = math.floor(unsaved[name] or 0)
+	if secs > 0 then
+		storage:set_int("played:" .. name, storage:get_int("played:" .. name) + secs)
+		unsaved[name] = (unsaved[name] or 0) - secs
+	end
+end
+
 local timer = 0
 core.register_globalstep(function(dtime)
+	for _, player in ipairs(core.get_connected_players()) do
+		local name = player:get_player_name()
+		unsaved[name] = (unsaved[name] or 0) + dtime
+	end
 	timer = timer + dtime
 	if timer >= RELOAD_EVERY then
 		timer = 0
+		for name in pairs(unsaved) do save_played(name) end
 		reload()
 	end
+end)
+
+core.register_on_leaveplayer(function(player)
+	local name = player:get_player_name()
+	save_played(name)
+	unsaved[name] = nil
+end)
+
+core.register_on_shutdown(function()
+	for name in pairs(unsaved) do save_played(name) end
 end)
 
 ------------------------------------------------------------------------------
@@ -99,6 +138,22 @@ local function wallet_of(name)
 	if p and p.name == name then
 		return p.address
 	end
+end
+
+-- A name made on the website (with a wallet or a password), exactly as made
+local function is_registered(name)
+	local p = registry[name:lower()]
+	return p ~= nil and p.name == name
+end
+
+-- A password character without a wallet
+local function without_wallet(name)
+	return is_registered(name) and not wallet_of(name)
+end
+
+-- Minutes until a character without a wallet may build on crofts (0: may)
+local function croft_wait(name)
+	return math.max(0, math.ceil((CROFT_AFTER - played(name)) / 60))
 end
 
 local function short(address)
@@ -122,14 +177,14 @@ core.register_on_prejoinplayer(function(name)
 	if is_guest(name) then
 		return
 	end
-	if not wallet_of(name) then
+	if not is_registered(name) then
 		reload()   -- a name chosen a moment ago
 	end
-	if wallet_of(name) then
+	if is_registered(name) then
 		return
 	end
-	return "This name is not linked to a wallet. At " .. PLAY_URL ..
-		" sign in with your wallet, or play as a guest."
+	return "This name is not known here. At " .. PLAY_URL ..
+		" sign in or make a character, or play as a guest."
 end)
 
 ------------------------------------------------------------------------------
@@ -145,11 +200,11 @@ local function may_build(name, pos)
 	local land, key = orthoverse.land_at(pos)
 	if is_guest(name) then
 		if is_croft(land, key) then
-			return false, land.name .. " is a croft, common land: sign in at " .. PLAY_URL ..
-				" with any Ethereum wallet to mine and build here. Guests can explore but not build."
+			return false, land.name .. " is a croft, common land: make a character or sign in at " .. PLAY_URL ..
+				" to mine and build here. Guests can explore but not build."
 		end
-		return false, "Guests can explore but not build. Sign in at " .. PLAY_URL ..
-			" with an Ethereum wallet to build on crofts, the common lands, and on lands you hold."
+		return false, "Guests can explore but not build. Make a character or sign in at " .. PLAY_URL ..
+			" to build on crofts, the common lands."
 	end
 	if not land then
 		return false, "Nobody can build on the open sea or at the edge of the world."
@@ -160,6 +215,13 @@ local function may_build(name, pos)
 	local wallet = wallet_of(name)
 	if wallet and is_croft(land, key) then
 		return true
+	end
+	if is_croft(land, key) and without_wallet(name) then
+		local wait = croft_wait(name)
+		if wait == 0 then return true end
+		return false, land.name .. " is a croft, common land. You can mine and build on crofts after your first hour " ..
+			"of play (" .. wait .. " minute" .. (wait == 1 and "" or "s") .. " to go), or at once with a wallet linked at " ..
+			ACCOUNT_URL .. "."
 	end
 	local owner = owner_of(land)
 	if owner == nil then
@@ -214,8 +276,15 @@ core.register_on_joinplayer(function(player)
 		if not core.get_player_by_name(name) then return end
 		if is_guest(name) then
 			core.chat_send_player(name, "Welcome, " .. name .. ". As a guest you can explore, ride and " ..
-				"travel by the henges. Sign in with an Ethereum wallet at " .. PLAY_URL ..
-				" to mine and build on crofts, the common lands.")
+				"travel by the henges. Make a character or sign in at " .. PLAY_URL ..
+				" to keep your progress and build on crofts, the common lands.")
+		elseif without_wallet(name) then
+			local wait = croft_wait(name)
+			core.chat_send_player(name, "Welcome, " .. name .. ". " .. (wait == 0
+				and "You can mine and build on crofts (castle level 0), the common lands. "
+				or ("You can mine and build on crofts, the common lands, after your first hour of play (" ..
+					wait .. " minute" .. (wait == 1 and "" or "s") .. " to go). ")) ..
+				"Lands belong to Ethereum wallets: link one at " .. ACCOUNT_URL .. " to hold lands and build on them.")
 		else
 			local n = 0
 			local wallet = wallet_of(name)
@@ -236,7 +305,9 @@ core.register_chatcommand("mylands", {
 			return true, "Guests hold no lands. Sign in with a wallet at " .. PLAY_URL .. "."
 		end
 		local wallet = wallet_of(name)
-		if not wallet then return false, "Your name is not linked to a wallet." end
+		if not wallet then
+			return true, "Your character has no wallet linked, so holds no lands. Link one at " .. ACCOUNT_URL .. "."
+		end
 		if not owners then return true, "Who owns which land is still being checked. Try again in a few minutes." end
 		local list = {}
 		for key, land in pairs(LANDS) do
@@ -375,6 +446,8 @@ core.override_chatcommand("whereami", {
 -- For other mods
 orthoverse.wallets = {
 	is_guest = is_guest,
+	is_registered = is_registered,
+	without_wallet = without_wallet,
 	wallet_of = wallet_of,
 	owner_of = owner_of,
 	may_build = may_build,
