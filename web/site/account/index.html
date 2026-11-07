@@ -247,7 +247,7 @@
     if (!await needMainnet(status)) return;
     btn.disabled = true;
     try {
-      const from = (await W.current()) || (await W.choose());
+      const from = await W.choose();
       if (holderOnly && BigInt(await W.call(SEL.balance + W.pad(from) + W.pad(info.token))) % 2n !== 1n) {
         return fail(status, 'The account selected in your wallet (' + W.short(from) + ') does not hold ' + info.name +
           '. Select the one that does and try again.');
@@ -278,7 +278,7 @@
       if (BigInt(await W.call(SEL.revealed + W.pad(address))) !== 0n) {
         return fail(status, own ? 'Your land is already revealed.' : 'That address\'s land is already revealed.');
       }
-      const from = (await W.current()) || (await W.choose());
+      const from = await W.choose();
       if (own && from.toLowerCase() !== address.toLowerCase()) {
         return fail(status, 'Revealing reveals the land of the account that pays. Select ' + W.short(address) +
           ' in your wallet (it is ' + W.short(from) + ' now) and try again.');

@@ -75,19 +75,32 @@
   W.current = async () => {
     try { const a = await window.ethereum.request({ method: 'eth_accounts' }); return a && a[0] || null; } catch (e) { return null; }
   };
-  // The account to use. Asking for the accounts permission again makes the
-  // wallet show its account picker every time, so a player with several
-  // addresses can choose. Wallets without that fall back to the connected one.
-  W.choose = async () => {
+  // The accounts the wallet shares with the site. Asking for the accounts
+  // permission again makes the wallet show its account picker every time.
+  // MetaMask keeps every address already connected to the site ticked there
+  // and returns them all, so with several the sign-in panel asks which one.
+  // Wallets without the permission request fall back to the connected ones.
+  W.accounts = async () => {
     try {
       const perms = await window.ethereum.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
       const caveat = (perms || []).flatMap(p => p.caveats || []).find(c => c.type === 'restrictReturnedAccounts');
-      if (caveat && caveat.value && caveat.value[0]) return caveat.value[0];
+      if (caveat && caveat.value && caveat.value.length) return [...new Set(caveat.value)];
     } catch (e) {
       if (e && e.code === 4001) throw e;
     }
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    return accounts && accounts[0];
+    return accounts || [];
+  };
+  // One account (for paying): the signed-in address when the wallet shares
+  // it, else the one selected in the wallet, else whichever it offers
+  W.choose = async () => {
+    let shared = [];
+    try { shared = await window.ethereum.request({ method: 'eth_accounts' }) || []; } catch (e) { /* none yet */ }
+    const mine = OV.me && OV.me.signedIn && OV.me.address;
+    const match = mine && shared.find(a => a.toLowerCase() === mine.toLowerCase());
+    if (match) return match;
+    if (shared[0]) return shared[0];
+    return (await W.accounts())[0];
   };
   W.declined = e => !!(e && (e.code === 4001 || /reject|denied|cancel/i.test(e.message || '')));
   W.error = e => {
@@ -141,9 +154,15 @@
       el('p', {}, 'This is your name in the game and on the site. It stays with this wallet for good.'),
       el('label', { for: 'ov-name' }, '3 to 19 letters, digits, - and _'),
       name, el('div', { class: 'ov-row' }, nameBtn));
-    dialog = el('dialog', { class: 'ov-dialog', 'aria-label': 'Sign in' }, el('div', { class: 'ov-d-in' }, close, step1, step2, msg));
+    // Step 1b: which address, when the wallet shares several
+    const list = el('div', { style: 'display:grid;gap:8px' });
+    const stepPick = el('section', { hidden: true },
+      el('h2', {}, 'Which address?'),
+      el('p', {}, 'Your wallet shared several addresses. Sign in with:'), list);
+    dialog = el('dialog', { class: 'ov-dialog', 'aria-label': 'Sign in' },
+      el('div', { class: 'ov-d-in' }, close, step1, stepPick, step2, msg));
     document.body.append(dialog);
-    Object.assign(dialog, { msg, step1, step2, noWallet, signBtn, name, nameBtn });
+    Object.assign(dialog, { msg, step1, stepPick, list, step2, noWallet, signBtn, name, nameBtn });
   }
   function say(text, bad) { dialog.msg.textContent = text || ''; dialog.msg.className = 'ov-msg' + (bad ? ' bad' : ''); }
 
@@ -152,6 +171,7 @@
     if (!dialog) buildDialog();
     const needName = OV.me && OV.me.signedIn && !OV.me.name;
     dialog.step1.hidden = needName;
+    dialog.stepPick.hidden = true;
     dialog.step2.hidden = !needName;
     dialog.noWallet.hidden = W.present();
     dialog.signBtn.hidden = !W.present();
@@ -160,12 +180,30 @@
     if (needName) dialog.name.focus();
   };
 
+  // Several addresses: one button each, resolving with the one chosen
+  function pickAddress(addresses) {
+    return new Promise(resolve => {
+      dialog.list.innerHTML = '';
+      for (const a of addresses) {
+        dialog.list.append(el('button', { class: 'ov-btn', type: 'button', title: a,
+          style: 'text-align:left;font:15px/1.4 var(--body-font);word-break:break-all',
+          onclick: () => resolve(a) }, a));
+      }
+      dialog.step1.hidden = true;
+      dialog.stepPick.hidden = false;
+      say('');
+    });
+  }
+
   async function signIn() {
     dialog.signBtn.disabled = true;
     say('Check your wallet…');
     try {
-      const address = await W.choose();
-      if (!address) throw new Error('The wallet did not share an account.');
+      const shared = await W.accounts();
+      if (!shared.length) throw new Error('The wallet did not share an account.');
+      const address = shared.length > 1 ? await pickAddress(shared) : shared[0];
+      dialog.stepPick.hidden = true;
+      say('Sign the message in your wallet…');
       const n = await OV.api('GET', '/auth/nonce?address=' + encodeURIComponent(address));
       const signature = await window.ethereum.request({ method: 'personal_sign', params: [W.hex(n.message), address] });
       OV.set(await OV.api('POST', '/auth/verify', { nonce: n.nonce, signature }));
