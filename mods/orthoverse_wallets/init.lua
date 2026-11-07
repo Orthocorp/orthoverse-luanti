@@ -222,7 +222,7 @@ core.register_on_joinplayer(function(player)
 			for _, land in pairs(LANDS) do
 				if wallet and owner_of(land) == wallet then n = n + 1 end
 			end
-			core.chat_send_player(name, ("Welcome, %s. Your wallet holds %d land%s: /mylands lists them. " ..
+			core.chat_send_player(name, ("Welcome, %s. Your wallet holds %d land%s: /mylands lists them, /home takes you there. " ..
 				"Anyone signed in may also mine and build on crofts (castle level 0), the common lands."):format(
 				name, n, n == 1 and "" or "s"))
 		end
@@ -252,6 +252,54 @@ core.register_chatcommand("mylands", {
 			#list == 1 and "" or "s", table.concat(list, ", "))
 	end,
 })
+
+-- /home: to one of your own lands (any holder; no privilege needed). This
+-- takes the place of Minetest Game's /home (sethome), which needs a privilege
+-- players here do not have.
+local home_command = {
+	params = "[land name]",
+	privs = {},
+	description = "Go to one of the lands your wallet holds",
+	func = function(name, param)
+		if is_guest(name) then
+			return false, "Guests hold no lands. Sign in with a wallet at " .. PLAY_URL .. "."
+		end
+		local wallet = wallet_of(name)
+		if not wallet then return false, "Your name is not linked to a wallet." end
+		if not owners then return false, "Who owns which land is still being checked. Try again in a few minutes." end
+		local mine = {}
+		for key, land in pairs(LANDS) do
+			if owner_of(land) == wallet then mine[#mine + 1] = {key = key, name = land.name} end
+		end
+		table.sort(mine, function(a, b) return a.name < b.name end)
+		if #mine == 0 then
+			return false, "Your wallet " .. short(wallet) .. " holds no Orthoverse lands."
+		end
+		local q = param:lower():match("^%s*(.-)%s*$")
+		local pick = {}
+		for _, l in ipairs(mine) do
+			if q == "" or l.name:lower():find(q, 1, true) or l.key == q then pick[#pick + 1] = l end
+		end
+		if q == "" and #mine > 1 then
+			local names = {}
+			for _, l in ipairs(mine) do names[#names + 1] = l.name end
+			return true, "Which one? /home <name>: " .. table.concat(names, ", ")
+		end
+		if #pick == 0 then return false, "None of your lands is called \"" .. param .. "\"." end
+		if #pick > 1 then
+			local names = {}
+			for _, l in ipairs(pick) do names[#names + 1] = l.name end
+			return false, "Which one? " .. table.concat(names, ", ")
+		end
+		orthoverse.teleport_to_land(name, pick[1].key, pick[1].name .. " (" .. pick[1].key .. ")")
+		return true, "Going home to " .. pick[1].name .. "..."
+	end,
+}
+if core.registered_chatcommands["home"] then
+	core.override_chatcommand("home", home_command)
+else
+	core.register_chatcommand("home", home_command)
+end
 
 core.override_chatcommand("whereami", {
 	func = function(name)

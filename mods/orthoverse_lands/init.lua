@@ -522,6 +522,29 @@ end
 
 local ARRIVE_U, ARRIVE_V = 48, 88
 
+-- Teleport `name` to the land at `key` ("x:z"): on its southern side, facing
+-- north towards its centre, on the ground (generating the area if need be).
+-- `label` is what the welcome says.
+function orthoverse.teleport_to_land(name, key, label)
+	local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+	local x, z = C.world_xz(tonumber(lx), tonumber(lz), ARRIVE_U, ARRIVE_V)
+	local top, bottom = vector.new(x, 120, z), vector.new(x, -20, z)
+	core.emerge_area(bottom, top, function(_, _, remaining)
+		if remaining > 0 then return end
+		local player = core.get_player_by_name(name)
+		if not player then return end
+		local y = top.y
+		while y > bottom.y do
+			local def = core.registered_nodes[core.get_node({x = x, y = y, z = z}).name]
+			if def and (def.walkable or def.liquidtype ~= "none") then break end
+			y = y - 1
+		end
+		player:set_pos({x = x, y = y + 1, z = z})
+		player:set_look_horizontal(0)    -- north, towards the centre
+		core.chat_send_player(name, "Welcome to " .. label .. ".")
+	end)
+end
+
 core.register_chatcommand("goto", {
 	params = "<land name or x:z>",
 	description = "Teleport to an Orthoverse land",
@@ -540,24 +563,8 @@ core.register_chatcommand("goto", {
 				#keys > 8 and ", ..." or "")
 		end
 		local key = keys[1]
-		local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
-		local x, z = C.world_xz(tonumber(lx), tonumber(lz), ARRIVE_U, ARRIVE_V)
-		local top, bottom = vector.new(x, 120, z), vector.new(x, -20, z)
 		local label = all[key] and (all[key] .. " (" .. key .. ")") or ("the sea at " .. key)
-		core.emerge_area(bottom, top, function(_, _, remaining)
-			if remaining > 0 then return end
-			player = core.get_player_by_name(name)
-			if not player then return end
-			local y = top.y
-			while y > bottom.y do
-				local def = core.registered_nodes[core.get_node({x = x, y = y, z = z}).name]
-				if def and (def.walkable or def.liquidtype ~= "none") then break end
-				y = y - 1
-			end
-			player:set_pos({x = x, y = y + 1, z = z})
-			player:set_look_horizontal(0)    -- north, towards the centre
-			core.chat_send_player(name, "Welcome to " .. label .. ".")
-		end)
+		orthoverse.teleport_to_land(name, key, label)
 		return true, "Going to " .. label .. "..."
 	end,
 })
