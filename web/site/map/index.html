@@ -46,7 +46,7 @@
          aria-label="Find a land by name or token ID">
   <ul id="results"></ul>
   <div id="info" aria-live="polite"></div>
-  <div class="links"><a href="/play/">Play in your browser</a> · <a href="/">Home</a></div>
+  <div class="links"><a href="/play/">Play in your browser</a> · <a href="/lands/">Your lands</a> · <a href="/">Home</a></div>
 </div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
@@ -152,8 +152,11 @@
   const info = document.getElementById('info');
   let highlight = null;
 
+  // Levels 8-15 are 0-7 in the futuristic realm; a fantasy level 0 land is a
+  // croft, common land in the game
   function realm(level) {
-    return level >= 8 ? 'flipped realm, level ' + level : 'level ' + level;
+    if (level === 0) return 'Croft, common land';
+    return level >= 8 ? 'Futuristic realm, level ' + (level - 8) : 'Level ' + level;
   }
 
   function show(lx, lz, land) {
@@ -175,6 +178,15 @@
       code.textContent = land.t;
       tok.append('Token ', code);
       info.append(name, row, tok);
+      if (!land.h) {
+        const act = document.createElement('div');
+        act.className = 'row';
+        const a = document.createElement('a');
+        a.href = '/lands/#' + landKey(lx, lz);
+        a.textContent = 'Upgrade or flip this land';
+        act.append(a);
+        info.append(act);
+      }
     } else {
       name.textContent = 'Open sea';
       row.textContent = 'Land ' + landKey(lx, lz) + ' is not revealed yet';

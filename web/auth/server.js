@@ -188,6 +188,14 @@ function addNewLands() {
 }
 addNewLands();
 
+// Castle levels read from the contract just after a holder upgraded or flipped
+// a land on the lands page (POST /api/levels/check), so the game remakes it
+// within a minute rather than after the chain service's next daily run. The
+// game takes these over land-levels.json when they were checked later.
+const LEVELS_FILE = join(DATA_DIR, 'levels.json');
+const freshLevels = readJson(LEVELS_FILE, { format: 1, levels: {} });
+const levelChecked = new Map();   // key -> time of the last check (ms)
+
 let owners = readJson(OWNERS_FILE, null);   // { updated, contract, owners: {token: holder|null} }
 let ownersError = null;
 
@@ -202,6 +210,7 @@ let ownersError = null;
 const erc1155 = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
+	'function castleLevel(uint256 tokenId) view returns (uint256)',
 ]);
 
 async function rpcBatch(calls) {
@@ -340,7 +349,7 @@ async function checkContract() {
 function landsOf(address) {
 	if (!owners) return [];
 	const a = address.toLowerCase();
-	return lands.filter(l => owners.owners[l.token] === a).map(l => ({ key: l.key, name: l.name }));
+	return lands.filter(l => owners.owners[l.token] === a).map(l => ({ key: l.key, name: l.name, token: l.token }));
 }
 
 // ---------------------------------------------------------------------------
@@ -548,6 +557,29 @@ const routes = {
 	},
 
 	// Whether a game account exists (the page uses it for guests: log in or register)
+	// Read one land's castle level from the contract now (after an upgrade or
+	// a flip) and hand it to the game. Anyone may ask; one look per land every
+	// 15 seconds.
+	'POST /api/levels/check': async (req, res) => {
+		if (limited(req, 20)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		let body;
+		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
+		const land = lands.find(l => l.key === String(body && body.key));
+		if (!land) return send(res, 404, { error: 'No such land.' });
+		const last = levelChecked.get(land.key) || 0;
+		if (Date.now() - last < 15000 && freshLevels.levels[land.key]) {
+			return send(res, 200, { key: land.key, level: freshLevels.levels[land.key].level, cached: true });
+		}
+		levelChecked.set(land.key, Date.now());
+		const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('castleLevel', [BigInt(land.token)]) }]);
+		const level = Number(erc1155.decodeFunctionResult('castleLevel', r)[0]);
+		if (!(level >= 0 && level < 16)) return send(res, 502, { error: 'The contract gave an unexpected level.' });
+		freshLevels.levels[land.key] = { level, checked: new Date().toISOString() };
+		writeJsonAtomic(LEVELS_FILE, freshLevels);
+		log(`level of ${land.name} (${land.key}) read from the contract: ${level}`);
+		return send(res, 200, { key: land.key, level });
+	},
+
 	'GET /auth/exists': async (req, res, url) => {
 		if (limited(req, 60)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
 		const name = url.searchParams.get('name') || '';

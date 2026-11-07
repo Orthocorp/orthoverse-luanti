@@ -371,9 +371,43 @@ local function pump()
 end
 
 -- Take the current levels; returns the keys whose level changed
+local FRESH_LEVELS = core.get_worldpath() .. "/orthoverse_auth/levels.json"
+
+-- Every land's current level: the chain service's daily land-levels.json,
+-- overridden by levels the auth service read from the contract later (just
+-- after an upgrade or a flip on the lands page). Both stamp their times in
+-- ISO 8601 (UTC), which compare as text.
+local function current_levels()
+	local f = io.open(LAND_LEVELS, "r")
+	local chain_updated = ""
+	local levels = {}
+	if f then
+		local ok, parsed = pcall(core.parse_json, f:read("*a"))
+		f:close()
+		if ok and type(parsed) == "table" and type(parsed.levels) == "table" then
+			levels = parsed.levels
+			chain_updated = type(parsed.updated) == "string" and parsed.updated or ""
+		end
+	end
+	f = io.open(FRESH_LEVELS, "r")
+	if f then
+		local ok, parsed = pcall(core.parse_json, f:read("*a"))
+		f:close()
+		if ok and type(parsed) == "table" and type(parsed.levels) == "table" then
+			for key, v in pairs(parsed.levels) do
+				if type(v) == "table" and tonumber(v.level) and type(v.checked) == "string"
+						and v.checked > chain_updated then
+					levels[key] = tonumber(v.level)
+				end
+			end
+		end
+	end
+	return levels
+end
+
 local function update_levels()
 	local changed = {}
-	for key, level in pairs(read_chain(LAND_LEVELS, "levels")) do
+	for key, level in pairs(current_levels()) do
 		local land = orthoverse.lands[key]
 		level = tonumber(level)
 		if land and not orthoverse.henges[key] and level and level >= 0 and level < 16

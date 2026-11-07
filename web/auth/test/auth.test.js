@@ -34,7 +34,10 @@ const holder = {
 const erc1155 = new Interface([
 	'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])',
 	'function supportsInterface(bytes4 interfaceId) view returns (bool)',
+	'function castleLevel(uint256 tokenId) view returns (uint256)',
 ]);
+// Castle levels on the stand-in chain
+const castle = { '0xa1': 3n };
 
 // A game account database with one existing player
 const db = new DatabaseSync(join(dir, 'auth.sqlite'));
@@ -53,6 +56,9 @@ const rpc = http.createServer((req, res) => {
 		const out = batch.map(r => {
 			const tx = erc1155.parseTransaction({ data: r.params[0].data });
 			if (!tx) return { jsonrpc: '2.0', id: r.id, result: '0x' + '0'.repeat(64) };   // owner() and the like
+			if (tx.name === 'castleLevel') {
+				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('castleLevel', [castle['0x' + tx.args[0].toString(16)] || 0n]) };
+			}
 			if (tx.name === 'supportsInterface') {
 				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('supportsInterface', [true]) };
 			}
@@ -137,6 +143,7 @@ try {
 	check(/HttpOnly/.test(r.setCookie) && /SameSite=Strict/.test(r.setCookie) && /Secure/.test(r.setCookie),
 		'session cookie is HttpOnly, SameSite=Strict, Secure over https');
 	check(r.body.lands.length === 2, 'on signing in, the wallet\'s lands are looked up at once: both listed');
+	check(r.body.lands.every(l => /^0x[0-9a-f]+$/.test(l.token)), 'each of them with its token ID (for the lands page)');
 	const owners2 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
 	check(owners2.owners[lands['1:2'].token] === alice.address.toLowerCase(), 'owners.json: Aliceholm now shows the player\'s wallet');
 	check(owners2.owners[lands['5:6'].token] === null, 'owners.json: a land held by a wallet that has not signed in');
@@ -187,6 +194,21 @@ try {
 	check(/Max-Age=0/.test(r.setCookie), 'signing out clears the cookie');
 	r = await call('GET', '/auth/status');
 	check(r.body.players === 1 && r.body.ownersUpdated && !r.body.ownersError, 'status: one player, ownership current');
+
+	// After an upgrade on the lands page: the level read from the contract,
+	// written where the game reads it
+	const aKey = '1:2';   // Aliceholm, token 0xa1
+	r = await call('POST', '/api/levels/check', { key: aKey });
+	check(r.status === 200 && r.body.level === 3, 'level check: read from the contract (3)');
+	const fresh = JSON.parse(readFileSync(join(dir, 'data', 'levels.json'), 'utf8'));
+	check(fresh.levels[aKey].level === 3 && /^\d{4}-\d\d-\d\dT/.test(fresh.levels[aKey].checked), 'levels.json for the game: level and when it was checked');
+	castle['0xa1'] = 4n;
+	const before = rpcCalls;
+	r = await call('POST', '/api/levels/check', { key: aKey });
+	check(r.body.level === 3 && r.body.cached && rpcCalls === before, 'a second check within 15 seconds is answered without asking the chain');
+	r = await call('POST', '/api/levels/check', { key: 'nowhere' });
+	check(r.status === 404, 'level check: an unknown land is refused');
+
 } catch (e) {
 	failures.push('exception: ' + e.stack);
 	console.log(e);
