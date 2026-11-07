@@ -23,12 +23,18 @@ First rough version of the world:
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
 - Wallet sign-in and guests: wallet players build on the lands their wallet holds
   (ownership read from the Ethereum contract); guests explore. See `web/README.md`.
-- Creative mode on your own lands: every block in the inventory's Creative tab and
-  no damage. Your own inventory is put away while you are there and comes back when
-  you step off; the creative one is kept for next time, so nothing from the
-  Creative tab leaves the land. The land's castle level adds abilities: fly and
-  fast from level 1, noclip from level 2 (fantasy and futuristic lands alike). The
-  table is `LEVELS` in `mods/orthoverse_creative/init.lua`.
+- Crofts (castle level 0) are common land: any player signed in with an Ethereum
+  wallet, token or not, may mine and build there, and anyone may dig anyone's
+  blocks. Guests cannot build. A futuristic level 8 land is not a croft (flipping
+  the realm shows the holder takes part) until it is flipped back.
+- Creative mode on your own lands from castle level 1: every block in the
+  inventory's Creative tab and no damage. Your own inventory is put away while you
+  are there and comes back when you step off; the creative one is kept for next
+  time, so nothing from the Creative tab leaves the land. Higher levels add fly and
+  fast (level 2) and noclip (level 3), in either realm. The table is `LEVELS` in
+  `mods/orthoverse_creative/init.lua`.
+- Rollback recording: an admin can see who changed a block (`/rollback_check`)
+  and undo a player's changes (`/rollback <player> <seconds>`).
 - Player skins, chosen in the inventory's Skin tab with a 3D preview: Default, Wizard,
   Elf, Borgo and Strider. To add one, put a 64 × 32 (or 64 × 64) skin in
   `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild.

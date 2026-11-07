@@ -1,8 +1,11 @@
 -- orthoverse_creative: creative mode on your own lands, more of it the higher
 -- the land's castle level.
 --
--- On a land your wallet holds you are in creative mode: every block in the
--- inventory's Creative tab, nothing used up, no damage. Your own inventory is
+-- On a land your wallet holds, from castle level 1, you are in creative mode:
+-- every block in the inventory's Creative tab, nothing used up, no damage. A
+-- croft (level 0) is common land, where everyone builds with what they carry,
+-- holder included, so there is no creative mode there (creative blocks would
+-- end up in other players' hands). Your own inventory is
 -- put away and your creative one (empty the first time, then as you left it)
 -- takes its place. Step off the land and it all goes back, so nothing taken
 -- from the Creative tab ever leaves the land.
@@ -22,9 +25,9 @@ local S = core.get_translator and core.get_translator("orthoverse_creative") or 
 -- are granted while the player stands on the land and taken away when they
 -- leave it. To move an ability to another level, move it here.
 local LEVELS = {
-	[0] = { privs = { "creative" } },
-	[1] = { privs = { "fly", "fast" } },
-	[2] = { privs = { "noclip" } },
+	[1] = { privs = { "creative" } },
+	[2] = { privs = { "fly", "fast" } },
+	[3] = { privs = { "noclip" } },
 }
 local PRIV_NAMES = { fly = "fly (K)", fast = "fast (J)", noclip = "noclip (H)" }
 
@@ -34,9 +37,15 @@ local CHECK_EVERY = 0.5
 
 orthoverse.creative = { LEVELS = LEVELS }
 
--- Whether `name` is creative at `pos`: wherever they may build (their own lands)
+-- Whether `name` is creative at `pos`: on a land their wallet holds, at castle
+-- level 1 or more (in either realm)
 function orthoverse.creative.allowed(name, pos)
-	return orthoverse.wallets.may_build(name, pos) == true
+	local w = orthoverse.wallets
+	if w.is_guest(name) then return false end
+	local land, key = orthoverse.land_at(pos)
+	if not land or orthoverse.henges[key] or (tonumber(land.level) or 0) % 8 < 1 then return false end
+	local wallet = w.wallet_of(name)
+	return wallet ~= nil and wallet == w.owner_of(land)
 end
 
 -- The land's level at `pos` for `name` (0-7), or nil if they are not creative
