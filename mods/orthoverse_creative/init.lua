@@ -397,8 +397,17 @@ core.register_on_protection_violation(function(pos, name)
 	core.chat_send_player(name, S("Step onto your land to build there."))
 end)
 
--- The same for chests, furnaces and shelves on your land: their contents
--- (filled in creative mode) stay on the land
+-- Chests, furnaces, shelves and every other block with an inventory: only
+-- those who may build where it stands may put things in or take them out
+-- (core.is_protected: the holder on a private land, anyone signed in on a
+-- croft, the admin anywhere). So a chest filled in creative mode cannot be
+-- emptied by visitors, and nothing filled in creative mode is taken from your
+-- land with your own inventory (reaching in from just off it).
+local function no_access(player, pos)
+	local name = player and player:get_player_name() or ""
+	return name ~= "" and core.is_protected(pos, name)
+end
+
 core.register_on_mods_loaded(function()
 	for nodename, def in pairs(core.registered_nodes) do
 		if def.on_metadata_inventory_put or def.on_metadata_inventory_take or
@@ -406,20 +415,33 @@ core.register_on_mods_loaded(function()
 				def.allow_metadata_inventory_move or (def.groups or {}).container then
 			local take, put, move = def.allow_metadata_inventory_take,
 				def.allow_metadata_inventory_put, def.allow_metadata_inventory_move
-			core.override_item(nodename, {
+			local rightclick = def.on_rightclick
+			local override = {
 				allow_metadata_inventory_take = function(pos, listname, index, stack, player)
-					if reaching_in(player:get_player_name(), pos) then return 0 end
+					if no_access(player, pos) then return 0 end
 					return take and take(pos, listname, index, stack, player) or stack:get_count()
 				end,
 				allow_metadata_inventory_put = function(pos, listname, index, stack, player)
-					if reaching_in(player:get_player_name(), pos) then return 0 end
+					if no_access(player, pos) then return 0 end
 					return put and put(pos, listname, index, stack, player) or stack:get_count()
 				end,
 				allow_metadata_inventory_move = function(pos, from_list, from_index, to_list, to_index, count, player)
-					if reaching_in(player:get_player_name(), pos) then return 0 end
+					if no_access(player, pos) then return 0 end
 					return move and move(pos, from_list, from_index, to_list, to_index, count, player) or count
 				end,
-			})
+			}
+			-- Opening it at all (chests): say why not, instead of showing
+			-- contents that cannot be touched
+			if rightclick then
+				override.on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
+					if clicker and clicker:is_player() and no_access(clicker, pos) then
+						core.record_protection_violation(pos, clicker:get_player_name())
+						return itemstack
+					end
+					return rightclick(pos, node, clicker, itemstack, pointed_thing)
+				end
+			end
+			core.override_item(nodename, override)
 		end
 	end
 end)
