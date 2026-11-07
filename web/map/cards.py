@@ -7,7 +7,8 @@ rgb and heights are the whole map as render_map.render() made it (north up,
 one pixel per node). Writes out_dir/<x>_<z>-<hash>.png, named after its own
 content, so that a picture that changes gets a new name and marketplaces fetch
 it again, and out_dir/index.json ({"x:z": file name}), which the metadata API
-reads. Pictures that did not change are left alone; old ones are removed.
+reads. Pictures that did not change are left alone; replaced ones are kept for
+30 days (marketplaces may still link to them), then removed.
 """
 import hashlib
 import sqlite3
@@ -15,6 +16,7 @@ import sys
 import io
 import json
 import os
+import time
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -220,6 +222,38 @@ def card_inputs(land, tokens):
     return level, crest_n
 
 
+# A card that is no longer a land's current one is kept this long after it was
+# replaced: marketplaces (OpenSea) keep the picture address from the metadata
+# they last read, and show nothing if the file has gone
+KEEP_RETIRED = 30 * 24 * 3600
+
+
+def retire(out_dir, current, now=None):
+    """Note when each card stopped being current (retired.json) and remove the
+    ones replaced more than KEEP_RETIRED ago. Returns how many were removed."""
+    now = time.time() if now is None else now
+    path = os.path.join(out_dir, "retired.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            retired = json.load(f)
+    except (FileNotFoundError, ValueError):
+        retired = {}
+    pngs = {f for f in os.listdir(out_dir) if f.endswith(".png")}
+    out, removed = {}, 0
+    for f in pngs - current:
+        since = retired.get(f, now)
+        if now - since > KEEP_RETIRED:
+            os.remove(os.path.join(out_dir, f))
+            removed += 1
+        else:
+            out[f] = since
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"), sort_keys=True)
+    os.replace(tmp, path)
+    return removed
+
+
 def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir, update=False, db=None):
     """lands: {"x:z": land}; tokens: the chain service's tokens.json "tokens"
     (level and crest), or {}. With update=True only these lands' cards are
@@ -268,27 +302,13 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
             os.replace(path + ".tmp", path)
             written += 1
         index[key] = name
-    removed = 0
     if update:
-        # Only these lands' old cards go
-        stale = [old_index[k] for k in index if k in old_index and old_index[k] != index[k]]
+        # Only these lands' cards change; the rest of the index stays
         old_index.update(index)
         index = old_index
     tmp = os.path.join(out_dir, "index.json.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(index, f, separators=(",", ":"))
     os.replace(tmp, index_path)
-    if update:
-        for f in stale:
-            try:
-                os.remove(os.path.join(out_dir, f))
-                removed += 1
-            except FileNotFoundError:
-                pass
-    else:
-        keep = set(index.values()) | {"index.json"}
-        for f in os.listdir(out_dir):
-            if f not in keep and f.endswith(".png"):
-                os.remove(os.path.join(out_dir, f))
-                removed += 1
+    removed = retire(out_dir, set(index.values()))
     return len(index), written, removed, drawn
