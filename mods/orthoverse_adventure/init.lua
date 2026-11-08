@@ -393,6 +393,7 @@ local function start_or_join(name, key)
 		core.chat_send_player(name, ("The run has begun. Companions may follow you through the gate for the next %d " ..
 			"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
 	end
+	core.chat_send_player(name, "To give up: /adventure leave")
 	player:set_pos(vec(def.start))
 	return true
 end
@@ -821,6 +822,8 @@ end
 -- The command
 
 local HELP = table.concat({
+	"To give up a run: /adventure leave (it takes you back to the entrance).",
+	"",
 	"How an adventure works: players gather at the entrance, outside your dungeon. They",
 	"right-click the Adventure gate there and are taken to the start, inside the dungeon.",
 	"They complete it by touching the Adventure finish. Afterwards everyone is brought",
@@ -880,7 +883,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
+	params = "[leave | place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -899,6 +902,16 @@ core.register_chatcommand("adventure", {
 				"button_exit[6,10;4,0.8;close;Close]",
 			}))
 			return true
+		end
+		if cmd == "leave" or cmd == "quit" then
+			for k, run in pairs(runs) do
+				if run.members[name] then
+					run.members[name] = nil
+					put_at_arrival(name, adventures[k], "You have left " .. adventures[k].name .. ".")
+					return true
+				end
+			end
+			return false, "You are not in an adventure."
 		end
 		if cmd == "status" then
 			if not def then return false, "This land has no adventure." end

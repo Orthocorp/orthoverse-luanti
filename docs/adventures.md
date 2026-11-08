@@ -13,6 +13,7 @@ This is milestone 1 from the decisions: adventure mode, the gate, the finish, Me
 - After every run the dungeon is put back exactly as it was saved ("restocking", a few seconds) before the next party can go in.
 - While an adventure is open, nobody but the run's players may be inside the dungeon area: anyone else is put back at the entrance. Nobody has creative mode inside it, the holder included.
 - Completions are recorded for signed-in characters (wallet or password). Runs by the builder, the admin and guests are not recorded, and the game says so at the finish. The first completion of each version is announced to everyone in the game.
+- `/adventure leave` gives up a run and takes you back to the entrance (any player; the game says so on entering).
 - An **Adventure board** at the entrance shows the records; so does the website's Adventures page (`/adventures/`, linked from every page's header and footer).
 
 ## For builders
