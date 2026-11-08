@@ -55,6 +55,8 @@ Finding (copy timing test, 8 Nov, sandbox with 2 cores): copying a whole land's 
 27. No monsters in the wild.
 28. An "easy timing" option with assisted records: later.
 
+Added 8 Nov 2026: any weapon may leave an adventure, be traded, found or crafted; its material's damage bonus counts only from a rank (steel 1, bronze 3, mese 6, diamond 10), and its description says so. See combat-numbers.md.
+
 ## Milestone 3 and later
 29. Our own small party module (not the AGPL Parties mod).
 30. Party size 6; +10% experience per extra member.

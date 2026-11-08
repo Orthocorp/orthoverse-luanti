@@ -40,6 +40,21 @@ Decided (8 Nov 2026): no wooden or stone weapons. Every metal weapon gets +1 to 
 
 As built: the dagger, short sword, broadsword, spear, mace, morning star and war hammer, each in these four (28 weapons). Each has an inventory picture and a picture in the hand with a fist on the grip (tools/weapons/make_weapon_textures.py).
 
+### Weapons and character level
+
+Decided (8 Nov 2026), to build with character levels: any weapon can leave an adventure, be traded, found or crafted, and anyone can carry and use it, but the material's damage bonus only counts up to what the wielder's level allows. A diamond sword in a new player's hand hits like a steel one.
+
+| Material | Damage bonus | Counts in full from level |
+| --- | --- | --- |
+| Steel | +0 | 1 |
+| Bronze | +1 | 3 |
+| Mese | +2 | 6 |
+| Diamond | +3 | 10 |
+
+Below the level, the weapon gives the bonus of the best material the wielder's level allows (so a level 4 player with a diamond sword gets bronze's +1). The to-hit bonus (+1, any metal) is unaffected. The item's description says "Full strength from level N", so the limit is never a surprise. Crafting recipes for the weapons come at the same time.
+
+Why not forbid using them: a weapon that cannot be swung, with nothing on screen to say why, reads as a bug; capping the bonus keeps every weapon worth finding, trading and keeping for later.
+
 ### Nothing shows the sweet spot
 
 Decided (8 Nov 2026): no charge bar or other marker. Players learn each weapon's timing by feel; the weapon in the hand trembles and sags once the arm tires.
