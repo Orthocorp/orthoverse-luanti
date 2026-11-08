@@ -55,3 +55,9 @@ A **pile of pebbles** (from the Creative tab) gives a pebble when punched: somet
 ## Not built yet (from the decisions)
 
 Monsters and combat, character rank, the adventurer's kit and loot chests, the death lockout, entry level ranges, our party module, checkpoints, hired companions, private copies, shuffles, the builder's test mode, adventures across several lands, completions on the token card.
+
+## Combat experiment (milestone 2, patch 1021)
+
+`mods/orthoverse_combat` tries the hold-and-release fighting from [combat-numbers.md](combat-numbers.md) before any monsters exist. Five weapons (dagger, short sword, broadsword, spear, war hammer) and a training dummy are in the Creative tab. Hold the attack button to wind up: a bar above the hotbar fills, the gold part is the sweet spot, the red mark is where the arm tires, and the weapon in the hand rises while winding up and glints in the sweet spot. Release to strike. The blow is traced from the eye: distance against the weapon's best range and reach, height on the target (head, body, legs) and side (front, side, behind) count, with hidden SRD-style rolls. The dummy shows each blow over its head, and the chat shows the numbers behind it, for tuning. Right-click the dummy to change its armour; sneak and punch it to remove it. The weapons dig nothing.
+
+Measured through the native client: a hold is timed to within about 0.05 to 0.1 s of the real one, enough for the sweet spot to be hit on purpose.
