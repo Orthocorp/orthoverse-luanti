@@ -930,6 +930,15 @@ local function place_template(tname, at, by, done)
 		underpin(p1, p2, ground, dig)
 		local n = worldedit.deserialize(p1, data)
 		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
+		-- WorldEdit sets nodes without starting their timers: pressure plates
+		-- and monster spawners need theirs
+		local q2 = vector.add(p1, {x = (info.size or {}).x or 96, y = (info.size or {}).y or 64, z = (info.size or {}).z or 96})
+		for _, pos in ipairs(core.find_nodes_in_area(p1, q2, {"group:orthoverse_timer",
+				"mesecons_pressureplates:pressure_plate_stone_off", "mesecons_pressureplates:pressure_plate_wood_off"})) do
+			local nd = core.registered_nodes[core.get_node(pos).name]
+			if nd and nd.name:find("pressure_plate") and nd.on_construct then nd.on_construct(pos)
+			elseif not core.get_node_timer(pos):is_started() then core.get_node_timer(pos):start(1) end
+		end
 		adventures[key] = {
 			name = (info.name or tname):sub(1, 60), line = (info.line or ""):sub(1, 200), version = 0, open = false,
 			limit = info.limit or LIMIT_DEFAULT, creator = by,

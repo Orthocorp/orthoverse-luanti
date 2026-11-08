@@ -1,0 +1,34 @@
+{
+	"arrival": {
+		"x": 32.5,
+		"y": 9,
+		"z": 4.5
+	},
+	"corner1": {
+		"x": 2,
+		"y": 0,
+		"z": 13
+	},
+	"corner2": {
+		"x": 61,
+		"y": 39,
+		"z": 78
+	},
+	"dig": null,
+	"ground": 8,
+	"limit": 60,
+	"line": "Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head.",
+	"name": "The Gullet",
+	"rank_max": 5,
+	"rank_min": 1,
+	"size": {
+		"x": 64,
+		"y": 40,
+		"z": 80
+	},
+	"start": {
+		"x": 32.5,
+		"y": 9,
+		"z": 15.5
+	}
+}

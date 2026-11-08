@@ -24,3 +24,20 @@ python3 -m json.tool --tab --sort-keys /tmp/tb/world/three-bells.json > adventur
 The game must be installed from this repository, so that its path holds `tools/`. The test forceloads the area, because torches and pressure plates only work in active blocks, which otherwise need a player nearby.
 
 Every door should read `closed` at the start. Each puzzle step should then open its door: the grate with a pebble on the plate, the library with the real lever, the levers at high, low, high, low, and the three ropes.
+
+## The Gullet
+
+`gullet.lua` builds The Gullet the same way, and `generate_gullet/` is its world mod: it builds it in the sky, saves `gullet.we` and `gullet.json`, and checks with a walk through every place a player can stand that the start leads to every spawner, chest and the finish, and that the temple cannot be reached without the orc hall's passage or the secret way. It leaves the server running, so a test can then place and play it.
+
+```
+mkdir -p /tmp/gu/world/worldmods
+cp -r tools/adventures/generate_gullet /tmp/gu/world/worldmods/
+printf 'gameid = orthoverse\nbackend = sqlite3\n' > /tmp/gu/world/world.mt
+printf 'max_forceloaded_blocks = 300\nbind_address = 127.0.0.1\nipv6_server = false\nport = 30777\n' > /tmp/gu/test.conf
+luantiserver --config /tmp/gu/test.conf --world /tmp/gu/world --gameid orthoverse   # stop it after "temple reachable ..."
+cat /tmp/gu/world/result.txt
+cp /tmp/gu/world/gullet.we adventures/
+python3 -m json.tool --tab --sort-keys /tmp/gu/world/gullet.json > adventures/gullet.json
+```
+
+Expected: `finish reachable true; unreachable: none` and `temple reachable without the two ways in: false`.

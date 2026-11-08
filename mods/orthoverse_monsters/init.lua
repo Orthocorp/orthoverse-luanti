@@ -286,6 +286,14 @@ monster("orc", {
 	sounds = {random = "orthoverse_monsters_hexer_hiss", damage = "orthoverse_monsters_hexer_hurt",
 		death = "orthoverse_monsters_hexer_death", distance = 16},
 })
+-- The warlord: a great orc in a gold crown, the boss of The Gullet. Slow to
+-- wind up, and it hurts.
+monster("warlord", {
+	desc = S("Orc warlord"), level = 5, xp = 300, size = 1.35, hp = 70, ac = 14, damage = 7, windup = 0.85, interval = 2.0,
+	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:war_hammer_bronze_carried", reach = 2.7, view_range = 18,
+	sounds = {random = "orthoverse_monsters_hexer_hiss", damage = "orthoverse_monsters_hexer_hurt",
+		death = "orthoverse_monsters_hexer_death", distance = 24},
+})
 monster("skeleton", {
 	desc = S("Skeleton"), level = 3, xp = 75, size = 1.0, hp = 18, ac = 13, damage = 4, windup = 0.5, interval = 1.5,
 	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword_bronze_carried", alpha = true,
@@ -732,10 +740,21 @@ local function spawn_at(pos, kind, count, run_id, key)
 	return spawned
 end
 
+-- A spawner whose timer is not running (set by WorldEdit, or lost) starts it
+-- when its block loads
+core.register_lbm({
+	name = "orthoverse_monsters:spawner_timer",
+	nodenames = {SPAWNER},
+	run_at_every_load = true,
+	action = function(pos)
+		if not core.get_node_timer(pos):is_started() then core.get_node_timer(pos):start(1) end
+	end,
+})
+
 core.register_node(SPAWNER, {
 	description = S("Monster spawner") .. "\n" .. S("Brings monsters in an adventure, once per run"),
 	tiles = {"default_stone_block.png^xpanes_bar.png^[colorize:#200810:60", "default_stone_block.png", "default_stone_block.png"},
-	groups = {cracky = 2},
+	groups = {cracky = 2, orthoverse_timer = 1},   -- orthoverse_timer: placing a ready-made adventure starts its timer
 	sounds = default and default.node_sound_stone_defaults(),
 	on_construct = function(pos)
 		local meta = core.get_meta(pos)
@@ -799,7 +818,7 @@ end)
 -- Admin: /monster <kind> brings one in front of you, to look at or fight
 
 core.register_chatcommand("monster", {
-	params = "<kobold|goblin|orc|skeleton|mossling|hexer|wisp>",
+	params = "<kobold|goblin|orc|warlord|skeleton|mossling|hexer|wisp>",
 	description = "Bring a monster in front of you (admin)",
 	privs = {server = true},
 	func = function(name, param)

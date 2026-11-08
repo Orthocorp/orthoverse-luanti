@@ -11,14 +11,15 @@ The server image copies this folder into the game, so after a `git pull` and `do
 
 1. Go to the land that should hold it. The land must have no adventure yet; use `/adventure delete` first if it has one.
 2. Stand on the ground at the **south-west corner** of where it should go. It extends east and north from there, and must fit on the land. The game says so if it doesn't.
-3. Type `/adventure place three-bells`. On its own, `/adventure place` lists the adventures in this folder.
+3. Type `/adventure place three-bells` (or `gullet`). On its own, `/adventure place` lists the adventures in this folder.
 
 The command does the following:
 - It clears everything above the ground over the whole footprint.
 - It digs out the underground parts.
 - It fills any dips under the floor with dirt.
 - It builds the adventure.
-- It makes it the land's adventure, with the area, start, arrival, name, line and time limit already set.
+- It makes it the land's adventure, with the area, start, arrival, name, line, time limit and ranks already set.
+- It starts the timers of its pressure plates and monster spawners.
 
 The adventure is left **closed and unsaved**. Look round, change what you like, then run `/adventure save` and `/adventure open`.
 
@@ -95,3 +96,18 @@ Wiring tips, as used here:
 ### Then
 
 Run `/adventure save`, then `/adventure open`. Test with a second character: your own runs aren't recorded.
+
+## The Gullet
+
+Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head. A combat adventure for ranks 1 to 5, a party of one to four. It is 64 blocks east by 80 north and 40 high, all above the ground.
+
+- **Thornwatch** (outside the dungeon, at the south end): the gate, the board, the arrival point, a smithy with the weapon recipes on a sign, and a notice of what lies in each cave.
+- **The ravine** runs north between rock walls, with a cave in each wall and a camp on the floor, graded from the mouth:
+  - west: the mossling warren (3 mosslings, a common chest), then the wisp hollow (2 wisps, a common chest);
+  - east: the kobold den (4 kobolds, a common chest);
+  - on the floor: the goblin camp behind a fence (3 goblins, a weapon chest);
+  - up a stair in the west wall: the old crypt (3 skeletons, a weapon chest);
+  - up a ramp in the east wall: the orc hall (2 orcs and a hexer, a common chest).
+- **The temple**: a rockfall closes the head of the ravine. The way in runs through the orc hall's north passage; a dark passage from the back of the old crypt is the secret way. Inside, the orc warlord (a crowned great orc, 70 health) and two skeletons guard the altar with the finish on it, and the finish chest beside it.
+
+Every spawner brings its monsters once per run, when a player comes within its waking distance. Loot chests give each player their own share, up to bronze (the adventure's top rank is 5).
