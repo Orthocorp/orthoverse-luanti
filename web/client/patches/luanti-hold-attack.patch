@@ -1,0 +1,191 @@
+diff --git a/src/client/camera.cpp b/src/client/camera.cpp
+index a1b9848..8fe67ea 100644
+--- a/src/client/camera.cpp
++++ b/src/client/camera.cpp
+@@ -3,6 +3,7 @@
+ // Copyright (C) 2010-2013 celeron55, Perttu Ahola <celeron55@gmail.com>
+ 
+ #include "camera.h"
++#include <sstream>
+ #include "client.h"
+ #include "clientmap.h"     // MapDrawControl
+ #include "localplayer.h"
+@@ -39,6 +40,24 @@ static const char *setting_names[] = {
+ 	"show_nametag_backgrounds",
+ };
+ 
++// The pose of a wound-up weapon, added to the wield position and rotation:
++// raised for slashing and bashing weapons, drawn back for thrusting ones
++// (hold_pose and hold_pose_thrust = "dx dy dz rx ry rz" in the settings
++// override them, for tuning)
++static void hold_pose(bool thrust, f32 v[6])
++{
++	static const f32 raised[6] = {0.0f, 22.0f, 0.0f, 0.0f, 0.0f, 30.0f};
++	static const f32 drawn[6] = {-12.0f, 6.0f, 2.0f, 0.0f, -30.0f, 0.0f};
++	const f32 *def = thrust ? drawn : raised;
++	for (int i = 0; i < 6; i++)
++		v[i] = def[i];
++	const char *key = thrust ? "hold_pose_thrust" : "hold_pose";
++	if (g_settings->exists(key)) {
++		std::istringstream is(g_settings->get(key));
++		for (int i = 0; i < 6 && (is >> v[i]); i++) {}
++	}
++}
++
+ Camera::Camera(MapDrawControl &draw_control, Client *client, RenderingEngine *rendering_engine):
+ 	m_draw_control(draw_control),
+ 	m_client(client),
+@@ -540,6 +559,32 @@ void Camera::update(LocalPlayer* player, f32 frametime, f32 tool_reload_ratio)
+ 		wield_position.X -= std::sin(bobfrac*M_PI*2.0) * 3.0;
+ 		wield_position.Y += std::sin(my_modf(bobfrac*2.0)*M_PI) * 3.0;
+ 	}
++	{
++		// Raised (or drawn back) as the blow gathers strength; on release it
++		// comes down quickly while the ordinary swing plays
++		f32 target = 0.0f;
++		if (m_hold_progress >= 0) {
++			f32 p = std::min(m_hold_progress, 1.0f);
++			target = 1.0f - (1.0f - p) * (1.0f - p);
++		}
++		if (target >= m_hold_amount)
++			m_hold_amount = target;
++		else
++			m_hold_amount = std::max(target, m_hold_amount - frametime * 6.0f);
++		if (m_hold_amount > 0) {
++			f32 hp[6];
++			hold_pose(m_hold_thrust, hp);
++			f32 e = m_hold_amount;
++			wield_position += v3f(hp[0], hp[1], hp[2]) * e;
++			wield_rotation += v3f(hp[3], hp[4], hp[5]) * e;
++		}
++		if (m_hold_progress >= 0 && m_hold_tires > 0 && m_hold_progress > m_hold_tires) {
++			// the arm tires: sagging and trembling
++			f32 t = m_hold_progress - m_hold_tires;
++			wield_position.X += std::sin(t * 40.0f) * 1.2f;
++			wield_position.Y -= std::min(t, 1.0f) * 10.0f;
++		}
++	}
+ 	m_wieldnode->setPosition(wield_position);
+ 	m_wieldnode->setRotation(wield_rotation);
+ 
+diff --git a/src/client/camera.h b/src/client/camera.h
+index 03e4f19..2cad735 100644
+--- a/src/client/camera.h
++++ b/src/client/camera.h
+@@ -150,6 +150,17 @@ class Camera
+ 	// Pass 0 for left click, 1 for right click
+ 	void setDigging(s32 button);
+ 
++	// A weapon being wound up: progress 0 .. 1 to full strength (more when
++	// held on), tires: the progress at which the arm tires (0: never),
++	// thrust: drawn back rather than raised; progress < 0: not winding up
++	void setHoldAttack(f32 progress, f32 tires, bool thrust)
++	{
++		m_hold_progress = progress;
++		m_hold_tires = tires;
++		if (progress >= 0)
++			m_hold_thrust = thrust;
++	}
++
+ 	// Replace the wielded item mesh
+ 	void wield(const ItemStack &item, bool animate = true);
+ 
+@@ -248,6 +259,11 @@ class Camera
+ 	// If 1, right-click digging animation
+ 	s32 m_digging_button = -1;
+ 
++	f32 m_hold_progress = -1.0f;
++	f32 m_hold_tires = 0.0f;
++	f32 m_hold_amount = 0.0f;
++	bool m_hold_thrust = false;
++
+ 	// Animation when changing wielded item
+ 	f32 m_wield_change_timer = 0.125f;
+ 	ItemStack m_wield_item_next;
+diff --git a/src/client/game.cpp b/src/client/game.cpp
+index f901556..75a1ce3 100644
+--- a/src/client/game.cpp
++++ b/src/client/game.cpp
+@@ -2682,6 +2682,33 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
+ 	const ItemDefinition &selected_def = tool_item.getDefinition(itemdef_manager);
+ 	f32 d = getToolRange(tool_item, hand_item, itemdef_manager);
+ 
++	/*
++		Weapons wound up by holding the dig button (item group hold_attack:
++		milliseconds to full strength; hold_tires: when the arm tires;
++		hold_thrust: drawn back rather than raised). While
++		the button is down nothing is dug or punched and the weapon does not
++		swing: the camera raises it instead, and it swings once on release.
++		The server sees the button through the player's controls as usual.
++	*/
++	int hold_ms = itemgroup_get(selected_def.groups, "hold_attack");
++	if (hold_ms > 0) {
++		if (input->isKeyDown(KeyType::DIG)) {
++			runData.hold_attack_time += dtime;
++			int tires_ms = itemgroup_get(selected_def.groups, "hold_tires");
++			camera->setHoldAttack(runData.hold_attack_time * 1000.0f / hold_ms,
++					tires_ms > 0 ? tires_ms / (f32)hold_ms : 0.0f,
++					itemgroup_get(selected_def.groups, "hold_thrust") > 0);
++		} else if (runData.hold_attack_time > 0) {
++			runData.hold_attack_time = 0;
++			camera->setHoldAttack(-1.0f, 0.0f, false);
++			camera->setDigging(0); // the blow
++		}
++		runData.dig_masked = true;
++	} else if (runData.hold_attack_time > 0) {
++		runData.hold_attack_time = 0;
++		camera->setHoldAttack(-1.0f, 0.0f, false);
++	}
++
+ 	core::line3d<f32> shootline;
+ 
+ 	switch (camera->getCameraMode()) {
+@@ -2815,6 +2842,7 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
+ 	if (runData.punching || wasKeyPressed(KeyType::DIG))
+ 		camera->setDigging(0); // dig animation
+ 
++	runData.dig_masked = false;
+ 	input->clearWasKeyPressed();
+ 	input->clearWasKeyReleased();
+ 	// Ensure DIG & PLACE are marked as handled
+diff --git a/src/client/game_internal.h b/src/client/game_internal.h
+index 6de7934..653b02e 100644
+--- a/src/client/game_internal.h
++++ b/src/client/game_internal.h
+@@ -62,6 +62,9 @@ struct GameRunData {
+ 	float repeat_place_timer;
+ 	float object_hit_delay_timer;
+ 	float time_from_last_punch;
++	// A weapon wound up by holding the dig button (item group hold_attack)
++	float hold_attack_time = 0.0f;
++	bool dig_masked = false;
+ 	ClientActiveObject *selected_object;
+ 
+ 	float jump_timer_up;          // from key up until key down
+@@ -240,18 +243,26 @@ class Game {
+ 	}
+ 	inline bool isKeyDown(GameKeyType k)
+ 	{
++		if (k == KeyType::DIG && runData.dig_masked)
++			return false;
+ 		return input->isKeyDown(k);
+ 	}
+ 	inline bool wasKeyDown(GameKeyType k)
+ 	{
++		if (k == KeyType::DIG && runData.dig_masked)
++			return false;
+ 		return input->wasKeyDown(k);
+ 	}
+ 	inline bool wasKeyPressed(GameKeyType k)
+ 	{
++		if (k == KeyType::DIG && runData.dig_masked)
++			return false;
+ 		return input->wasKeyPressed(k);
+ 	}
+ 	inline bool wasKeyReleased(GameKeyType k)
+ 	{
++		if (k == KeyType::DIG && runData.dig_masked)
++			return false;
+ 		return input->wasKeyReleased(k);
+ 	}
+ 

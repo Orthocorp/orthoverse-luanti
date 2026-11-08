@@ -54,7 +54,8 @@ for id, w in pairs(weapons) do
 		wield_scale = {x = 1.3, y = 1.3, z = 1},
 		-- digs nothing; the default punch does nothing (blows are ours)
 		tool_capabilities = {full_punch_interval = 0.5, max_drop_level = 0, groupcaps = {}, damage_groups = {fleshy = 0}},
-		groups = {orthoverse_weapon = 1},
+		groups = {orthoverse_weapon = 1, hold_attack = math.floor(w.full * 1000), hold_tires = math.floor(w.tires * 1000),
+			hold_thrust = w.kind == "thrust" and 1 or nil},
 		range = w.reach + 0.5,
 	})
 end
@@ -148,77 +149,11 @@ local function hide_bar(player)
 	huds[name] = nil
 end
 
--- The weapon in the hand. The client swings a held tool over and over while
--- the attack button is down, and the server cannot stop it, so while winding
--- up the wielded item is drawn invisible and the weapon is drawn on the HUD
--- instead (the raised-weapon picture, as in Ultima Underworld): it rises as
--- the blow gathers strength, glints at the sweet spot, sags when the arm
--- tires, and swings across on release.
-
-local WEAPON_SCALE = 16       -- screen pixels per texture pixel
-local raised = {}             -- name -> {id, token}
-
-local function hide_wielded(player, w, hide)
-	local stack = player:get_wielded_item()
-	if stack:get_name() ~= w.item then return end
-	local look = hide and "blank.png" or ""
-	local meta = stack:get_meta()
-	if meta:get_string("wield_image") == look then return end
-	meta:set_string("wield_image", look)
-	player:set_wielded_item(stack)
-end
-
-local function weapon_hud(player, texture, x, y)
-	local name = player:get_player_name()
-	local r = raised[name]
-	if not r then
-		r = {token = 0}
-		r.id = player:hud_add({
-			type = "image", position = {x = 0.62, y = 1}, alignment = {x = 1, y = -1},
-			offset = {x = x, y = y}, scale = {x = WEAPON_SCALE, y = WEAPON_SCALE},
-			text = texture, z_index = 800,
-		})
-		raised[name] = r
-		return r
-	end
-	if r.text ~= texture then player:hud_change(r.id, "text", texture) end
-	if r.x ~= x or r.y ~= y then player:hud_change(r.id, "offset", {x = x, y = y}) end
-	r.text, r.x, r.y = texture, x, y
-	return r
-end
-
-local function drop_weapon_hud(player)
-	local name = player:get_player_name()
-	local r = raised[name]
-	if r then player:hud_remove(r.id); raised[name] = nil end
-end
-
--- While winding up: how far up the weapon is drawn follows the strength
-local function show_raised(player, w, held, phase)
-	local s = strength(w, held)
-	local up = (s - 0.25) / 0.75                                  -- 0 .. 1
-	local tex = w.image .. "^[transformFX"
-	if phase == "sweet" then tex = tex .. "^[colorize:#ffd84a:100"
-	elseif phase == "tired" then tex = tex .. "^[colorize:#a04030:50" end
-	local y = math.floor(150 - 210 * up)
-	if phase == "tired" then y = y + 30 end
-	weapon_hud(player, tex, 0, y)
-end
-
--- On release: the swing across, then back to the ordinary hand view
-local function show_swing(player, w)
-	local name = player:get_player_name()
-	local r = weapon_hud(player, w.image .. "^[transformFXR90", -260, 70)
-	r.token = r.token + 1
-	local token = r.token
-	core.after(0.22, function()
-		local p = core.get_player_by_name(name)
-		local cur = raised[name]
-		if not p or not cur or cur.token ~= token then return end
-		drop_weapon_hud(p)
-		hide_wielded(p, w, false)
-	end)
-end
+-- The weapon in the hand: the browser client (web/client/patches/
+-- luanti-hold-attack.patch) raises it while the button is held, from the
+-- item groups hold_attack (ms to full strength) and hold_tires, and swings it
+-- once on release. Other clients swing it over and over while the button is
+-- down; the charge bar is the same for all.
 
 ------------------------------------------------------------------------------
 -- The blow
@@ -329,23 +264,16 @@ core.register_globalstep(function()
 			-- weapon changed while winding up: no blow
 			holding[name] = nil
 			hide_bar(player)
-			drop_weapon_hud(player)
-			hide_wielded(player, h.w, false)
 			h = nil
 		end
 		if w and down and not h then
 			holding[name] = {t0 = t, w = w}
-			hide_wielded(player, w, true)
-			show_raised(player, w, 0, "feeble")
-			raised[name].token = raised[name].token + 1   -- cancels a swing still being shown
 		elseif w and down and h then
 			local _, phase = strength(w, t - h.t0)
 			update_bar(player, w, t - h.t0, phase)
-			show_raised(player, w, t - h.t0, phase)
 		elseif h and not down then
 			holding[name] = nil
 			hide_bar(player)
-			show_swing(player, h.w)
 			strike(player, h.w, t - h.t0)
 		end
 	end
@@ -353,10 +281,11 @@ end)
 
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
-	holding[name], huds[name], raised[name] = nil, nil, nil
+	holding[name], huds[name] = nil, nil
 end)
 
--- A weapon left invisible (the server stopped mid-swing) is shown again
+-- A weapon left invisible by the earlier on-screen raised weapon (patch
+-- 1023, now replaced) is shown again
 core.register_on_joinplayer(function(player)
 	local inv = player:get_inventory()
 	for i, stack in ipairs(inv:get_list("main") or {}) do
