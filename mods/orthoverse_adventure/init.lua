@@ -635,16 +635,31 @@ core.register_node("orthoverse_adventure:board", {
 -- The command
 
 local HELP = table.concat({
-	"/adventure: the adventure on the land you stand on.",
-	"  create <name>: make an adventure on this land (castle level " .. UNLOCK_LEVEL .. " or more)",
-	"  name <text> / line <text>: its name / its one-line description",
-	"  corner1, corner2: corners of the dungeon area, where you stand (a box within the land)",
-	"  start: where runs begin (inside the area); arrival: where players wait and come out (outside it)",
-	"  limit <minutes>: the time limit (" .. LIMIT_MIN .. " to " .. LIMIT_MAX .. ")",
-	"  save: save the dungeon as it is now, as a new version (while closed)",
-	"  open / close: let players in, or close it to build; reset: restore the saved dungeon",
-	"  delete: remove the adventure (its records are kept)",
-	"Place the gate near the arrival point and the finish inside the area (from the Creative tab).",
+	"Making an adventure, step by step (on a land at castle level " .. UNLOCK_LEVEL .. " or more):",
+	"",
+	"1. /adventure create <name>   Make an adventure on the land you stand on.",
+	"2. /adventure line <text>   A one-line description for the gate and the website.",
+	"3. Stand at one corner of the dungeon and type /adventure corner1, then at the",
+	"   opposite corner (higher or lower too) /adventure corner2. The dungeon area is",
+	"   the box between them, within this land.",
+	"4. Stand where runs should begin, inside the area: /adventure start",
+	"5. Stand where players wait and come out, outside the area: /adventure arrival",
+	"6. From the Creative tab, place the Adventure gate near the arrival point and the",
+	"   Adventure finish inside the area. An Adventure board shows the records.",
+	"7. Build the dungeon, then /adventure save (saves it as a new version) and",
+	"   /adventure open.",
+	"",
+	"Other commands:",
+	"/adventure limit <minutes>   The time limit, " .. LIMIT_MIN .. " to " .. LIMIT_MAX .. " minutes (60 at first).",
+	"/adventure name <text>   Rename it.",
+	"/adventure close   Close it to change it (save and open again after).",
+	"/adventure reset   Put the saved dungeon back as it was.",
+	"/adventure status   How it stands, in the chat.",
+	"/adventure delete   Remove it (its records and saved dungeons are kept).",
+	"",
+	"While it is open, only players who came in through the gate may be in the area,",
+	"and nobody has creative mode there, you included. The dungeon is restored from",
+	"its saved version after every run.",
 }, "\n")
 
 local function status(key, def)
@@ -671,7 +686,19 @@ core.register_chatcommand("adventure", {
 		local cmd, rest = param:match("^%s*(%S*)%s*(.-)%s*$")
 		local def = key and adventures[key]
 		if cmd == "" or cmd == "help" then
-			return true, (def and (status(key, def) .. "\n") or "") .. HELP
+			-- In a window: the chat is too small for it
+			local text = (def and (status(key, def) .. "\n\n") or "") .. HELP
+			core.show_formspec(name, "orthoverse_adventure:help", table.concat({
+				"formspec_version[4]size[16,11]",
+				"label[0.5,0.6;Adventures]",
+				"textarea[0.5,1;15,8.9;;;", core.formspec_escape(text), "]",
+				"button_exit[6,10;4,0.8;close;Close]",
+			}))
+			return true
+		end
+		if cmd == "status" then
+			if not def then return false, "This land has no adventure." end
+			return true, status(key, def)
 		end
 		if not land then return false, "Stand on a land first." end
 		if not may_manage(name, key) then
@@ -743,7 +770,7 @@ core.register_chatcommand("adventure", {
 			write_public()
 			return true, "The adventure is removed. Its records and saved dungeons are kept."
 		else
-			return false, HELP
+			return false, "Unknown: type /adventure on its own for the commands."
 		end
 		save_def(key)
 		write_public()
