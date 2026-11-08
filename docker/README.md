@@ -150,6 +150,18 @@ fast with J and noclip with H.
 - Player names and wallets are in `OV_DATA/auth/registry.json`. Back it up with the
   world: without it, wallet players cannot join as their players.
 
+### Adventures
+
+Holders of a land at castle level 5 or more, and the admin anywhere, build
+adventures with `/adventure` in the game (it lists its commands): create one,
+mark the dungeon area's corners, the start inside it and the arrival point
+outside it, place the gate (near the arrival point) and the finish (inside), then
+`/adventure save` and `/adventure open`. One party at a time; the dungeon is
+restored from its saved version after each run. Saved dungeons and records are in
+`OV_WORLD/orthoverse_adventures/` (covered by the nightly backup); the website's
+Adventures page reads `adventures.json` there through the auth service
+(`/api/adventures`). The admin has WorldEdit for building them (`//help`).
+
 ### Characters with a name and password
 
 - Players without a wallet make a character on the site (Sign in, then Make a

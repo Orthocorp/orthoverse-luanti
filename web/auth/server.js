@@ -60,6 +60,9 @@ const HERALDRY = env.OV_HERALDRY || fileURLToPath(new URL(
 const OWNERS_EVERY_MS = parseFloat(env.OV_OWNERS_EVERY_MIN || '10') * 60 * 1000;
 const CHAIN_ID = 1;
 
+// The adventures and their records, written by the game (orthoverse_adventure)
+const ADVENTURES_FILE = env.OV_ADVENTURES || '/world/orthoverse_adventures/adventures.json';
+
 // Cloudflare Turnstile on the registration form (both empty: no check)
 const TURNSTILE_SITEKEY = env.OV_TURNSTILE_SITEKEY || '';
 const TURNSTILE_SECRET = env.OV_TURNSTILE_SECRET || '';
@@ -906,6 +909,17 @@ const routes = {
 	},
 
 	// Whether the land of the token with this ID (an address) has been placed
+	// The adventures and their records, as the game writes them
+	'GET /api/adventures': async (req, res) => {
+		let data;
+		try {
+			data = JSON.parse(readFileSync(ADVENTURES_FILE, 'utf8'));
+		} catch (e) {
+			data = { updated: null, adventures: [] };
+		}
+		send(res, 200, data, { 'cache-control': 'public, max-age=30' });
+	},
+
 	'GET /api/reveal/status': async (req, res, url) => {
 		if (limited(req, 60)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
 		const address = url.searchParams.get('address') || '';

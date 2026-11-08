@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adventures · The Orthoverse</title>
+<meta name="description" content="Adventures built on Orthoverse lands, and who has completed them.">
+<link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/site.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html { background: var(--night); }
+  body { margin: 0; color: var(--parchment); font: 17px/1.6 var(--body-font); }
+  a { color: var(--gold); }
+  h1, h2, h3 { font-family: "Midnight", monospace; font-weight: normal; -webkit-font-smoothing: none; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  main { padding: 40px 16px 64px; }
+  h1 { font-size: 32px; line-height: 40px; margin: 0 0 8px; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze); }
+  h2 { font-size: 24px; line-height: 32px; margin: 0 0 6px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  p { margin: 0 0 16px; max-width: 40em; }
+  .quiet { color: var(--quiet); }
+  .list { display: grid; gap: 24px; margin-top: 32px; }
+  .adv { background: var(--night-2); border: 3px solid var(--outline); padding: 20px;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .adv .where { color: var(--quiet); font-size: 15px; margin-bottom: 10px; }
+  .adv .line { font-size: 18px; margin-bottom: 12px; }
+  .tag { display: inline-block; padding: 2px 8px; margin-left: 8px; font: 13px/20px var(--body-font);
+    border: 2px solid var(--outline); vertical-align: middle; }
+  .tag.open { background: #2e6b2a; } .tag.closed { background: #5a4630; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
+  .facts b { color: var(--parchment); font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--quiet); font-weight: normal; }
+  td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
+  .none { margin-top: 32px; }
+  @media (max-width: 640px) { th.when, td.when { display: none; } }
+</style>
+</head>
+<body>
+<div id="ov-header"></div>
+<main>
+  <div class="wrap">
+    <h1>Adventures</h1>
+    <p>Holders build adventures on their lands: dungeons, towers and caves to get through, alone or with friends.
+      Go in through the adventure's gate in the game; reach the finish to get on its table. One party at a time:
+      if a party is inside, wait at the gate until they come out.</p>
+    <p class="quiet">Times count from the gate to the finish. Each saved version of an adventure has its own records.</p>
+    <div id="list" class="list"></div>
+    <p id="none" class="none quiet" hidden>No adventures are open yet. Holders of a land at castle level 5 or more can
+      build one: <code>/adventure</code> in the game explains how.</p>
+  </div>
+</main>
+<div id="ov-footer"></div>
+<script>
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v == null) continue;
+      if (k === 'class') e.className = v; else e.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null) e.append(k);
+    return e;
+  };
+  const time = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  const party = n => n === 1 ? 'Solo' : 'Party of ' + n;
+
+  function card(a) {
+    const recs = (a.records || []).slice().sort((x, y) => x.secs - y.secs);
+    const rows = recs.slice(0, 10).map((r, i) => el('tr', {},
+      el('td', {}, String(i + 1)),
+      el('td', { class: 'time' }, time(r.secs)),
+      el('td', {}, r.names.join(', ')),
+      el('td', {}, party(r.size)),
+      el('td', { class: 'when' }, (r.at || '').slice(0, 10))));
+    const facts = el('div', { class: 'facts' },
+      el('span', {}, 'Completed ', el('b', {}, String(a.completions)), a.completions === 1 ? ' time' : ' times'),
+      a.first ? el('span', {}, 'First to complete: ', el('b', {}, a.first.names.join(', '))) : el('span', {}, 'Nobody has completed it yet'),
+      el('span', {}, 'Time limit ', el('b', {}, (a.limit || 60) + ' minutes')),
+      el('span', {}, 'Version ', el('b', {}, String(a.version))));
+    return el('article', { class: 'adv', id: 'a-' + a.key.replace(':', '_') },
+      el('h2', {}, a.name || 'Adventure', el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed')),
+      el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
+      a.line ? el('div', { class: 'line' }, a.line) : null,
+      facts,
+      rows.length ? el('table', {},
+        el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
+        el('tbody', {}, ...rows)) : null);
+  }
+
+  (async () => {
+    let data = { adventures: [] };
+    try { data = await (await fetch('/api/adventures', { cache: 'no-store' })).json(); } catch (e) { /* none shown */ }
+    const list = (data.adventures || []).filter(a => a.open || a.completions > 0)
+      .sort((x, y) => (y.open - x.open) || (y.completions - x.completions));
+    $('list').append(...list.map(card));
+    $('none').hidden = list.length > 0;
+  })();
+</script>
+</body>
+</html>
