@@ -240,25 +240,297 @@ monster("mossling", {
 		damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_monsters_mossling_death", distance = 12},
 })
 
--- The hexer keeps its distance and lobs slow orbs
-mobs:register_arrow("orthoverse_monsters:hexer_orb", {
-	visual = "sprite", visual_size = {x = 0.5, y = 0.5}, textures = {"orthoverse_monsters_hexer_orb.png"},
-	velocity = 6, glow = 12,
-	hit_player = function(self, player)
-		player:punch(self.object, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = 4}}, nil)
-		core.sound_play("orthoverse_monsters_hexer_impact", {pos = player:get_pos(), gain = 0.6}, true)
+------------------------------------------------------------------------------
+-- The hexer (as in esp32-s3-minetest): once it sees a player it keeps its
+-- distance, 4.5 to 14 blocks, standing watching them; every four seconds or
+-- so, while it can see them, it casts: still for a moment, it draws the life
+-- from the ground at its feet and lobs a slow glowing orb at them in an arc,
+-- watches it half the way, then moves a few blocks round them to cast from
+-- somewhere else. A player who comes within 4 blocks it blinks away from
+-- (at most every 8 s). It moves slowly and stately, hurrying only to back
+-- away; its body turns the way it goes and its head keeps its eyes on them.
+
+local HEX = {
+	keep = {4.5, 14}, channel = 0.75, blink_near = 4, blink_every = 8, goal_time = 4,
+	cast_every = 4, view = 20, lose = 24, lose_unseen = 5, think = 0.25,
+	orb_speed = 7, orb_gravity = 4, orb_damage = 4, head_max = math.rad(70),
+}
+
+core.register_entity("orthoverse_monsters:hex_orb", {
+	initial_properties = {
+		visual = "sprite", textures = {"orthoverse_monsters_hexer_orb.png"}, visual_size = {x = 0.6, y = 0.6},
+		glow = 14, physical = true, collide_with_objects = false, pointable = true,
+		collisionbox = {-0.2, -0.2, -0.2, 0.2, 0.2, 0.2}, selectionbox = {-0.25, -0.25, -0.25, 0.25, 0.25, 0.25},
+		static_save = false,
+	},
+	_orthoverse_target = {ac = 1},
+	_burst = function(self, pos)
+		pos = pos or self.object:get_pos()
+		if self._hum then core.sound_stop(self._hum) end
+		if pos then
+			core.sound_play("orthoverse_monsters_hexer_impact", {pos = pos, gain = 0.7, max_hear_distance = 24}, true)
+			core.add_particlespawner({amount = 14, time = 0.15, pos = pos, radius = 0.2,
+				vel = {min = {x = -2, y = -1, z = -2}, max = {x = 2, y = 2, z = 2}}, exptime = {min = 0.3, max = 0.7},
+				size = {min = 1, max = 2.5}, texture = "orthoverse_monsters_hexer_orb.png", glow = 12})
+		end
+		self.object:remove()
 	end,
-	hit_mob = function() end,
-	hit_node = function(self, pos)
-		core.sound_play("orthoverse_monsters_hexer_impact", {pos = pos, gain = 0.4}, true)
+	_on_blow = function(self, blow)   -- it can be struck out of the air
+		if blow.result ~= "miss" then self:_burst() end
+	end,
+	on_activate = function(self)
+		self._t = 0
+		self._hum = core.sound_play("orthoverse_monsters_hexer_orb", {object = self.object, gain = 0.35,
+			max_hear_distance = 14, loop = true})
+	end,
+	on_deactivate = function(self) if self._hum then core.sound_stop(self._hum) end end,
+	on_punch = function() return true end,
+	on_step = function(self, dtime, moveresult)
+		self._t = self._t + dtime
+		local pos = self.object:get_pos()
+		if not pos then return end
+		if self._t > 6 then return self:_burst(pos) end
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, 1.2)) do
+			if obj:is_player() then
+				local p = obj:get_pos()
+				if math.abs(p.x - pos.x) < 0.6 and math.abs(p.z - pos.z) < 0.6 and pos.y > p.y - 0.2 and pos.y < p.y + 1.9 then
+					obj:punch(self._owner and self._owner:get_pos() and self._owner or self.object, 1.0,
+						{full_punch_interval = 1.0, damage_groups = {fleshy = HEX.orb_damage}}, nil)
+					return self:_burst(pos)
+				end
+			end
+		end
+		if moveresult and moveresult.collides then return self:_burst(pos) end
+		local node = core.registered_nodes[core.get_node(pos).name]
+		if node and node.liquidtype ~= "none" then return self:_burst(pos) end
 	end,
 })
+
+-- Velocity for an orb from `from` to land on `to`: across at orb_speed, in an
+-- arc under orb_gravity
+local function orb_velocity(from, to)
+	local dx, dy, dz = to.x - from.x, to.y - from.y, to.z - from.z
+	local across = math.sqrt(dx * dx + dz * dz)
+	local time = math.max(0.3, across / HEX.orb_speed)
+	local vy = (dy + 0.5 * HEX.orb_gravity * time * time) / time
+	return {x = dx / time, y = math.max(-10, math.min(12, vy)), z = dz / time}, time
+end
+
+-- The ground at its feet dies (inside an adventure only): grass and litter to
+-- dirt, flowers and grasses to dry shrubs. The restore after the run puts it back.
+local DRAIN = {["default:dirt_with_grass"] = "default:dirt", ["default:dirt_with_dry_grass"] = "default:dirt",
+	["default:dirt_with_rainforest_litter"] = "default:dirt", ["default:dirt_with_coniferous_litter"] = "default:dirt"}
+local function drain(self, pos)
+	if not self._adventure then return end
+	local feet = vector.round(pos)
+	for _, p in ipairs(core.find_nodes_in_area(vector.subtract(feet, {x = 2, y = 1, z = 2}),
+			vector.add(feet, {x = 2, y = 0, z = 2}), {"group:soil", "group:flora", "group:grass"})) do
+		if vector.distance(p, feet) <= 2.3 and math.random(3) > 1 then
+			local name = core.get_node(p).name
+			if DRAIN[name] then core.set_node(p, {name = DRAIN[name]})
+			elseif core.get_item_group(name, "flora") > 0 or core.get_item_group(name, "grass") > 0 then
+				core.set_node(p, {name = "default:dry_shrub"})
+			end
+		end
+	end
+	core.add_particlespawner({amount = 20, time = 0.6, pos = {min = vector.add(pos, {x = -1.5, y = 0, z = -1.5}),
+		max = vector.add(pos, {x = 1.5, y = 0.2, z = 1.5})}, vel = {min = {x = 0, y = 0.6, z = 0}, max = {x = 0, y = 1.4, z = 0}},
+		exptime = {min = 0.6, max = 1.2}, size = {min = 0.8, max = 1.6}, texture = "orthoverse_monsters_hexer_orb.png^[multiply:#402050"})
+end
+
+-- A free spot to stand on near x, z (the ground within a few blocks of y)
+local function stand_at(x, y, z)
+	for dy = 3, -4, -1 do
+		local f = {x = x, y = y + dy - 1, z = z}
+		local below = core.registered_nodes[core.get_node(f).name]
+		local a = core.registered_nodes[core.get_node({x = x, y = f.y + 1, z = z}).name]
+		local b = core.registered_nodes[core.get_node({x = x, y = f.y + 2, z = z}).name]
+		if below and below.walkable and a and not a.walkable and a.liquidtype == "none"
+				and b and not b.walkable then
+			return {x = x, y = f.y + 0.5, z = z}
+		end
+	end
+end
+
+-- Where it blinks to: 4 to 8 blocks away from the player, on the ground,
+-- still in its adventure
+local function blink_spot(self, pos, from)
+	local base = math.atan2(pos.z - from.z, pos.x - from.x)
+	for _ = 1, 10 do
+		local a = base + math.rad(math.random(-90, 90))
+		local r = math.random(4, 8)
+		local spot = stand_at(math.floor(pos.x + math.cos(a) * r + 0.5), math.floor(pos.y + 0.5), math.floor(pos.z + math.sin(a) * r + 0.5))
+		if spot and (not self._adventure or orthoverse.adventure.at(spot) == self._adventure)
+				and core.line_of_sight(vector.add(pos, {x = 0, y = 1.5, z = 0}), vector.add(spot, {x = 0, y = 1.5, z = 0})) then
+			return spot
+		end
+	end
+end
+
+-- A new place to cast from: a few blocks (1.5 to 3) round the player from
+-- where it is, at 8 to 11 blocks
+local function new_ground(pos, p, dist)
+	local now_a = math.atan2(pos.z - p.z, pos.x - p.x)
+	local r = (dist < HEX.keep[1] or dist > HEX.keep[2]) and math.random(8, 11) or math.max(8, math.min(11, dist))
+	local turn = math.random(15, 30) / 10 / r * (math.random(2) == 1 and 1 or -1)
+	return {x = p.x + math.cos(now_a + turn) * r, y = pos.y, z = p.z + math.sin(now_a + turn) * r}
+end
+
+local function eye(obj) return vector.add(obj:get_pos(), {x = 0, y = 1.5, z = 0}) end
+
+local function sees(self, player)
+	return core.line_of_sight(eye(self.object), eye(player))
+end
+
+-- Turn the head to look at `p` (as far as it turns: 70 degrees either way)
+local function look_at(self, p)
+	local pos = self.object:get_pos()
+	local want = p and math.atan2(-(p.x - pos.x), p.z - pos.z) or nil
+	local turn = 0
+	if want then
+		turn = (want - self.object:get_yaw() + math.pi) % (2 * math.pi) - math.pi
+		turn = math.max(-HEX.head_max, math.min(HEX.head_max, turn))
+	end
+	if math.abs(turn - (self._head or 0)) > 0.1 then
+		self._head = turn
+		self.object:set_bone_override("Head", {rotation = {vec = {x = 0, y = turn, z = 0}, interpolation = 0.2, absolute = false}})
+	end
+end
+
+local function hexer_think(self)
+	local pos = self.object:get_pos()
+	local h = self._hx
+	h.cooldown = math.max(0, h.cooldown - HEX.think)
+	h.fuse = math.max(0, h.fuse - HEX.think)
+	-- the player it is after: still there and in sight, or the nearest it can see
+	local p = h.target and core.get_player_by_name(h.target)
+	if p and (p:get_hp() <= 0 or vector.distance(p:get_pos(), pos) > HEX.lose) then p = nil end
+	if p then
+		if sees(self, p) then h.unseen = 0 else h.unseen = h.unseen + HEX.think end
+		if h.unseen > HEX.lose_unseen then p = nil end
+	end
+	if not p and self.attack and self.attack:is_player() then p = self.attack end
+	if not p then
+		h.target = nil
+		local best, bd
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, HEX.view)) do
+			if obj:is_player() and obj:get_hp() > 0 then
+				local d = vector.distance(obj:get_pos(), pos)
+				if (not bd or d < bd) and sees(self, obj) then best, bd = obj, d end
+			end
+		end
+		if best then
+			p = best
+			h.cooldown = math.max(h.cooldown, 1)
+			core.sound_play("orthoverse_monsters_hexer_hiss", {object = self.object, gain = 1, max_hear_distance = 32}, true)
+		end
+	end
+	self.attack = nil
+	if not p then
+		-- wandering, muttering
+		h.target, h.goal, h.watch, h.swing = nil, nil, 0, 0
+		look_at(self, nil)
+		h.wander = h.wander - HEX.think
+		if h.wander <= 0 then
+			h.wander = math.random(3, 8)
+			if math.random(2) == 1 then
+				self:set_velocity(0); self:set_animation("stand")
+			else
+				self:set_yaw(math.random() * 2 * math.pi, 8)
+				self:set_velocity(self.walk_velocity); self:set_animation("walk")
+			end
+		end
+		return
+	end
+	h.target = p:get_player_name()
+	local pp = p:get_pos()
+	local dist = vector.distance({x = pp.x, y = 0, z = pp.z}, {x = pos.x, y = 0, z = pos.z})
+	local function face_player()
+		self:yaw_to_pos(pp)
+		self:set_velocity(0)
+	end
+	if h.swing > 0 then
+		-- casting: still, facing them
+		face_player()
+		h.swing = h.swing - HEX.think
+		if h.swing <= 0 then
+			local yaw = self.object:get_yaw()
+			local from = vector.add(pos, {x = -math.sin(yaw) * 0.5, y = 1.5, z = math.cos(yaw) * 0.5})
+			local v, time = orb_velocity(from, vector.add(pp, {x = 0, y = 1, z = 0}))
+			local orb = core.add_entity(from, "orthoverse_monsters:hex_orb")
+			if orb then
+				orb:set_velocity(v)
+				orb:set_acceleration({x = 0, y = -HEX.orb_gravity, z = 0})
+				local e = orb:get_luaentity()
+				if e then e._owner = self.object end
+			end
+			drain(self, pos)
+			h.cooldown = HEX.cast_every + math.random(0, 10) / 10
+			h.watch = time / 2
+			self:set_animation("stand")
+		end
+	elseif dist < HEX.blink_near and h.fuse <= 0 then
+		-- too close: it blinks away
+		local spot = blink_spot(self, pos, pp)
+		if spot then
+			core.add_particlespawner({amount = 24, time = 0.2, pos = {min = vector.add(pos, {x = -0.4, y = 0, z = -0.4}),
+				max = vector.add(pos, {x = 0.4, y = 1.8, z = 0.4})}, vel = {min = {x = -0.5, y = 0.2, z = -0.5}, max = {x = 0.5, y = 1, z = 0.5}},
+				exptime = {min = 0.5, max = 1.2}, size = {min = 2, max = 4}, texture = "tnt_smoke.png"})
+			self.object:set_pos(spot)
+			self.object:set_velocity({x = 0, y = 0, z = 0})
+			core.sound_play("orthoverse_monsters_hexer_blink", {pos = spot, gain = 1, max_hear_distance = 24}, true)
+			h.fuse, h.watch, h.goal = HEX.blink_every, 0, nil
+			h.cooldown = math.min(h.cooldown, 0.5)
+		end
+	elseif h.watch > 0 then
+		-- watching its orb go
+		face_player()
+		h.watch = h.watch - HEX.think
+		if h.watch <= 0 then h.goal, h.goal_t = new_ground(pos, pp, dist), HEX.goal_time end
+	elseif h.goal then
+		-- on to a new place to cast from
+		h.goal_t = h.goal_t - HEX.think
+		local gd = vector.distance({x = h.goal.x, y = 0, z = h.goal.z}, {x = pos.x, y = 0, z = pos.z})
+		if gd < 0.6 or h.goal_t <= 0 then
+			h.goal = nil
+			face_player()
+			self:set_animation("stand")
+		else
+			local fast = dist < HEX.keep[1]
+			self:yaw_to_pos(h.goal)
+			self:set_velocity(fast and self.run_velocity or self.walk_velocity)
+			self:set_animation(fast and "run" or "walk")
+		end
+	elseif dist < HEX.keep[1] or dist > HEX.keep[2] then
+		h.goal, h.goal_t = new_ground(pos, pp, dist), HEX.goal_time
+	elseif h.cooldown <= 0 and h.unseen == 0 then
+		h.swing = HEX.channel
+		face_player()
+		self.object:set_animation({x = ANIM.punch_start, y = ANIM.punch_end}, 8, 0, true)
+		core.sound_play("orthoverse_monsters_hexer_cast", {object = self.object, gain = 1, max_hear_distance = 32}, true)
+	else
+		-- standing, watching them, until it can cast again
+		face_player()
+		self:set_animation("stand")
+	end
+	look_at(self, pp)
+end
+
 monster("hexer", {
-	desc = S("Hexer"), size = 1.0, hp = 16, ac = 12, damage = 4, attack_type = "shoot",
-	walk = 1.0, run = 1.8, view_range = 18,
-	mobs = {arrow = "orthoverse_monsters:hexer_orb", shoot_interval = 3.5, shoot_offset = 1.2},
-	sounds = {random = "orthoverse_monsters_hexer_mutter", shoot_attack = "orthoverse_monsters_hexer_cast",
-		damage = "orthoverse_monsters_hexer_hurt", death = "orthoverse_monsters_hexer_death", distance = 16},
+	desc = S("Hexer"), size = 1.0, hp = 16, ac = 12, damage = 4,
+	walk = 1.0, run = 2.6, view_range = HEX.view,
+	sounds = {random = "orthoverse_monsters_hexer_mutter", damage = "orthoverse_monsters_hexer_hurt",
+		death = "orthoverse_monsters_hexer_death", distance = 16},
+	do_custom = function(self, dtime)
+		self._hx = self._hx or {cooldown = 0, fuse = 0, watch = 0, swing = 0, unseen = 0, wander = 0, think = 0}
+		local h = self._hx
+		h.think = h.think + dtime
+		if h.think >= HEX.think then
+			h.think = 0
+			hexer_think(self)
+		end
+		return false   -- the hexer's own mind, not Mobs Redo's
+	end,
 })
 
 -- The wisp drifts up, swells and bursts (it breaks nothing on a land)
