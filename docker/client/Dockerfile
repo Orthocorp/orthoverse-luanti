@@ -42,6 +42,12 @@ RUN { bash -c 'source ./common.sh && emcc --clear-cache --clear-ports' \
       && ./build_openssl.sh && ./build_curl.sh && ./build_libzip.sh ; } > /tmp/libs.log 2>&1 \
     || { tail -n 40 /tmp/libs.log; exit 1; }
 
+# Emscripten's ports (SDL2, zlib, libpng, freetype...), downloaded and built
+# once here with the engine's flags (see build-ports.sh), so engine rebuilds
+# never depend on those downloads
+COPY docker/client/build-ports.sh /usr/local/bin/build-ports
+RUN build-ports > /tmp/ports.log 2>&1 || { tail -n 60 /tmp/ports.log; exit 1; }
+
 # The engine with the Orthoverse patches, then its file system pack and the
 # release files in www/ (see build-engine.sh; the build cache keeps engine
 # rebuilds incremental)
@@ -51,7 +57,8 @@ COPY web/client/fonts/ /fonts/
 COPY docker/client/build-engine.sh /usr/local/bin/build-engine
 RUN --mount=type=cache,target=/cache,id=orthoverse-luanti-wasm-engine \
     build-engine "$LUANTI_WASM_COMMIT" > /tmp/engine.log 2>&1 \
-    || { tail -n 40 /tmp/engine.log; exit 1; }
+    || { echo "--- first errors:"; grep -n -i -m 15 "error" /tmp/engine.log; \
+         echo "--- end of the log:"; tail -n 40 /tmp/engine.log; exit 1; }
 
 # The play page, applied when installing (see install.sh)
 COPY web/client/play.html /luanti-wasm/orthoverse-play.html
