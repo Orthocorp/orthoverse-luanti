@@ -411,6 +411,16 @@ local function finish(name, key)
 		core.chat_send_player(n, ("%s completed in %s. You have %s to look around before you are taken out."):format(
 			def.name, format_time(secs), AFTER_FINISH >= 120 and (math.floor(AFTER_FINISH / 60) .. " minutes") or (AFTER_FINISH .. " seconds")))
 	end
+	-- Members whose run is not recorded (the builder, the admin, guests)
+	local counted = {}
+	for _, n in ipairs(names or {}) do counted[n] = true end
+	for n in pairs(run.members) do
+		if not counted[n] then
+			core.chat_send_player(n, orthoverse.wallets.is_guest(n)
+				and "Guests' runs are not recorded: make a character to get on the table."
+				or "Your own runs on an adventure you build (and the admin's) are not recorded.")
+		end
+	end
 	if first and names then
 		core.chat_send_all(("%s has been completed for the first time, by %s, in %s!"):format(
 			def.name, table.concat(names, ", "), format_time(secs)))
@@ -635,19 +645,35 @@ core.register_node("orthoverse_adventure:board", {
 -- The command
 
 local HELP = table.concat({
-	"Making an adventure, step by step (on a land at castle level " .. UNLOCK_LEVEL .. " or more):",
+	"How an adventure works: players gather at the entrance, outside your dungeon. They",
+	"right-click the Adventure gate there and are taken to the start, inside the dungeon.",
+	"They complete it by touching the Adventure finish. Afterwards everyone is brought",
+	"back to the entrance, and the dungeon is put back exactly as you saved it, ready for",
+	"the next party. One party at a time; others wait at the gate.",
+	"",
+	"Making one, step by step (on a land at castle level " .. UNLOCK_LEVEL .. " or more):",
 	"",
 	"1. /adventure create <name>   Make an adventure on the land you stand on.",
 	"2. /adventure line <text>   A one-line description for the gate and the website.",
 	"3. Stand at one corner of the dungeon and type /adventure corner1, then at the",
-	"   opposite corner (higher or lower too) /adventure corner2. The dungeon area is",
-	"   the box between them, within this land.",
-	"4. Stand where runs should begin, inside the area: /adventure start",
-	"5. Stand where players wait and come out, outside the area: /adventure arrival",
-	"6. From the Creative tab, place the Adventure gate near the arrival point and the",
-	"   Adventure finish inside the area. An Adventure board shows the records.",
-	"7. Build the dungeon, then /adventure save (saves it as a new version) and",
-	"   /adventure open.",
+	"   opposite corner (higher or lower too) /adventure corner2. The dungeon is the",
+	"   box between them, within this land.",
+	"4. Stand where players should appear when they go in, inside the dungeon:",
+	"   /adventure start",
+	"5. Stand at the entrance, outside the dungeon, where players gather and come back",
+	"   to afterwards: /adventure arrival",
+	"6. From the Creative tab, place an Adventure gate at the entrance (players",
+	"   right-click it to go in) and an Adventure finish at the end of the dungeon",
+	"   (touching it completes the adventure). An Adventure board at the entrance shows",
+	"   the records, if you want one.",
+	"7. Build the dungeon. When it is ready, /adventure save takes a snapshot of it:",
+	"   after every run the dungeon goes back to exactly this. Later changes only count",
+	"   once you save again, and each save starts fresh records.",
+	"8. /adventure open lets players use the gate. While it is closed, only you can be",
+	"   inside.",
+	"",
+	"Any of these can be done again to change it: stand somewhere new and repeat start,",
+	"arrival, or (while closed, then save) the corners.",
 	"",
 	"Other commands:",
 	"/adventure limit <minutes>   The time limit, " .. LIMIT_MIN .. " to " .. LIMIT_MAX .. " minutes (60 at first).",
@@ -657,9 +683,9 @@ local HELP = table.concat({
 	"/adventure status   How it stands, in the chat.",
 	"/adventure delete   Remove it (its records and saved dungeons are kept).",
 	"",
-	"While it is open, only players who came in through the gate may be in the area,",
-	"and nobody has creative mode there, you included. The dungeon is restored from",
-	"its saved version after every run.",
+	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
+	"builder, the admin and guests are not recorded: test it with another character to",
+	"see a record appear.",
 }, "\n")
 
 local function status(key, def)
