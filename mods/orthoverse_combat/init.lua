@@ -21,59 +21,113 @@ orthoverse = orthoverse or {}
 orthoverse.combat = {}
 
 ------------------------------------------------------------------------------
--- Weapons (docs/combat-numbers.md; steel for now: +1 to hit, +1 damage)
+-- Weapons (docs/combat-numbers.md): seven kinds, each in four materials. The
+-- material adds to the damage in equal steps (steel +0, bronze +1, harder to
+-- make; mese +2, diamond +3) and +1 to hit for all of them. No wooden weapons.
 
 local DEBUG = core.settings:get_bool("orthoverse_combat_debug", false)
-local MATERIAL = {hit = 1, dmg = 1}
 local RANK_BONUS = 2          -- rank 1 to 4
+local HIT_BONUS = 1           -- a metal weapon
 local SWEET = 0.25            -- seconds at full strength that count as the sweet spot, at rank 1
 local DRAIN = 1.0             -- seconds for a tired arm to drop to half strength
 
-local weapons = {
-	dagger = {desc = "Dagger", kind = "thrust", ready = 0.1, full = 0.3, tires = 1.5, best = 1.5, reach = 2.5,
+local kinds = {
+	dagger = {desc = "dagger", kind = "thrust", ready = 0.1, full = 0.3, tires = 1.5, best = 1.5, reach = 2.5,
 		dice = {1, 4}, behind = 0.5},
-	short_sword = {desc = "Short sword", kind = "slash", ready = 0.2, full = 0.5, tires = 2.0, best = 2.0, reach = 3.0,
+	short_sword = {desc = "short sword", kind = "slash", ready = 0.2, full = 0.5, tires = 2.0, best = 2.0, reach = 3.0,
 		dice = {1, 6}},
-	broadsword = {desc = "Broadsword", kind = "slash", ready = 0.4, full = 1.2, tires = 2.5, best = 2.5, reach = 3.5,
+	broadsword = {desc = "broadsword", kind = "slash", ready = 0.4, full = 1.2, tires = 2.5, best = 2.5, reach = 3.5,
 		dice = {1, 8}, full_dice = {1, 10}},
-	spear = {desc = "Spear", kind = "thrust", ready = 0.3, full = 0.8, tires = 2.5, best = 3.5, reach = 4.5,
+	spear = {desc = "spear", kind = "jab", ready = 0.3, full = 0.8, tires = 2.5, best = 3.5, reach = 4.5,
 		dice = {1, 6}},
-	war_hammer = {desc = "War hammer", kind = "bash", ready = 0.7, full = 1.8, tires = 3.0, best = 2.0, reach = 3.0,
+	mace = {desc = "mace", kind = "bash", ready = 0.4, full = 1.0, tires = 2.5, best = 2.0, reach = 3.0,
+		dice = {1, 6}},
+	morning_star = {desc = "morning star", kind = "bash", ready = 0.5, full = 1.2, tires = 2.6, best = 2.0, reach = 3.0,
+		dice = {1, 8}},
+	war_hammer = {desc = "war hammer", kind = "bash", ready = 0.7, full = 1.8, tires = 3.0, best = 2.0, reach = 3.0,
 		dice = {1, 10}},
 }
+local KIND_ORDER = {"dagger", "short_sword", "broadsword", "spear", "mace", "morning_star", "war_hammer"}
+local materials = {
+	{id = "steel", desc = "Steel", dmg = 0},
+	{id = "bronze", desc = "Bronze", dmg = 1},
+	{id = "mese", desc = "Mese", dmg = 2},
+	{id = "diamond", desc = "Diamond", dmg = 3},
+}
+
+local weapons = {}   -- "<kind>_<material>" -> the weapon
 local by_item = {}
 
-for id, w in pairs(weapons) do
-	w.id = id
-	w.item = "orthoverse_combat:" .. id
-	w.image = "orthoverse_combat_" .. id .. ".png"
-	by_item[w.item] = w
-	core.register_tool(w.item, {
-		description = S(w.desc) .. "\n" .. S("Hold to wind up, release to strike"),
-		inventory_image = w.image,
-		wield_scale = {x = 1.3, y = 1.3, z = 1},
-		-- digs nothing; the default punch does nothing (blows are ours)
-		tool_capabilities = {full_punch_interval = 0.5, max_drop_level = 0, groupcaps = {}, damage_groups = {fleshy = 0}},
-		groups = {orthoverse_weapon = 1, hold_attack = math.floor(w.full * 1000), hold_tires = math.floor(w.tires * 1000),
-			hold_thrust = w.kind == "thrust" and 1 or nil},
-		range = w.reach + 0.5,
-	})
+local function capitalise(s) return s:sub(1, 1):upper() .. s:sub(2) end
+
+for _, kid in ipairs(KIND_ORDER) do
+	local k = kinds[kid]
+	for _, m in ipairs(materials) do
+		local w = setmetatable({kind_id = kid, material = m.id, hit = HIT_BONUS, dmg = m.dmg}, {__index = k})
+		w.id = kid .. "_" .. m.id
+		w.desc = m.desc .. " " .. k.desc
+		w.item = "orthoverse_combat:" .. w.id
+		w.image = "orthoverse_combat_" .. w.id .. ".png"
+		weapons[w.id], by_item[w.item] = w, w
+		core.register_tool(w.item, {
+			description = S(w.desc) .. "\n" .. S("Hold to wind up, release to strike"),
+			inventory_image = w.image,
+			wield_image = "orthoverse_combat_" .. w.id .. "_held.png",   -- a fist on the grip
+			wield_scale = {x = 1.3, y = 1.3, z = 1},
+			-- digs nothing; the default punch does nothing (blows are ours)
+			tool_capabilities = {full_punch_interval = 0.5, max_drop_level = 0, groupcaps = {}, damage_groups = {fleshy = 0}},
+			groups = {orthoverse_weapon = 1, hold_attack = math.floor(k.full * 1000), hold_tires = math.floor(k.tires * 1000),
+				hold_thrust = k.kind == "thrust" and 1 or nil, hold_jab = k.kind == "jab" and 1 or nil},
+			range = k.reach + 0.5,
+		})
+		-- What a monster carries: the same weapon without a human hand on it
+		core.register_craftitem("orthoverse_combat:" .. w.id .. "_carried", {
+			description = S(w.desc),
+			inventory_image = w.image,
+			groups = {not_in_creative_inventory = 1},
+		})
+	end
+	-- the steel one stands in for the single weapons of patches 1021 to 1025
+	core.register_alias("orthoverse_combat:" .. kid, "orthoverse_combat:" .. kid .. "_steel")
 end
 
 ------------------------------------------------------------------------------
 -- Minetest Game's swords go: they do nothing to monsters (only these weapons
 -- do), so they would only confuse. Their recipes go with them, and any left
--- in inventories or chests turn into short swords.
+-- in inventories or chests turn into short swords of the same metal.
 
 for _, material in ipairs({"wood", "stone", "bronze", "steel", "mese", "diamond"}) do
 	local name = "default:sword_" .. material
 	if core.registered_items[name] then
 		core.clear_craft({output = name})
 		core.unregister_item(name)
-		core.register_alias(name, "orthoverse_combat:short_sword")
+		local m = weapons["short_sword_" .. material] and material or "steel"
+		core.register_alias(name, "orthoverse_combat:short_sword_" .. m)
 	end
 end
 core.clear_craft({type = "fuel", recipe = "default:sword_wood"})
+
+------------------------------------------------------------------------------
+-- Nothing but these weapons does any harm: fists, tools and blocks in the
+-- hand do no damage to players, animals or anything else. (Monsters, falls,
+-- lava and the like still hurt players; this is only about what a player
+-- strikes with.)
+
+core.register_on_mods_loaded(function()
+	for name, def in pairs(core.registered_items) do
+		local caps = def.tool_capabilities
+		if caps and caps.damage_groups and next(caps.damage_groups)
+				and not (def.groups and def.groups.orthoverse_weapon) then
+			local new = table.copy(caps)
+			new.damage_groups = {}
+			core.override_item(name, {tool_capabilities = new})
+		end
+	end
+end)
+
+core.register_on_punchplayer(function(player, hitter)
+	if hitter and hitter:is_player() then return true end   -- no player hurts a player
+end)
 
 ------------------------------------------------------------------------------
 -- How strong a blow is, from how long it was held
@@ -93,67 +147,13 @@ local function roll(n, sides)
 	return t
 end
 
-------------------------------------------------------------------------------
--- The charge bar: a strip above the hotbar showing the hold, with the sweet
--- spot marked
-
-local BAR_W, BAR_H = 240, 10
-local huds = {}     -- name -> {bg, fill, sweet, ready, w}
-
-local function fill_tex(colour) return "[fill:1x1:" .. colour end
-
-local function hud_el(player, x, w, h, colour, z)
-	return player:hud_add({
-		type = "image", position = {x = 0.5, y = 1}, alignment = {x = 1, y = 0},
-		offset = {x = x, y = -96}, scale = {x = math.max(1, w), y = h},
-		text = fill_tex(colour), z_index = z,
-	})
-end
-
-local function bar_x(w, t) return math.floor(BAR_W * math.min(1, t / (w.tires + DRAIN))) end
-
-local function show_bar(player, w)
-	local name = player:get_player_name()
-	local h = huds[name]
-	if h and h.w == w then return h end
-	if h then for _, id in pairs(h.ids) do player:hud_remove(id) end end
-	local left = -BAR_W / 2
-	h = {w = w, ids = {}, last = -1}
-	h.ids.bg = hud_el(player, left - 2, BAR_W + 4, BAR_H + 4, "#1a1410", 900)
-	h.ids.ready = hud_el(player, left + bar_x(w, w.ready), 2, BAR_H, "#8a8070", 902)
-	h.ids.sweet = hud_el(player, left + bar_x(w, w.full), math.max(3, bar_x(w, w.full + SWEET) - bar_x(w, w.full)),
-		BAR_H, "#f5c64a", 901)
-	h.ids.tires = hud_el(player, left + bar_x(w, w.tires), 2, BAR_H, "#c0503a", 902)
-	h.ids.fill = hud_el(player, left, 1, BAR_H - 4, "#efe6d0", 903)
-	huds[name] = h
-	return h
-end
-
-local PHASE_COLOUR = {feeble = "#7a7266", rising = "#efe6d0", sweet = "#fff2a8", full = "#efe6d0", tired = "#d07a5a"}
-
-local function update_bar(player, w, held, phase)
-	local h = show_bar(player, w)
-	local x = bar_x(w, held)
-	if x == h.last and phase == h.phase then return end
-	h.last, h.phase = x, phase
-	player:hud_change(h.ids.fill, "scale", {x = math.max(1, x), y = BAR_H - 4})
-	player:hud_change(h.ids.fill, "offset", {x = -BAR_W / 2, y = -96})
-	player:hud_change(h.ids.fill, "text", fill_tex(PHASE_COLOUR[phase]))
-end
-
-local function hide_bar(player)
-	local name = player:get_player_name()
-	local h = huds[name]
-	if not h then return end
-	for _, id in pairs(h.ids) do player:hud_remove(id) end
-	huds[name] = nil
-end
-
--- The weapon in the hand: the browser client (web/client/patches/
--- luanti-hold-attack.patch) raises it while the button is held, from the
--- item groups hold_attack (ms to full strength) and hold_tires, and swings it
--- once on release. Other clients swing it over and over while the button is
--- down; the charge bar is the same for all.
+-- No bar or other sign of the sweet spot: players learn each weapon's timing
+-- by feel. The browser client (web/client/patches/luanti-hold-attack.patch)
+-- raises the weapon in the hand while the button is held, from the item
+-- groups hold_attack (ms to full strength) and hold_tires, makes it tremble
+-- and sag once the arm tires, and swings it once on release (a spear is
+-- levelled and jabbed forward instead). Other clients swing it over and over
+-- while the button is down.
 
 ------------------------------------------------------------------------------
 -- The blow
@@ -213,7 +213,7 @@ local function strike(player, w, held)
 	else
 		local glance = blow.distance > w.best
 		local key = player:get_player_name() .. "|" .. tostring(target)
-		local bonus = RANK_BONUS + MATERIAL.hit + (sweet and 2 or 0)
+		local bonus = RANK_BONUS + w.hit + (sweet and 2 or 0)
 			+ (blow.side == "side" and 1 or 0) + (blow.side == "behind" and 3 or 0)
 			+ (glance and -2 or 0) + math.max(0, ((misses[key] or 0) - 1) * 2)
 		if phase == "feeble" then bonus = RANK_BONUS end
@@ -228,7 +228,7 @@ local function strike(player, w, held)
 			blow.crit = d20 == 20
 			local dice = (phase == "sweet" or phase == "full") and w.full_dice or w.dice
 			local n, sides = dice[1], dice[2]
-			local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or MATERIAL.dmg)
+			local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or w.dmg)
 			dmg = dmg * s
 			if blow.zone == "head" then dmg = dmg * 1.5 end
 			if blow.side == "behind" then dmg = dmg * (1 + (w.behind or 0.25)) end
@@ -244,6 +244,7 @@ local function strike(player, w, held)
 end
 
 orthoverse.combat.weapons = weapons
+orthoverse.combat.kinds = kinds
 orthoverse.combat.strength = strength
 
 ------------------------------------------------------------------------------
@@ -263,17 +264,12 @@ core.register_globalstep(function()
 		if h and h.w ~= w then
 			-- weapon changed while winding up: no blow
 			holding[name] = nil
-			hide_bar(player)
 			h = nil
 		end
 		if w and down and not h then
 			holding[name] = {t0 = t, w = w}
-		elseif w and down and h then
-			local _, phase = strength(w, t - h.t0)
-			update_bar(player, w, t - h.t0, phase)
 		elseif h and not down then
 			holding[name] = nil
-			hide_bar(player)
 			strike(player, h.w, t - h.t0)
 		end
 	end
@@ -281,7 +277,7 @@ end)
 
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
-	holding[name], huds[name] = nil, nil
+	holding[name] = nil
 end)
 
 -- A weapon left invisible by the earlier on-screen raised weapon (patch
@@ -341,7 +337,7 @@ core.register_entity("orthoverse_combat:dummy", {
 		dummy_label(self, blow.text, colour)
 		core.log("action", "[orthoverse_combat] " .. blow.weapon.id .. " " .. blow.text .. extra)
 		if blow.attacker and blow.attacker:is_player() then
-			core.chat_send_player(blow.attacker:get_player_name(), blow.weapon.desc .. ": " .. blow.text .. extra)
+			core.chat_send_player(blow.attacker:get_player_name(), capitalise(blow.weapon.desc) .. ": " .. blow.text .. extra)
 		end
 		if blow.result ~= "miss" then
 			self.object:set_properties({textures = {"orthoverse_combat_dummy_side.png^[brighten",

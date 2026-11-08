@@ -212,25 +212,25 @@ end
 
 monster("kobold", {
 	desc = S("Kobold"), size = 0.6, hp = 7, ac = 12, damage = 2, windup = 0.4, interval = 1.2,
-	walk = 1.8, run = 3.8, weapon = "orthoverse_combat:dagger",
+	walk = 1.8, run = 3.8, weapon = "orthoverse_combat:dagger_steel_carried",
 	sounds = {random = "orthoverse_monsters_mossling_chatter", damage = "orthoverse_monsters_mossling_hurt",
 		death = "orthoverse_monsters_mossling_death", distance = 12},
 })
 monster("goblin", {
 	desc = S("Goblin"), size = 0.65, hp = 9, ac = 13, damage = 3, windup = 0.45, interval = 1.3,
-	walk = 1.7, run = 3.6, weapon = "orthoverse_combat:spear", reach = 2.4,
+	walk = 1.7, run = 3.6, weapon = "orthoverse_combat:spear_steel_carried", reach = 2.4,
 	sounds = {random = "orthoverse_monsters_mossling_call", damage = "orthoverse_monsters_mossling_hurt",
 		death = "orthoverse_monsters_mossling_death", distance = 14},
 })
 monster("orc", {
 	desc = S("Orc"), size = 1.12, hp = 18, ac = 13, damage = 5, windup = 0.65, interval = 1.8,
-	walk = 1.4, run = 3.0, weapon = "orthoverse_combat:war_hammer", reach = 2.3,
+	walk = 1.4, run = 3.0, weapon = "orthoverse_combat:morning_star_steel_carried", reach = 2.3,
 	sounds = {random = "orthoverse_monsters_hexer_hiss", damage = "orthoverse_monsters_hexer_hurt",
 		death = "orthoverse_monsters_hexer_death", distance = 16},
 })
 monster("skeleton", {
 	desc = S("Skeleton"), size = 1.0, hp = 13, ac = 13, damage = 4, windup = 0.5, interval = 1.5,
-	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword", alpha = true,
+	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword_bronze_carried", alpha = true,
 	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 12},
 })
 monster("mossling", {

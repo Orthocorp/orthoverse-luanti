@@ -13,7 +13,8 @@ Minetest Game has only swords (wood, stone, bronze, steel, mese, diamond) plus t
 | Broadsword (longsword) | slash | 0.4 s | 1.2 s | 2.5 s | 2.5 | 3.5 | d8 (d10 at full strength) | Rewards a full wind-up |
 | Bastard sword (two-handed) | slash | 0.6 s | 1.6 s | 3.0 s | 2.5 | 3.5 | 2d6 | Slow, heavy, punishing if mistimed; no shield |
 | Spear | thrust | 0.3 s | 0.8 s | 2.5 s | 3.5 | 4.5 | d6 | Keeps monsters at bay; weak up close |
-| Mace | bash | 0.4 s | 1.0 s | 2.5 s | 2.0 | 3.0 | d6, knock-back | Good against heavy armour and armoured parts |
+| Mace (a metal ball on a club) | bash | 0.4 s | 1.0 s | 2.5 s | 2.0 | 3.0 | d6, knock-back | Good against heavy armour and armoured parts |
+| Morning star (a spiked mace) | bash | 0.5 s | 1.2 s | 2.6 s | 2.0 | 3.0 | d8, knock-back | A heavier mace |
 | War hammer (two-handed) | bash | 0.7 s | 1.8 s | 3.0 s | 2.0 | 3.0 | d10, knock-back, short stun at full strength | The armour breaker |
 | Axe | slash | 0.4 s | 1.1 s | 2.5 s | 2.0 | 3.0 | d8 | Best at severing parts (great monsters) |
 
@@ -28,14 +29,20 @@ Distances in blocks from the player's eye to the point hit. Inside best range: f
 
 ### Materials
 
+Decided (8 Nov 2026): no wooden or stone weapons. Every metal weapon gets +1 to hit; the damage rises in equal steps, and bronze is above steel because it is harder to make.
+
 | Material | To hit | Damage |
 | --- | --- | --- |
-| Wood | -1 | -1 |
-| Stone | 0 | 0 |
-| Bronze | 0 | +1 |
-| Steel | +1 | +1 |
-| Mese | +2 | +2 |
-| Diamond | +2 | +3 |
+| Steel | +1 | +0 |
+| Bronze | +1 | +1 |
+| Mese | +1 | +2 |
+| Diamond | +1 | +3 |
+
+As built: the dagger, short sword, broadsword, spear, mace, morning star and war hammer, each in these four (28 weapons). Each has an inventory picture and a picture in the hand with a fist on the grip (tools/weapons/make_weapon_textures.py).
+
+### Nothing shows the sweet spot
+
+Decided (8 Nov 2026): no charge bar or other marker. Players learn each weapon's timing by feel; the weapon in the hand trembles and sags once the arm tires.
 
 ## Armour
 
