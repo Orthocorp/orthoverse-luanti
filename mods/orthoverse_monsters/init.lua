@@ -126,6 +126,7 @@ local function on_blow(self, blow)
 		self.object:add_velocity({x = dir.x * push, y = 1.5, z = dir.z * push})
 		self.pause_timer = blow.stun or 0.25
 		if blow.stun then self._windup = nil end
+		if self._hx then self._hx.stagger = blow.stun or 0.5 end
 		if not self.attack and a:is_player() then self:do_attack(a) end
 	end
 	self:check_for_death({type = "punch", puncher = a})
@@ -185,6 +186,7 @@ local function monster(id, def)
 		after_activate = function(self)
 			self._weapon = def.weapon
 			core.after(0.1, function() if self.object:get_pos() then hold(self) end end)
+			if def.after_activate then def.after_activate(self) end
 		end,
 		do_custom = function(self, dtime)
 			local t = now()
@@ -246,12 +248,14 @@ monster("mossling", {
 -- so, while it can see them, it casts: still for a moment, it draws the life
 -- from the ground at its feet and lobs a slow glowing orb at them in an arc,
 -- watches it half the way, then moves a few blocks round them to cast from
--- somewhere else. A player who comes within 4 blocks it blinks away from
--- (at most every 8 s). It moves slowly and stately, hurrying only to back
+-- somewhere else. A player who stays within 4 blocks for a moment (it
+-- shimmers first: the moment to strike) it blinks away from, at most every
+-- 8 s. A blow staggers it: it stands, unable to cast or blink, for half a
+-- second (a second for a stunning blow). It moves slowly and stately, hurrying only to back
 -- away; its body turns the way it goes and its head keeps its eyes on them.
 
 local HEX = {
-	keep = {4.5, 14}, channel = 0.75, blink_near = 4, blink_every = 8, goal_time = 4,
+	keep = {4.5, 14}, channel = 0.75, blink_near = 4, blink_delay = 0.75, blink_every = 8, goal_time = 4,
 	cast_every = 4, view = 20, lose = 24, lose_unseen = 5, think = 0.25,
 	orb_speed = 7, orb_gravity = 4, orb_damage = 4, head_max = math.rad(70),
 }
@@ -449,7 +453,25 @@ local function hexer_think(self)
 		self:yaw_to_pos(pp)
 		self:set_velocity(0)
 	end
-	if h.swing > 0 then
+	if dist < HEX.blink_near then
+		h.near = (h.near or 0) + HEX.think
+		if h.near <= HEX.think and h.fuse <= 0 then
+			-- it gathers itself to blink: a shimmer, the moment to strike
+			core.add_particlespawner({amount = 16, time = HEX.blink_delay, pos = {min = vector.add(pos, {x = -0.4, y = 0, z = -0.4}),
+				max = vector.add(pos, {x = 0.4, y = 1.8, z = 0.4})}, vel = {min = {x = 0, y = 0.3, z = 0}, max = {x = 0, y = 0.8, z = 0}},
+				exptime = {min = 0.3, max = 0.6}, size = {min = 1, max = 2}, glow = 12,
+				texture = "orthoverse_monsters_hexer_orb.png"})
+		end
+	else
+		h.near = 0
+	end
+	if (h.stagger or 0) > 0 then
+		-- staggered by a blow: no casting, no blinking
+		h.stagger = h.stagger - HEX.think
+		h.swing, h.near = 0, 0
+		self:yaw_to_pos(pp)
+		self:set_animation("stand")
+	elseif h.swing > 0 then
 		-- casting: still, facing them
 		face_player()
 		h.swing = h.swing - HEX.think
@@ -469,7 +491,7 @@ local function hexer_think(self)
 			h.watch = time / 2
 			self:set_animation("stand")
 		end
-	elseif dist < HEX.blink_near and h.fuse <= 0 then
+	elseif h.near >= HEX.blink_delay and h.fuse <= 0 then
 		-- too close: it blinks away
 		local spot = blink_spot(self, pos, pp)
 		if spot then
@@ -533,14 +555,73 @@ monster("hexer", {
 	end,
 })
 
--- The wisp drifts up, swells and bursts (it breaks nothing on a land)
+-- The wisp floats: it hovers a man's height above the ground, bobbing, and
+-- comes down to a player's chest height when it goes for them. Its picture is
+-- eight frames of a flicker (as in esp32-s3-minetest). Close to a player it
+-- swells and bursts like a small TNT blast: it hurts everyone near (up to
+-- about eight hearts at arm's length) but breaks nothing.
+
+local WISP_HOVER, WISP_BOB = 1.6, 0.25
+
+local function ground_below(pos, down)
+	for d = 0, down do
+		local def = core.registered_nodes[core.get_node({x = pos.x, y = math.floor(pos.y + 0.5) - d, z = pos.z}).name]
+		if not def or def.walkable ~= false then return math.floor(pos.y + 0.5) - d + 0.5 end
+	end
+end
+
+-- Mobs Redo's blast hurts by making each thing near punch itself, which the
+-- engine ignores for players while PvP is off. So our monsters' blasts hurt
+-- players here, like a TNT blast: up to 16 health points (8 hearts) at a
+-- block away, less further out, nothing beyond the damage radius, with a
+-- push away from the blast. Nodes are never broken (mobs_griefing is off).
+local mobs_boom = mobs.boom
+function mobs:boom(mob, pos, node_radius, entity_radius, texture)
+	mobs_boom(self, mob, pos, node_radius, entity_radius, texture)
+	if not (pos and mob and mob.name and mob.name:find("^orthoverse_monsters:")) then return end
+	local r = entity_radius or (node_radius or 1) * 2
+	for _, player in ipairs(core.get_connected_players()) do
+		local pp = vector.add(player:get_pos(), {x = 0, y = 1, z = 0})
+		local d = vector.distance(pos, pp)
+		if d <= r and player:get_hp() > 0 then
+			local dmg = math.floor(math.min(16, 4 / math.max(1, d) * r))
+			player:set_hp(player:get_hp() - dmg, {type = "set_hp", from = "mod", orthoverse_blast = mob.name})
+			local dir = vector.normalize(vector.subtract(pp, pos))
+			player:add_velocity({x = dir.x * 6, y = 3, z = dir.z * 6})
+		end
+	end
+end
+
 monster("wisp", {
 	desc = S("Wisp"), visual = "sprite", size = 0.9, hp = 20, ac = 11, damage = 12, attack_type = "explode",
-	glow = 14, collisionbox = {-0.3, -0.3, -0.3, 0.3, 0.3, 0.3}, walk = 1.2, run = 2.6,
-	mobs = {fly = true, fly_in = {"air"}, explosion_radius = 2, explosion_damage_radius = 4, explosion_timer = 1.5,
-		allow_fuse_reset = true, stop_to_explode = true, fall_damage = false, jump = false},
+	glow = 14, collisionbox = {-0.35, -0.35, -0.35, 0.35, 0.35, 0.35}, walk = 1.2, run = 2.6,
+	mobs = {fly = true, fly_in = {"air"}, keep_flying = true, explosion_radius = 2, explosion_damage_radius = 4,
+		explosion_timer = 1.5, allow_fuse_reset = true, stop_to_explode = true, fall_damage = false, jump = false,
+		fear_height = 0, stand_chance = 0},
 	sounds = {random = "orthoverse_monsters_wisp_hum", fuse = "orthoverse_monsters_wisp_whine",
 		explode = "tnt_explode", distance = 16},
+	after_activate = function(self)
+		self.object:set_properties({spritediv = {x = 1, y = 8}, initial_sprite_basepos = {x = 0, y = 0}})
+		self.object:set_sprite({x = 0, y = 0}, 8, 0.1, false)
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self._bob = math.random() * 6
+	end,
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return end
+		self._bob = (self._bob or 0) + dtime
+		local want
+		local target = self.attack and self.attack:get_pos()
+		if target then
+			want = target.y + 1.1
+		else
+			local g = ground_below(pos, 8)
+			want = (g or pos.y) + WISP_HOVER + math.sin(self._bob * 1.7) * WISP_BOB
+		end
+		local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
+		self.object:set_velocity({x = v.x, y = math.max(-2, math.min(2, (want - pos.y) * 2)), z = v.z})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end,
 })
 
 ------------------------------------------------------------------------------
