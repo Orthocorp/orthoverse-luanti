@@ -39,8 +39,9 @@ First rough version of the world:
   Elf, Borgo and Strider. To add one, put a 64 × 32 (or 64 × 64) skin in
   `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild.
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
-  cats, rats, songbirds and owls, bats in caves and tropical fish in the sea. The
-  forest animals (wolves, foxes, bears and others) are off: `orthoverse_forest_animals`.
+  cats, rats, songbirds and owls, bats in caves and tropical fish in the sea; in the
+  woods, wolves, foxes, reindeer, turkeys and opossums (`orthoverse_forest_animals`).
+  Grizzly bears attack players and are off unless `orthoverse_bears` is true.
 - The name of the land you are on at the bottom left of the screen, in the Midnight
   font as on the cards, with its crest
   and headgear above it as on the token card (crests from castle level 1).
