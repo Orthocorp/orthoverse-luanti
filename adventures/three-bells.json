@@ -1,0 +1,45 @@
+{
+	"arrival": {
+		"x": 29.5,
+		"y": 9,
+		"z": 4.5
+	},
+	"corner1": {
+		"x": 2,
+		"y": 0,
+		"z": 11
+	},
+	"corner2": {
+		"x": 57,
+		"y": 46,
+		"z": 39
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 45,
+				"y": 7,
+				"z": 39
+			},
+			"min": {
+				"x": 13,
+				"y": 0,
+				"z": 12
+			}
+		}
+	],
+	"ground": 8,
+	"limit": 60,
+	"line": "A mad bellfounder hid three bells in his tower. Each room is a trap he built for thieves.",
+	"name": "The Three Bells",
+	"size": {
+		"x": 60,
+		"y": 47,
+		"z": 42
+	},
+	"start": {
+		"x": 29.5,
+		"y": 9,
+		"z": 13.5
+	}
+}

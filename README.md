@@ -85,6 +85,7 @@ tools/make_cave.py           the cave wall round the web map, from the game's te
 compose.yaml, docker/         running it all on Docker Compose (see docker/README.md)
 web/                         orthoverse.land: site, map, proxy, browser game (see web/README.md)
 docs/                        design documents: land abilities, accounts, adventures (see docs/README.md)
+adventures/                  ready-made adventures for /adventure place (see adventures/README.md)
 ```
 
 ## Coordinates

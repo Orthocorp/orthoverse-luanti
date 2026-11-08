@@ -1,6 +1,6 @@
 # Adventures as built (8 Nov 2026)
 
-What exists on the adventure branch today (patches 1007 to 1012). The plans behind it are in [dungeons-plan.md](dungeons-plan.md), [adventure-runs.md](adventure-runs.md) and [adventure-decisions.md](adventure-decisions.md). The code is in `mods/orthoverse_adventure/init.lua`; the website side is `web/site/adventures/` and `/api/adventures` in `web/auth/server.js`.
+What exists on the adventure branch today (patches 1007 to 1017). The plans behind it are in [dungeons-plan.md](dungeons-plan.md), [adventure-runs.md](adventure-runs.md) and [adventure-decisions.md](adventure-decisions.md). The code is in `mods/orthoverse_adventure/init.lua`; the website side is `web/site/adventures/` and `/api/adventures` in `web/auth/server.js`.
 
 This is milestone 1 from the decisions: adventure mode, the gate, the finish, Mesecons, one party at a time with a restore after each run, and a completions list. No monsters, levels, kit, lockout or parties yet.
 
@@ -31,6 +31,12 @@ On a land at castle level 5 or more (the admin anywhere). `/adventure` with no a
 Other commands: `limit <minutes>`, `name <text>`, `close`, `reset`, `status`, `delete` (records and saved dungeons are kept). Start and arrival can be set again at any time; the corners while closed, then save.
 
 To test a record, play it with another character: the builder's own runs are not recorded.
+
+### Ready-made adventures
+
+The admin can place a finished building from the game's `adventures/` folder with `/adventure place <name>`, standing on the ground at its south-west corner. It clears the footprint, builds the adventure and sets its area, start, arrival, name and line, leaving it closed for the builder to finish, save and open. The first is The Three Bells: see [adventures/README.md](../adventures/README.md), and [tools/adventures/README.md](../tools/adventures/README.md) for how it is generated.
+
+A **pile of pebbles** (from the Creative tab) gives a pebble when punched: something to throw, for puzzles with a pressure plate out of reach. Pebbles do nothing else.
 
 ### Tools for building
 

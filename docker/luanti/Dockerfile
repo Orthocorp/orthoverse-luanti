@@ -56,6 +56,7 @@ RUN ! ldd /opt/luanti/bin/luantiserver | grep "not found" \
 ARG GAME=/opt/luanti/share/luanti/games/orthoverse
 COPY game.conf minetest.conf ${GAME}/
 COPY mods ${GAME}/mods
+COPY adventures ${GAME}/adventures
 COPY --from=crests /tmp/crests ${GAME}/mods/orthoverse_landhud/crests
 
 # The texture pack (OV_TEXTURES in .env: a folder of texturepacks/, or none).

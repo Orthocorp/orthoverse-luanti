@@ -650,6 +650,173 @@ core.register_node("orthoverse_adventure:board", {
 })
 
 ------------------------------------------------------------------------------
+-- Pebbles: a pile to take them from, for puzzles where something must be
+-- thrown (a pressure plate behind a grate, say). They do nothing else, so it
+-- does not matter that players keep them.
+
+local PEBBLES_MAX = 5
+
+core.register_craftitem("orthoverse_adventure:pebble", {
+	description = "Pebble (throw it with the drop key)",
+	inventory_image = "orthoverse_adventure_pebble.png",
+	stack_max = PEBBLES_MAX,
+})
+
+local function take_pebble(pos, player)
+	if not player or not player:is_player() then return end
+	local inv = player:get_inventory()
+	if inv:contains_item("main", "orthoverse_adventure:pebble " .. PEBBLES_MAX) then
+		core.chat_send_player(player:get_player_name(), "Your pockets are full of pebbles.")
+		return
+	end
+	local left = inv:add_item("main", "orthoverse_adventure:pebble")
+	if not left:is_empty() then
+		core.chat_send_player(player:get_player_name(), "No room for a pebble.")
+	end
+end
+
+core.register_node("orthoverse_adventure:pebbles", {
+	description = "Pile of pebbles (punch it for a pebble)",
+	tiles = {"default_gravel.png^[colorize:#6b5f4f:70"},
+	groups = {crumbly = 2},
+	sounds = default and default.node_sound_gravel_defaults(),
+	on_punch = function(pos, node, puncher) take_pebble(pos, puncher) end,
+	on_rightclick = function(pos, node, clicker) take_pebble(pos, clicker) end,
+})
+
+------------------------------------------------------------------------------
+-- Ready-made adventures: the game's adventures/ folder holds, for each, a
+-- WorldEdit file of its buildings (<name>.we) and where things are in it
+-- (<name>.json: size, the ground layer, underground parts to dig out, the
+-- dungeon area's corners, the start, the arrival, name, line, time limit).
+-- The admin places one standing at its south-west corner on the ground.
+
+local TEMPLATES_DIR = (function()
+	local game = core.get_game_info and core.get_game_info()
+	return (game and game.path or (core.get_modpath(core.get_current_modname()) .. "/../..")) .. "/adventures"
+end)()
+
+local function read_file(path)
+	local f = io.open(path, "rb")
+	if not f then return nil end
+	local data = f:read("*a")
+	f:close()
+	return data
+end
+
+local function template_names()
+	local out = {}
+	for _, file in ipairs(core.get_dir_list(TEMPLATES_DIR, false) or {}) do
+		local n = file:match("^(.+)%.json$")
+		if n and read_file(TEMPLATES_DIR .. "/" .. n .. ".we") then out[#out + 1] = n end
+	end
+	table.sort(out)
+	return out
+end
+
+local function offset(p1, t) return vector.new(p1.x + t.x, p1.y + t.y, p1.z + t.z) end
+
+-- Fill an area with one node
+local function fill(a, b, cid)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(a, b)
+	local va = VoxelArea(e1, e2)
+	local data = vm:get_data()
+	for i in va:iterp(a, b) do data[i] = cid end
+	vm:set_data(data)
+	vm:write_to_map(true)
+end
+
+-- Ground under the floor where the land is lower (or water): dirt, up to
+-- DEPTH blocks down, except over the parts dug out (`skip`: boxes)
+local function underpin(p1, p2, ground, skip)
+	local DEPTH = 24
+	local a, b = vector.new(p1.x, ground - DEPTH, p1.z), vector.new(p2.x, ground - 1, p2.z)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(a, b)
+	local va = VoxelArea(e1, e2)
+	local data = vm:get_data()
+	local dirt = core.get_content_id("default:dirt")
+	local open = {}
+	for name, def in pairs(core.registered_nodes) do
+		if name == "air" or (def.liquidtype and def.liquidtype ~= "none") or not def.walkable then
+			open[core.get_content_id(name)] = true
+		end
+	end
+	open[core.get_content_id("air")] = true
+	local function dug(x, z)
+		for _, box in ipairs(skip) do
+			if x >= box[1].x and x <= box[2].x and z >= box[1].z and z <= box[2].z then return true end
+		end
+	end
+	for z = a.z, b.z do
+		for x = a.x, b.x do
+			for y = b.y, dug(x, z) and b.y + 1 or a.y, -1 do
+				local i = va:index(x, y, z)
+				if not open[data[i]] then break end
+				data[i] = dirt
+			end
+		end
+	end
+	vm:set_data(data)
+	vm:write_to_map(true)
+end
+
+-- Place ready-made adventure `tname` with its south-west corner's ground
+-- layer at `at` (the block a player stands on), and make it this land's
+-- adventure (closed, not yet saved). Calls done(ok, message) when finished
+-- (the area is loaded first).
+local function place_template(tname, at, by, done)
+	local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+	local data = read_file(TEMPLATES_DIR .. "/" .. tname .. ".we")
+	if type(info) ~= "table" or type(info.size) ~= "table" or not data then
+		return done(false, "There is no ready-made adventure called " .. tname .. ".")
+	end
+	if not (worldedit and worldedit.deserialize) then return done(false, "Placing it needs WorldEdit.") end
+	local p1 = vector.subtract(vector.round(at), vector.new(0, info.ground or 0, 0))
+	local p2 = offset(p1, {x = info.size.x - 1, y = info.size.y - 1, z = info.size.z - 1})
+	local land, key = orthoverse.land_at(p1)
+	for _, c in ipairs({{p2.x, p1.z}, {p1.x, p2.z}, {p2.x, p2.z}}) do
+		local _, k = orthoverse.land_at(vector.new(c[1], p1.y, c[2]))
+		if k ~= key then
+			return done(false, ("%s needs %d x %d blocks on one land, east and north of where you stand " ..
+				"(its south-west corner): move so that it fits."):format(info.name or tname, info.size.x, info.size.z))
+		end
+	end
+	if not land or orthoverse.henges[key] then return done(false, "Stand on a land first.") end
+	if adventures[key] then
+		return done(false, "This land already has an adventure (" .. adventures[key].name .. "): /adventure delete first.")
+	end
+	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), p2, function(_, _, left)
+		if left > 0 then return end
+		local ground = p1.y + (info.ground or 0)
+		local air = core.get_content_id("air")
+		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), p2)) do
+			if not obj:is_player() then obj:remove() end
+		end
+		fill(vector.new(p1.x, ground, p1.z), p2, air)
+		local dig = {}
+		for _, box in ipairs(info.dig or {}) do
+			dig[#dig + 1] = {offset(p1, box.min), offset(p1, box.max)}
+			fill(dig[#dig][1], dig[#dig][2], air)
+		end
+		underpin(p1, p2, ground, dig)
+		local n = worldedit.deserialize(p1, data)
+		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
+		adventures[key] = {
+			name = (info.name or tname):sub(1, 60), line = (info.line or ""):sub(1, 200), version = 0, open = false,
+			limit = info.limit or LIMIT_DEFAULT, creator = by,
+			corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
+			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
+		}
+		save_def(key)
+		write_public()
+		done(true, ("%s placed on %s (%d blocks). It is closed: build the rest, then /adventure save " ..
+			"and /adventure open."):format(adventures[key].name, land.name, n))
+	end)
+end
+
+------------------------------------------------------------------------------
 -- The command
 
 local HELP = table.concat({
@@ -690,6 +857,8 @@ local HELP = table.concat({
 	"/adventure reset   Put the saved dungeon back as it was.",
 	"/adventure status   How it stands, in the chat.",
 	"/adventure delete   Remove it (its records and saved dungeons are kept).",
+	"/adventure place <name>   (Admin) Place a ready-made adventure, standing on the ground",
+	"   at its south-west corner; /adventure place on its own lists them.",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
 	"builder, the admin and guests are not recorded: test it with another character to",
@@ -710,7 +879,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
+	params = "[place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -733,6 +902,20 @@ core.register_chatcommand("adventure", {
 		if cmd == "status" then
 			if not def then return false, "This land has no adventure." end
 			return true, status(key, def)
+		end
+		if cmd == "place" then
+			if not is_admin(name) then return false, "Placing a ready-made adventure is for the admin." end
+			if rest == "" then
+				local names = template_names()
+				return true, #names > 0 and ("Ready-made adventures: " .. table.concat(names, ", ") ..
+					". Stand on the ground at the south-west corner and type /adventure place <name>.")
+					or "There are no ready-made adventures in " .. TEMPLATES_DIR .. "."
+			end
+			local feet = vector.round(player:get_pos())
+			place_template(rest, vector.new(feet.x, feet.y - 1, feet.z), name, function(ok, msg)
+				core.chat_send_player(name, msg)
+			end)
+			return true, "Placing " .. rest .. "…"
 		end
 		if not land then return false, "Stand on a land first." end
 		if not may_manage(name, key) then
@@ -821,6 +1004,7 @@ orthoverse.adventure.list = adventures
 -- For tests: what the gate's Enter button and the finish block do
 orthoverse.adventure.enter = start_or_join
 orthoverse.adventure.finish = finish
+orthoverse.adventure.place = place_template
 orthoverse.adventure.in_run = function(name)
 	for key, run in pairs(runs) do
 		if run.members[name] then return key end
