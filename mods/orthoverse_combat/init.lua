@@ -23,6 +23,7 @@ orthoverse.combat = {}
 ------------------------------------------------------------------------------
 -- Weapons (docs/combat-numbers.md; steel for now: +1 to hit, +1 damage)
 
+local DEBUG = core.settings:get_bool("orthoverse_combat_debug", false)
 local MATERIAL = {hit = 1, dmg = 1}
 local RANK_BONUS = 2          -- rank 1 to 4
 local SWEET = 0.25            -- seconds at full strength that count as the sweet spot, at rank 1
@@ -183,6 +184,10 @@ local function strike(player, w, held)
 		end
 	end
 	local ent = target and target:get_luaentity()
+	if DEBUG then
+		core.log("action", ("[orthoverse_combat] release after %.2f s: %s"):format(held,
+			ent and (ent.name .. (ent._orthoverse_target and "" or " (not a target)")) or "nothing in reach"))
+	end
 	if not ent or not ent._orthoverse_target then return end
 	local blow = {attacker = player, weapon = w, held = held, strength = s, phase = phase, sweet = sweet}
 	blow.distance = vector.distance(eye, point)

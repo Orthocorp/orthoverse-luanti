@@ -61,3 +61,15 @@ Monsters and combat, character rank, the adventurer's kit and loot chests, the d
 `mods/orthoverse_combat` tries the hold-and-release fighting from [combat-numbers.md](combat-numbers.md) before any monsters exist. Five weapons (dagger, short sword, broadsword, spear, war hammer) and a training dummy are in the Creative tab. Hold the attack button to wind up: a bar above the hotbar fills, the gold part is the sweet spot, the red mark is where the arm tires, and the weapon in the hand rises while winding up and glints in the sweet spot. Release to strike. The blow is traced from the eye: distance against the weapon's best range and reach, height on the target (head, body, legs) and side (front, side, behind) count, with hidden SRD-style rolls. The dummy shows each blow over its head, and the chat shows the numbers behind it, for tuning. Right-click the dummy to change its armour; sneak and punch it to remove it. The weapons dig nothing.
 
 Measured through the native client: a hold is timed to within about 0.05 to 0.1 s of the real one, enough for the sweet spot to be hit on purpose.
+
+## Monsters (patch 1022)
+
+Mobs Redo (mods/mobs) runs them; `mods/orthoverse_monsters` defines them: kobold, goblin, orc and skeleton (new skins on the character model, painted by `tools/monsters/make_monster_skins.py`), and mossling, hexer and wisp from esp32-s3-minetest. Goblins carry spears, kobolds daggers, orcs war hammers, skeletons short swords.
+
+- None spawn in the world. A builder places **Monster spawners** (Creative tab, a grate in the floor), and right-clicks one to choose the monster, how many (1 to 6) and how near a player must come (4 to 24 blocks). A spawner wakes once per run, when a player of the run comes near. While the adventure is closed it brings nothing by itself: its **Bring now** button tries it.
+- A monster that leaves its adventure's dungeon area, or outlives its run, is removed; the restore after each run removes them all.
+- Only hold-and-release blows hurt them. They wind up before they strike (the punch animation and a swing sound): step back out of reach and the blow misses. A head hit at full strength stuns them for a second; a war hammer knocks them back further.
+- Hexers keep their distance and lob slow orbs; wisps drift close, swell and burst (breaking nothing on a land).
+- They drop nothing, break nothing (mobs_griefing off), and show no health on hover.
+- `/monster <kind>` (server privilege) brings one in front of the admin, anywhere, to look at or fight.
+- Mobs Redo's "peaceful player" privilege, which would make monsters ignore a player, is given to nobody (the admin would otherwise have it).
