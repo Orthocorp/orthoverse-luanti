@@ -6,7 +6,8 @@
 -- release the blow is traced from the eye along the view: what it meets, how
 -- far away (each weapon has a best range and a reach) and where on the target
 -- (head, body, legs; front, side, behind). Hidden numbers on the SRD 5.2
--- model (d20 plus bonuses against armour class, weapon dice) decide the rest.
+-- model (weapon dice, less what the armour takes) decide the damage; a blow
+-- that connects always lands.
 -- See docs/combat-numbers.md.
 --
 -- Only things that opt in take these blows: an entity whose definition has
@@ -23,13 +24,15 @@ orthoverse.combat = {}
 ------------------------------------------------------------------------------
 -- Weapons (docs/combat-numbers.md): seven kinds, each in four materials. The
 -- material adds to the damage in equal steps (steel +0, bronze +1, harder to
--- make; mese +2, diamond +3) and +1 to hit for all of them. No wooden weapons.
+-- make; mese +2, diamond +3). No wooden weapons.
 
 local DEBUG = core.settings:get_bool("orthoverse_combat_debug", false)
-local RANK_BONUS = 2          -- rank 1 to 4
-local HIT_BONUS = 1           -- a metal weapon
 local SWEET = 0.25            -- seconds at full strength that count as the sweet spot, at rank 1
 local DRAIN = 1.0             -- seconds for a tired arm to drop to half strength
+local AIM_CONE = math.rad(20)  -- how far off the look a blow still finds a monster
+local SWEET_BONUS = 2          -- damage, for a blow released in the sweet spot
+local ARMOUR_SOAK = 0.5        -- damage armour takes off a blow, per point of armour class over 10
+                               -- (half as much against bashing weapons)
 
 local kinds = {
 	dagger = {desc = "dagger", kind = "thrust", ready = 0.1, full = 0.3, tires = 1.5, best = 1.5, reach = 2.5,
@@ -63,7 +66,7 @@ local function capitalise(s) return s:sub(1, 1):upper() .. s:sub(2) end
 for _, kid in ipairs(KIND_ORDER) do
 	local k = kinds[kid]
 	for _, m in ipairs(materials) do
-		local w = setmetatable({kind_id = kid, material = m.id, hit = HIT_BONUS, dmg = m.dmg}, {__index = k})
+		local w = setmetatable({kind_id = kid, material = m.id, dmg = m.dmg}, {__index = k})
 		w.id = kid .. "_" .. m.id
 		w.desc = m.desc .. " " .. k.desc
 		w.item = "orthoverse_combat:" .. w.id
@@ -161,7 +164,6 @@ end
 ------------------------------------------------------------------------------
 -- The blow
 
-local misses = {}   -- "attacker|target id" -> misses in a row (bad luck smoothing)
 
 local function describe(blow)
 	if blow.result == "miss" then return blow.why end
@@ -174,6 +176,15 @@ local function describe(blow)
 	if blow.crit then bits[#bits + 1] = "critical" end
 	local head = (blow.result == "glance" and "Glance " or "Hit ") .. blow.damage
 	return #bits > 0 and (head .. " (" .. table.concat(bits, ", ") .. ")") or head
+end
+
+-- The sound of a blow tells how good it was: a swing on every release, then
+-- a swish (nothing), a light tap (a glance), a thud (a hit), a heavy thud
+-- with a crunch (the sweet spot) or a blow with a ring (a critical, or a head
+-- blow that stuns). tools/weapons/make_blow_sounds.py makes them.
+local function blow_sound(name, pos, gain)
+	core.sound_play("orthoverse_combat_" .. name, {pos = pos, gain = gain or 1, max_hear_distance = 16,
+		pitch = 0.92 + math.random() * 0.16}, true)
 end
 
 local function strike(player, w, held)
@@ -192,12 +203,52 @@ local function strike(player, w, held)
 			break
 		end
 	end
+	if not (target and target:get_luaentity() and target:get_luaentity()._orthoverse_target) then
+		-- A forgiving aim: monsters move and some are small, so a blow that
+		-- passes close by still finds one, within AIM_CONE of the look and
+		-- in reach, with nothing solid in between (the nearest to the line)
+		target, point = nil, nil
+		local best
+		for _, obj in ipairs(core.get_objects_inside_radius(eye, w.reach + 1)) do
+			local e = obj ~= player and obj:get_luaentity()
+			if e and e._orthoverse_target then
+				local op = obj:get_pos()
+				local cb = obj:get_properties().collisionbox
+				local centre = vector.add(op, {x = (cb[1] + cb[4]) / 2, y = (cb[2] + cb[5]) / 2, z = (cb[3] + cb[6]) / 2})
+				local along = vector.dot(vector.subtract(centre, eye), dir)
+				if along > 0.2 then
+					-- the point of its box nearest to the look line
+					local on_line = vector.add(eye, vector.multiply(dir, along))
+					local near = {
+						x = math.max(op.x + cb[1], math.min(op.x + cb[4], on_line.x)),
+						y = math.max(op.y + cb[2], math.min(op.y + cb[5], on_line.y)),
+						z = math.max(op.z + cb[3], math.min(op.z + cb[6], on_line.z)),
+					}
+					local to = vector.subtract(near, eye)
+					local len = vector.length(to)
+					local angle = len > 0 and math.acos(math.max(-1, math.min(1, vector.dot(to, dir) / len))) or 0
+					if angle <= AIM_CONE and len <= w.reach + 0.5 and (not best or angle < best) then
+						local clear = true
+						for pt in core.raycast(eye, near, false, false) do
+							local def = core.registered_nodes[core.get_node(pt.under).name]
+							if not def or def.walkable ~= false then clear = false; break end
+						end
+						if clear then best, target, point = angle, obj, near end
+					end
+				end
+			end
+		end
+	end
 	local ent = target and target:get_luaentity()
 	if DEBUG then
 		core.log("action", ("[orthoverse_combat] release after %.2f s: %s"):format(held,
 			ent and (ent.name .. (ent._orthoverse_target and "" or " (not a target)")) or "nothing in reach"))
 	end
-	if not ent or not ent._orthoverse_target then return end
+	blow_sound("swing", eye, s >= 1 and 0.8 or 0.5)
+	if not ent or not ent._orthoverse_target then
+		blow_sound("miss", vector.add(eye, vector.multiply(dir, 1.5)), 0.6)
+		return
+	end
 	local blow = {attacker = player, weapon = w, held = held, strength = s, phase = phase, sweet = sweet}
 	blow.distance = vector.distance(eye, point)
 	-- Where on the target: height on its box, and which side of it
@@ -214,34 +265,33 @@ local function strike(player, w, held)
 	if blow.distance > w.reach then
 		blow.result, blow.why = "miss", "Miss (out of reach)"
 	else
+		-- A blow that connects always lands: no roll to hit. Armour takes
+		-- some of the damage instead, and luck only decides the damage dice
+		-- (and a critical, 1 in 20, with doubled dice).
 		local glance = blow.distance > w.best
-		local key = player:get_player_name() .. "|" .. tostring(target)
-		local bonus = RANK_BONUS + w.hit + (sweet and 2 or 0)
-			+ (blow.side == "side" and 1 or 0) + (blow.side == "behind" and 3 or 0)
-			+ (glance and -2 or 0) + math.max(0, ((misses[key] or 0) - 1) * 2)
-		if phase == "feeble" then bonus = RANK_BONUS end
-		local d20 = math.random(20)
 		local ac = ent._orthoverse_target.ac or 10
-		blow.d20, blow.total, blow.ac = d20, d20 + bonus, ac
-		if d20 == 1 or (d20 ~= 20 and d20 + bonus < ac) then
-			blow.result, blow.why = "miss", ("Miss (rolled %d vs %d)"):format(d20 + bonus, ac)
-			misses[key] = (misses[key] or 0) + 1
-		else
-			misses[key] = 0
-			blow.crit = d20 == 20
-			local dice = (phase == "sweet" or phase == "full") and w.full_dice or w.dice
-			local n, sides = dice[1], dice[2]
-			local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or w.dmg)
-			dmg = dmg * s
-			if blow.zone == "head" then dmg = dmg * 1.5 end
-			if blow.side == "behind" then dmg = dmg * (1 + (w.behind or 0.25)) end
-			if glance then dmg = dmg * 0.5 end
-			blow.damage = math.max(1, math.floor(dmg + 0.5))
-			blow.result = glance and "glance" or "hit"
-			blow.stun = blow.zone == "head" and s >= 1 and 1 or nil
-		end
+		blow.ac = ac
+		blow.crit = phase ~= "feeble" and math.random(20) == 20
+		local dice = (phase == "sweet" or phase == "full") and w.full_dice or w.dice
+		local n, sides = dice[1], dice[2]
+		local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or w.dmg)
+			+ (sweet and SWEET_BONUS or 0) + (blow.side == "side" and 1 or 0)
+		dmg = dmg * s
+		if blow.zone == "head" then dmg = dmg * 1.5 end
+		if blow.side == "behind" then dmg = dmg * (1 + (w.behind or 0.25)) end
+		if glance then dmg = dmg * 0.5 end
+		dmg = dmg - math.max(0, ac - 10) * ARMOUR_SOAK * (w.kind == "bash" and 0.5 or 1)
+		blow.damage = math.max(1, math.floor(dmg + 0.5))
+		blow.result = glance and "glance" or "hit"
+		blow.stun = blow.zone == "head" and s >= 1 and 1 or nil
 	end
 	blow.text = describe(blow)
+	blow_sound(blow.result == "miss" and "miss" or blow.result == "glance" and "glance"
+		or (blow.crit or blow.stun) and "crit" or sweet and "strong" or "hit", point)
+	if DEBUG then
+		core.log("action", ("[orthoverse_combat] %s on %s: %s (%.1f m, %s, %s)"):format(w.id, ent.name, blow.text,
+			blow.distance, blow.zone, blow.side))
+	end
 	if ent._on_blow then ent._on_blow(ent, blow) end
 	return blow
 end
@@ -284,50 +334,35 @@ core.register_on_leaveplayer(function(player)
 	holding[name] = nil
 end)
 
--- A fist on the grip of the weapon in the hand, in the colour of the
--- player's own skin: the bottom row of the right arm (the hand in the 64 x 32
--- skin layout), filled into the fist's shape, with its shading laid over it.
--- It goes on the wielded weapon's own picture (item meta wield_image), so
--- everyone sees it, and changes when the skin or the weapon does.
+-- The weapon in the hand is its plain picture, as any item is. Weapons that
+-- were given a fist on the grip (patches 1027 to 1031) lose it when held or
+-- on joining.
 
-local function skin_file(player)
-	local skin = orthoverse_skins and orthoverse_skins.get(player)
-	return skin and skin.file or "character.png"
-end
-
-local function esc(t) return (t:gsub("%^", "\\^"):gsub(":", "\\:")) end
-
-local function fist_image(w, skin)
-	local k = w.kind_id
-	return w.image .. "^([combine:1x1:-45,-31=" .. esc(skin) .. "^[resize:16x16^[mask:orthoverse_combat_fist_" .. k .. ".png)"
-		.. "^orthoverse_combat_fist_" .. k .. "_shade.png"
-end
-orthoverse.combat.fist_image = fist_image
-
-local fisted = {}   -- name -> "wield index|item|skin" last looked at
-
-local function fit_fist(player)
-	local name = player:get_player_name()
-	local idx = player:get_wield_index()
+local function plain(player)
 	local stack = player:get_wielded_item()
-	local skin = skin_file(player)
-	local key = idx .. "|" .. stack:get_name() .. "|" .. skin
-	if fisted[name] == key then return end
-	fisted[name] = key
-	local w = by_item[stack:get_name()]
-	if not w then return end
-	local want = fist_image(w, skin)
-	local meta = stack:get_meta()
-	if meta:get_string("wield_image") ~= want then
-		meta:set_string("wield_image", want)
+	if by_item[stack:get_name()] and stack:get_meta():get_string("wield_image") ~= "" then
+		stack:get_meta():set_string("wield_image", "")
 		player:set_wielded_item(stack)
 	end
 end
 
-core.register_globalstep(function()
-	for _, player in ipairs(core.get_connected_players()) do fit_fist(player) end
+core.register_on_joinplayer(function(player)
+	local inv = player:get_inventory()
+	for i, stack in ipairs(inv:get_list("main") or {}) do
+		if by_item[stack:get_name()] and stack:get_meta():get_string("wield_image") ~= "" then
+			stack:get_meta():set_string("wield_image", "")
+			inv:set_stack("main", i, stack)
+		end
+	end
 end)
-core.register_on_leaveplayer(function(player) fisted[player:get_player_name()] = nil end)
+
+local since = 0
+core.register_globalstep(function(dtime)
+	since = since + dtime
+	if since < 1 then return end
+	since = 0
+	for _, player in ipairs(core.get_connected_players()) do plain(player) end
+end)
 
 ------------------------------------------------------------------------------
 -- The training dummy: takes every blow and shows it over its head.
@@ -369,8 +404,8 @@ core.register_entity("orthoverse_combat:dummy", {
 	on_punch = function() return true end,   -- ordinary punches do nothing
 	_on_blow = function(self, blow)
 		local colour = blow.result == "miss" and "#a09a90" or blow.sweet and "#f5c64a" or "#efe6d0"
-		local extra = blow.d20 and ("  [d20 %d +%d vs %d, %.1f m, held %.2f s]"):format(blow.d20, blow.total - blow.d20,
-			blow.ac, blow.distance, blow.held) or ("  [%.1f m]"):format(blow.distance)
+		local extra = blow.ac and ("  [armour class %d, %.1f m, held %.2f s]"):format(blow.ac, blow.distance, blow.held)
+			or ("  [%.1f m]"):format(blow.distance)
 		dummy_label(self, blow.text, colour)
 		core.log("action", "[orthoverse_combat] " .. blow.weapon.id .. " " .. blow.text .. extra)
 		if blow.attacker and blow.attacker:is_player() then

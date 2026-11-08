@@ -38,7 +38,7 @@ Decided (8 Nov 2026): no wooden or stone weapons. Every metal weapon gets +1 to 
 | Mese | +1 | +2 |
 | Diamond | +1 | +3 |
 
-As built: the dagger, short sword, broadsword, spear, mace, morning star and war hammer, each in these four (28 weapons). Each has an inventory picture and a picture in the hand with a fist on the grip (tools/weapons/make_weapon_textures.py).
+As built: the dagger, short sword, broadsword, spear, mace, morning star and war hammer, each in these four (28 weapons). Their pictures are painted by tools/weapons/make_weapon_textures.py.
 
 ### Weapons and character level
 
@@ -75,23 +75,26 @@ Monsters have an AC by kind (a rat-folk 11, an orc 13, a stone golem 17) and, if
 
 ## Hitting
 
-Behind the scenes, as in the SRD: roll d20 + attack bonus against the target's AC; a hit if the total is at least the AC. A natural 20 always hits and doubles the damage dice; a natural 1 always misses.
+Decided (9 Nov 2026), after the first fights: getting into position is hard enough, so **a blow that connects always lands**. There is no roll to hit. Instead:
 
-Attack bonus = character bonus (below) + material + modifiers:
+- Armour takes damage off each blow: half a point per point of armour class above 10 (a quarter of a point against bashing weapons). A blow always does at least 1.
+- Luck decides only the damage dice, and a critical (1 in 20) doubles them.
+- Aim is forgiving: a blow that passes within 20 degrees of a monster, in reach and with nothing solid between, finds it.
 
-| Modifier | Bonus |
+| Modifier | Effect |
 | --- | --- |
-| Released in the sweet spot | +2 |
-| Head (top of the box) | +0 to hit, +50% damage, and a 1 s stun if the blow was at full strength (decision 8 in the plan) |
-| Legs (bottom of the box) | slows the monster for 2 s |
-| From the side | +1 |
-| From behind | +3, and +25% damage (daggers +50%) |
-| Glance (beyond best range) | -2, half damage |
-| Monster stunned or downed | +5 |
+| Released in the sweet spot | +2 damage |
+| Head (top of the box) | +50% damage, and a 1 s stun if the blow was at full strength |
+| Legs (bottom of the box) | slows the monster for 2 s (not built yet) |
+| From the side | +1 damage |
+| From behind | +25% damage (daggers +50%) |
+| Glance (beyond best range) | half damage |
 
-### Smoothing bad luck
+The sound tells how good a blow was: a swing on every release, then a swish (nothing hit), a light tap (glance), a thud (hit), a heavy thud with a crunch (sweet spot) or a blow with a ring (critical, or a stunning head blow).
 
-A d20 is streaky; a player missing five times in a row against an even monster feels cheated (the "coin flip" problem in the design article). Proposal: count consecutive misses per player against each monster, and after two misses add +2 per further miss until a hit, then reset. Players never see it; streaks become rare. Baldur's Gate 3 does something similar.
+With these numbers most monsters fall to one or two good blows; their health goes up when the targets below are tuned.
+
+The earlier plan (a d20 against armour class, with bad-luck smoothing) is dropped: misses on top of the timing and positioning made fights frustrating.
 
 ## Character levels (rank)
 

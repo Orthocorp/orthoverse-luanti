@@ -171,14 +171,22 @@ core.register_tool(HAND, {
 	on_drop = function(itemstack) return itemstack end,
 })
 
+-- The hand list otherwise holds orthoverse_skins' hand (the empty hand in the
+-- skin's colour), which comes back when instant digging ends
+local function has_hand(player)
+	return player:get_inventory():get_stack("hand", 1):get_name() == HAND
+end
+
 local function set_hand(player, on)
 	local inv = player:get_inventory()
 	if on then
 		if inv:get_size("hand") < 1 then inv:set_size("hand", 1) end
 		inv:set_stack("hand", 1, ItemStack(HAND))
-	elseif inv:get_size("hand") > 0 then
-		inv:set_size("hand", 0)
+	elseif has_hand(player) then
+		inv:set_stack("hand", 1, ItemStack())
+		if not orthoverse_skins then inv:set_size("hand", 0) end
 	end
+	if orthoverse_skins then orthoverse_skins.fit_hand(player) end
 end
 
 ------------------------------------------------------------------------------
@@ -278,7 +286,7 @@ local function change_level(player, level)
 	if meta:get_int(KEY .. "level") == level then return end
 	meta:set_int(KEY .. "level", level)
 	local added, removed = set_privs(player, privs_for(level))
-	local had = player:get_inventory():get_size("hand") > 0
+	local had = has_hand(player)
 	set_hand(player, digs_at(level))
 	if #added > 0 or #removed > 0 or had ~= digs_at(level) then
 		core.chat_send_player(player:get_player_name(),

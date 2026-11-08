@@ -3,12 +3,8 @@
 mods/orthoverse_combat/textures:
 
     orthoverse_combat_<kind>_<material>.png   the picture (inventory and hand)
-    orthoverse_combat_fist_<kind>.png         where the fist goes on the grip (a mask)
-    orthoverse_combat_fist_<kind>_shade.png   its shading and outline, laid over it
 
-The game colours the fist from the player's own skin (the bottom of the
-right arm) and lays it on the weapon in the hand. Also a preview sheet,
-with the default skin's colour. Needs Pillow (in a venv):
+and a preview sheet. Needs Pillow (in a venv):
 
     python3 -m venv /tmp/venv && /tmp/venv/bin/pip install Pillow
     /tmp/venv/bin/python tools/weapons/make_weapon_textures.py mods/orthoverse_combat/textures
@@ -29,7 +25,6 @@ MATERIALS = {   # dark, mid, light
 WOOD, WOOD_D = (120, 80, 40), (80, 50, 25)
 GOLD = (220, 180, 60)
 OUT_C = (30, 28, 30)
-SKIN, SKIN_S, SKIN_D = (227, 192, 163), (204, 164, 128), (176, 134, 100)
 
 
 def new():
@@ -138,61 +133,18 @@ def morning_star(m):
     return outline(im)
 
 
-KINDS = {   # kind -> (draw, where the fist goes on the grip: diagonal index)
-    "dagger": (dagger, 3), "short_sword": (short_sword, 2), "broadsword": (broadsword, 2),
-    "spear": (spear, 3), "war_hammer": (war_hammer, 3), "mace": (mace, 3), "morning_star": (morning_star, 3),
+KINDS = {
+    "dagger": dagger, "short_sword": short_sword, "broadsword": broadsword,
+    "spear": spear, "war_hammer": war_hammer, "mace": mace, "morning_star": morning_star,
 }
 
 
-def fist(im, c):
-    """The fist on the grip: a mask of where it is, and its shading and
-    outline (black, partly transparent) to lay over the skin colour."""
-    p = im.load()
-    pts = {}
-    for i in (c - 1, c, c + 1):
-        for x, y, tone in ((i, 15 - i, 0), (i + 1, 15 - i, 1), (i, 16 - i, 0), (i - 1, 15 - i, 0)):
-            if 0 <= x < 16 and 0 <= y < 16:
-                pts[(x, y)] = tone
-    for i in (c - 1, c, c + 1):
-        x, y = i + 1, 14 - i
-        if 0 <= x < 16 and 0 <= y < 16 and (x, y) not in pts and p[x, y][3] == 0:
-            pts[(x, y)] = 2
-    mask, shade = new(), new()
-    m, sh = mask.load(), shade.load()
-    for (x, y), tone in pts.items():
-        m[x, y] = (255, 255, 255, 255)
-        if tone:
-            sh[x, y] = (0, 0, 0, 50 if tone == 1 else 95)
-    for (x, y) in pts:
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            X, Y = x + dx, y + dy
-            if 0 <= X < 16 and 0 <= Y < 16 and (X, Y) not in pts and p[X, Y][3] == 0:
-                sh[X, Y] = OUT_C + (255,)
-    return mask, shade
-
-
-def held(im, mask, shade, colour=SKIN):
-    """As the game draws it: the weapon, the fist in the skin colour, the shading."""
-    f = Image.new("RGBA", (16, 16), colour + (255,))
-    f.putalpha(mask.split()[3])
-    out = im.copy()
-    out.alpha_composite(f)
-    out.alpha_composite(shade)
-    return out
-
-
 if __name__ == "__main__":
-    sheet = Image.new("RGBA", (len(MATERIALS) * 2 * 72 + 16, len(KINDS) * 72 + 16), (52, 52, 62, 255))
-    for row, (kind, (draw, c)) in enumerate(KINDS.items()):
+    sheet = Image.new("RGBA", (len(MATERIALS) * 72 + 16, len(KINDS) * 72 + 16), (52, 52, 62, 255))
+    for row, (kind, draw) in enumerate(KINDS.items()):
         for col, (mat, pal) in enumerate(MATERIALS.items()):
             im = draw(pal)
             im.save(f"{OUT}/orthoverse_combat_{kind}_{mat}.png")
-            mask, shade = fist(im, c)
-            if col == 0:
-                mask.save(f"{OUT}/orthoverse_combat_fist_{kind}.png")
-                shade.save(f"{OUT}/orthoverse_combat_fist_{kind}_shade.png")
-            h = held(im, mask, shade)
-            sheet.alpha_composite(im.resize((64, 64), Image.NEAREST), (8 + col * 144, 8 + row * 72))
-            sheet.alpha_composite(h.resize((64, 64), Image.NEAREST), (8 + col * 144 + 72, 8 + row * 72))
+            sheet.alpha_composite(im.resize((64, 64), Image.NEAREST), (8 + col * 72, 8 + row * 72))
     sheet.save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview.png"))
     print("ok")

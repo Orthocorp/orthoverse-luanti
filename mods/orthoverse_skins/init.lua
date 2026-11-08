@@ -90,8 +90,52 @@ local function current(player)
 	return by_key[player:get_meta():get_string(META)] or by_key.default
 end
 
+------------------------------------------------------------------------------
+-- The empty hand, in the colour of the skin's hand (the bottom row of the
+-- right arm in the 64 x 32 layout), in Minetest Game's hand shape. Luanti
+-- draws whatever is in a player's "hand" list as their empty hand, so each
+-- player gets one there, with the picture set on it. orthoverse_creative's
+-- instant-digging hand takes the same picture.
+
+local HAND = "orthoverse_skins:hand"
+core.register_tool(HAND, {
+	description = "Hand",
+	inventory_image = "wieldhand.png",
+	wield_image = "wieldhand.png",
+	wield_scale = {x = 1, y = 1, z = 2.5},
+	groups = {not_in_creative_inventory = 1},
+	on_drop = function(itemstack) return itemstack end,
+})
+-- It digs and punches as the ordinary hand does
+core.register_on_mods_loaded(function()
+	local hand = core.registered_items[""] or {}
+	core.override_item(HAND, {
+		tool_capabilities = hand.tool_capabilities and table.copy(hand.tool_capabilities) or nil,
+		wield_scale = hand.wield_scale or {x = 1, y = 1, z = 2.5},
+		range = hand.range,
+	})
+end)
+
+local function esc(t) return (t:gsub("%^", "\\^"):gsub(":", "\\:")) end
+
+local function hand_image(player)
+	return "[combine:1x1:-45,-31=" .. esc(current(player).file) .. "^[resize:16x16^[mask:wieldhand.png"
+end
+
+-- Puts the skin's colour on whatever hand is in the hand list (ours, or
+-- creative mode's), adding ours if there is none
+local function fit_hand(player)
+	local inv = player:get_inventory()
+	if inv:get_size("hand") < 1 then inv:set_size("hand", 1) end
+	local stack = inv:get_stack("hand", 1)
+	if stack:is_empty() then stack = ItemStack(HAND) end
+	stack:get_meta():set_string("wield_image", hand_image(player))
+	inv:set_stack("hand", 1, stack)
+end
+
 local function apply(player)
 	player_api.set_textures(player, {current(player).texture})
+	fit_hand(player)
 end
 
 -- player_api gives every joining player the default model first; this mod
@@ -168,4 +212,7 @@ orthoverse_skins = {
 	list = skins,
 	get = current,
 	choose = choose,
+	hand = HAND,
+	hand_image = hand_image,
+	fit_hand = fit_hand,
 }
