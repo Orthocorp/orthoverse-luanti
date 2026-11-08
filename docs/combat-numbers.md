@@ -92,11 +92,13 @@ Decided (9 Nov 2026), after the first fights: getting into position is hard enou
 
 The sound tells how good a blow was: a swing on every release, then a swish (nothing hit), a light tap (glance), a thud (hit), a heavy thud with a crunch (sweet spot) or a blow with a ring (critical, or a stunning head blow).
 
-With these numbers most monsters fall to one or two good blows; their health goes up when the targets below are tuned.
+Monster health was raised once (patch 1034: kobold 10, goblin 13, skeleton 18, orc 26, hexer 20; the orc warlord 70) and will be tuned further in play.
 
 The earlier plan (a d20 against armour class, with bad-luck smoothing) is dropped: misses on top of the timing and positioning made fights frustrating.
 
 ## Character levels (rank)
+
+Built (patch 1034, mods/orthoverse_rank) as below, except: the level gap changes only experience so far (not damage or to-hit, since there is no to-hit roll); a day's cap is 1,500 experience from one adventure's monsters; finishing gives 200 once a day. See docs/adventures.md.
 
 - Level 1 to 20.
 - Character bonus to hit and to AC: the SRD's proficiency bonus: +2 at levels 1 to 4, +3 at 5 to 8, +4 at 9 to 12, +5 at 13 to 16, +6 at 17 to 20.

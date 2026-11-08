@@ -72,6 +72,11 @@ mods/orthoverse_mapgen/      the land generator (runs in the engine's mapgen thr
 mods/orthoverse_nodes/       world edge, henge portal and gateway, tarmac
 mods/orthoverse_henges/      henge gateways: teleporting between the nine henges
 mods/orthoverse_admin/       /pregen and /orthomap, plus startup pre-generation
+mods/orthoverse_adventure/   adventures: /adventure, the gate, runs, records, ranks, the death lockout
+mods/orthoverse_combat/      hold-and-release fighting, the weapons, the training dummy
+mods/orthoverse_monsters/    the adventure monsters and the monster spawner (on Mobs Redo, mods/mobs)
+mods/orthoverse_rank/        character rank and experience
+mods/orthoverse_loot/        loot chests, healing draughts, weapon recipes
 source-data/                 snapshot files the land data is built from
 tools/build_lands.py         rebuilds lands.json from source-data
 tools/assemble.sh            refreshes mods/mtg from Minetest Game
@@ -152,5 +157,5 @@ browser through a small WebSocket proxy. See `web/README.md`.
 ## Licences
 
 Minetest Game (mods/mtg) is LGPL-2.1-or-later for code and CC BY-SA 3.0 for media;
-see `mods/mtg/LICENSE-minetest_game.txt`. Animalia and Creatura (mods/animals) are MIT, by ElCeejo. In the browser game, Alegreya (web/client/fonts, by Juan Pablo del Peral and Huerta Tipográfica) is under the SIL Open Font License 1.1. Mesecons (mods/mesecons, the parts dungeons need) is LGPL-3.0 for code and CC BY-SA 3.0 for media, by the Mesecons Mod Developer Team. Mobs Redo (mods/mobs, the monster engine) is MIT, by TenPlus1; its few textures and sounds are CC0 or CC BY-SA 3.0 (see its license.txt). The monster skins and the mosslings', hexers' and wisps' sounds (mods/orthoverse_monsters, painted by tools/monsters, from esp32-s3-minetest) are CC BY-SA 3.0, by Keir Finlow-Bates, as are the weapon pictures (mods/orthoverse_combat, painted by tools/weapons/make_weapon_textures.py); the blow sounds (made by tools/weapons/make_blow_sounds.py) are CC0. WorldEdit (mods/worldedit, core and commands, for the admin only) is AGPL-3.0, by sfan5 and contributors: the AGPL asks that its source be offered to the server's users, which this public repository does. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
+see `mods/mtg/LICENSE-minetest_game.txt`. Animalia and Creatura (mods/animals) are MIT, by ElCeejo. In the browser game, Alegreya (web/client/fonts, by Juan Pablo del Peral and Huerta Tipográfica) is under the SIL Open Font License 1.1. Mesecons (mods/mesecons, the parts dungeons need) is LGPL-3.0 for code and CC BY-SA 3.0 for media, by the Mesecons Mod Developer Team. Mobs Redo (mods/mobs, the monster engine) is MIT, by TenPlus1; its few textures and sounds are CC0 or CC BY-SA 3.0 (see its license.txt). The monster skins and the mosslings', hexers' and wisps' sounds (mods/orthoverse_monsters, painted by tools/monsters, from esp32-s3-minetest) are CC BY-SA 3.0, by Keir Finlow-Bates, as are the weapon pictures (mods/orthoverse_combat, painted by tools/weapons/make_weapon_textures.py) and the healing draught's picture (mods/orthoverse_loot); the blow sounds (made by tools/weapons/make_blow_sounds.py) and the rank sounds (tools/rank/make_rank_sounds.py) are CC0. WorldEdit (mods/worldedit, core and commands, for the admin only) is AGPL-3.0, by sfan5 and contributors: the AGPL asks that its source be offered to the server's users, which this public repository does. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
 mods and web code: to be decided.

@@ -57,6 +57,14 @@ Finding (copy timing test, 8 Nov, sandbox with 2 cores): copying a whole land's 
 
 Added 8 Nov 2026: any weapon may leave an adventure, be traded, found or crafted; its material's damage bonus counts only from a rank (steel 1, bronze 3, mese 6, diamond 10), and its description says so. See combat-numbers.md.
 
+Built on 9 Nov 2026 (patches 1033 to 1036, decided by Claude while Keir was away, as he asked):
+- Blows that connect always land; armour takes damage off instead (Keir: missing on top of positioning was too hard). A forgiving 20-degree aim. Sounds for each kind of blow.
+- Rank and experience as in combat-numbers.md (decisions 20 to 22 and the experience rules).
+- The adventurer's kit (decision 24) is dropped: weapons are ordinary items, made or found; loot chests fill from our tables, never from a builder's creative inventory, capped by the adventure's top rank; a metal counts in full only from a rank. That keeps gear fair without a second inventory.
+- Death in a run: the lockout (decision 26), and nothing is lost (inventory kept, not left in bones), back at the entrance.
+- Entry ranges (decision 23): set by /adventure ranks; each player is checked at the gate, so every member of a party fits.
+- The Gullet, scaled to one land and the monsters there are, with an orc warlord as its boss.
+
 ## Milestone 3 and later
 29. Our own small party module (not the AGPL Parties mod).
 30. Party size 6; +10% experience per extra member.
