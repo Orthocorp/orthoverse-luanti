@@ -812,8 +812,8 @@ local function place_template(tname, at, by, done)
 		}
 		save_def(key)
 		write_public()
-		done(true, ("%s placed on %s (%d blocks). It is closed: build the rest, then /adventure save " ..
-			"and /adventure open."):format(adventures[key].name, land.name, n))
+		done(true, ("%s placed on %s (%d blocks). It is closed: look round and change what you like, then " ..
+			"/adventure save and /adventure open."):format(adventures[key].name, land.name, n))
 	end)
 end
 

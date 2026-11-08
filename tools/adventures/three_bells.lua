@@ -11,9 +11,11 @@
 --   Courtyard (outside the dungeon): gate, board, the way in.
 --   Hub: the start; west to the Grate, east to the Library, stairs down to the
 --     crypt, north to the tower.
---   West wing: the Grate (puzzle) -> two empty rooms -> the iron bell's rope.
---   East wing: the Library (puzzle) -> two empty rooms -> the bronze bell's rope.
---   Crypt: the Four Levers (puzzle) -> an empty room -> the silver bell's rope.
+--   West wing: the Grate -> the Stepping Stones -> the Sunken Lever -> the
+--     iron bell's rope.
+--   East wing: the Library -> the Dark Maze -> the Ceiling -> the bronze
+--     bell's rope.
+--   Crypt: the Four Levers -> the Two Plates -> the silver bell's rope.
 --   Tower: three steel doors, each opened by one bell's rope, then a stair up
 --     to the belfry and the finish.
 --
@@ -51,7 +53,11 @@ tb.info = {
 	limit = 60,
 	size = {x = SX, y = SY, z = SZ},
 	ground = G,
-	dig = {{min = {x = 13, y = 0, z = 12}, max = {x = 45, y = 7, z = 39}}},
+	dig = {
+		{min = {x = 13, y = 0, z = 12}, max = {x = 45, y = 7, z = 39}},   -- the crypt
+		{min = {x = 2, y = 2, z = 11}, max = {x = 12, y = 7, z = 31}},    -- the pit and the well
+		{min = {x = 45, y = 4, z = 21}, max = {x = 57, y = 7, z = 31}},   -- under the Ceiling
+	},
 	corner1 = {x = 2, y = 0, z = 11},
 	corner2 = {x = 57, y = SY - 1, z = 39},
 	start = {x = 29.5, y = F, z = 13.5},
@@ -62,12 +68,16 @@ tb.info = {
 tb.doors = {
 	grate = {x = 12, y = F, z = 16}, library = {x = 47, y = F, z = 16}, levers = {x = 25, y = CS, z = 27},
 	iron = {x = 24, y = F, z = 28}, bronze = {x = 35, y = F, z = 28}, silver = {x = 29, y = F, z = 35},
+	well = {x = 12, y = F, z = 28}, ceiling = {x = 47, y = F, z = 28}, plates = {x = 25, y = CS, z = 34},
 }
 tb.levers = {
 	library = {x = 42, y = F, z = 19}, decoys = {{x = 38, y = F, z = 19}, {x = 40, y = F, z = 19}, {x = 45, y = F, z = 13}},
 	combination = {{x = 34, y = CS, z = 23}, {x = 34, y = CS, z = 25}, {x = 34, y = CS, z = 27}, {x = 34, y = CS, z = 29}},
 	iron = {x = 22, y = F, z = 28}, bronze = {x = 37, y = F, z = 28}, silver = {x = 29, y = CS, z = 35},
+	well = {x = 7, y = 4, z = 28},
+	ceiling = {{x = 50, y = F, z = 30}, {x = 52, y = F, z = 30}, {x = 54, y = F, z = 30}, {x = 56, y = F, z = 30}},
 }
+tb.two_plates = {{x = 17, y = CS, z = 20}, {x = 22, y = CS, z = 20}}
 tb.plates = {{x = 16, y = F, z = 22}, {x = 18, y = F, z = 23}}
 tb.finish = {x = 29, y = 33, z = 30}
 
@@ -156,33 +166,27 @@ local function massing()
 	box(2, G, 11, 57, 14, 32, WALL)
 	for x = 2, 57, 2 do set(x, 15, 11, WALL); set(x, 15, 32, WALL) end
 	for z = 11, 32, 2 do set(2, 15, z, WALL); set(57, 15, z, WALL) end
-	-- The rock the crypt is cut from (dug out when placed)
-	box(13, 0, 12, 45, 7, 39, STONE)
+	-- The rock the crypt, the pit, the well and the Ceiling's wiring are cut
+	-- from (dug out when placed)
+	for _, d in ipairs(tb.info.dig) do box(d.min.x, d.min.y, d.min.z, d.max.x, d.max.y, d.max.z, STONE) end
 end
 
 local function ground_floor()
 	room(25, 12, 34, 21, G, 5)                   -- hub
 	room(13, 12, 21, 20, G, 5)                   -- W1: the Grate
-	room(3, 12, 11, 20, G, 5)                    -- W2 (empty)
-	room(3, 22, 11, 30, G, 5)                    -- W3 (empty)
+	room(3, 12, 11, 20, G, 5)                    -- W2: the Stepping Stones
+	room(3, 22, 11, 30, G, 5)                    -- W3: the Sunken Lever
 	room(13, 25, 22, 31, G, 5)                   -- the iron bell's rope
 	room(38, 12, 46, 20, G, 5)                   -- E1: the Library
-	room(48, 12, 56, 20, G, 5)                   -- E2 (empty)
-	room(48, 22, 56, 30, G, 5)                   -- E3 (empty)
+	room(48, 12, 56, 20, G, 5, FLOOR, false)     -- E2: the Dark Maze
+	room(48, 22, 56, 30, G, 5)                   -- E3: the Ceiling
 	room(37, 25, 46, 31, G, 5)                   -- the bronze bell's rope
 	opening(22, F, 16, 24, F + 2, 17, G)         -- hub to the Grate
 	opening(35, F, 16, 37, F + 2, 17, G)         -- hub to the Library
-	opening(6, F, 21, 8, F + 2, 21, G)           -- W2 to W3
-	opening(12, F, 27, 12, F + 2, 28, G)         -- W3 to the rope
-	opening(51, F, 21, 53, F + 2, 21, G)         -- E2 to E3
-	opening(47, F, 27, 47, F + 2, 28, G)         -- E3 to the rope
 	opening(29, F, 22, 30, F + 2, 23, G)         -- hub to the tower
 	box(28, F, 11, 31, F + 2, 11, BARS, 0)       -- the barred way in from the courtyard
 	sign(27, F + 1, 21, "+z", "Three doors bar the founder's tower. Ring his bells to open them: " ..
 		"the iron bell (west), the bronze bell (east) and the silver bell (below).")
-	for _, r in ipairs({{4, 12, "-z"}, {4, 30, "+z"}, {55, 12, "-z"}, {55, 30, "+z"}}) do
-		sign(r[1], F + 1, r[2], r[3], "An empty room: a puzzle goes here.")
-	end
 end
 
 -- W1: a slot in the north wall too low to climb through; beyond it six
@@ -227,10 +231,8 @@ end
 
 local function crypt()
 	room(26, 22, 34, 29, CF, 5)                  -- C1: the Four Levers
-	room(16, 22, 24, 35, CF, 5)                  -- C2 (empty)
 	room(26, 32, 32, 35, CF, 5)                  -- the silver bell's rope
-	opening(25, CS, 33, 25, CS + 2, 34, CF)      -- C2 to the rope
-	sign(20, CS + 1, 35, "+z", "An empty room: a puzzle goes here.")
+	room(16, 22, 24, 35, CF, 5)                  -- (C2: the Two Plates)
 	-- Stairs down from the hub's north-east corner
 	for k = 0, 6 do
 		local z = 14 + k
@@ -263,6 +265,113 @@ local function four_levers()
 	wires({{25, CF, 30}, {25, CF, 29}, {25, CF, 28}})
 	door(25, CS, 27, 1)
 	sign(34, CS + 2, 26, "+x", "THE FOUR LEVERS\nHigh, low, high, low: so rang my bells.")
+end
+
+-- W2: a pit of water across the room, with stepping stones rising from it
+-- to a way out high in the north wall. Who falls in climbs the ladder back
+-- to the start.
+local function stepping_stones()
+	air(3, 4, 12, 11, G, 20)                          -- the pit, down to y = 3
+	box(3, 4, 12, 11, 5, 20, "default:water_source")
+	box(10, 4, 15, 11, G, 17, WALL)                   -- where you come in
+	box(10, 5, 14, 10, G, 14, "default:ladder_wood", 4)
+	-- each top: level with the last or one higher, a block's gap between
+	for _, p in ipairs({{8, 16, 8}, {6, 16, 9}, {4, 16, 9}, {4, 18, 10}, {4, 20, 10}}) do
+		box(p[1], 4, p[2], p[1], p[3], p[2], WALL)
+	end
+	air(4, 11, 21, 4, 12, 21)                         -- the way out, into W3
+	set(4, 10, 22, WALL); set(4, 9, 23, WALL)
+	sign(11, F + 1, 18, "+x", "THE STEPPING STONES\nMind the gaps.")
+end
+
+-- W3: a well in the floor; the lever that opens the door to the iron bell's
+-- rope is at the bottom of it.
+local function sunken_lever()
+	air(5, 4, 24, 9, G, 28)
+	box(5, 4, 24, 9, G, 28, "default:water_source")
+	lever(7, 4, 28, "+z")
+	-- up through the rock and under the wall, one block up per step
+	wires({{7, 3, 29}, {8, 4, 29}, {9, 5, 29}, {10, 6, 29}, {11, 7, 29}, {12, G, 29}})
+	door(12, F, 28, 1)
+	sign(3, F + 1, 26, "-x", "THE SUNKEN LEVER\nI dropped my key down the well. Fetch it if you can hold your breath.")
+end
+
+-- E2: a maze of high walls in the dark (no lamps), from the Library's door
+-- to a way out in the far corner.
+local function dark_maze()
+	box(48, F, 12, 56, F + 2, 20, "default:mossycobble")
+	-- cells on even offsets (5 x 5), passages carved by a seeded walk
+	local seed = 7
+	local function rand(n) seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n + 1 end
+	local seen = {}
+	local function carve(i, j)
+		seen[i .. ":" .. j] = true
+		air(48 + i, F, 12 + j, 48 + i, F + 2, 12 + j)
+		local dirs = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}}
+		for k = 4, 2, -1 do local r = rand(k); dirs[k], dirs[r] = dirs[r], dirs[k] end
+		for _, d in ipairs(dirs) do
+			local ni, nj = i + d[1], j + d[2]
+			if ni >= 0 and ni <= 8 and nj >= 0 and nj <= 8 and not seen[ni .. ":" .. nj] then
+				air(48 + i + d[1] / 2, F, 12 + j + d[2] / 2, 48 + i + d[1] / 2, F + 2, 12 + j + d[2] / 2)
+				carve(ni, nj)
+			end
+		end
+	end
+	carve(0, 4)
+	-- a few fireflies for a faint glow here and there
+	for _, c in ipairs({{2, 0}, {8, 2}, {4, 6}, {0, 8}, {6, 4}}) do set(48 + c[1], F + 1, 12 + c[2], "fireflies:firefly") end
+	air(56, F, 21, 56, F + 1, 21)                    -- the way out, into E3
+	sign(46, F + 1, 15, "+x", "Beyond this door: THE DARK MAZE\nKeep a hand on the wall.")
+end
+
+-- E3: four levers on the north wall open the door to the bronze bell's rope
+-- when set as the ceiling shows: gold for high, obsidian for low. The logic
+-- (as in the Four Levers) lies in the rock under the floor.
+local function ceiling()
+	local pattern = {false, true, true, false}
+	for i, x in ipairs({50, 52, 54, 56}) do
+		lever(x, F, 30, "+z")
+		wire(x, G, 31)                                -- under the wall
+		set(x, 14, 29, pattern[i] and "default:goldblock" or "default:obsidian")
+		if pattern[i] then
+			wires({{x, 7, 30}, {x, 7, 29}})
+			set(x, 7, 27, TORCH, 4); mark(x, 7, 27)  -- on while this lever is low
+		else
+			wires({{x, 7, 30}, {x, 7, 29}, {x, 7, 28}, {x, 7, 27}})
+		end
+	end
+	for x = 49, 56 do wire(x, 7, 26) end               -- the bus
+	set(47, 7, 26, TORCH, 2); mark(47, 7, 26)         -- on while the bus is off
+	wires({{46, 7, 26}, {46, 7, 27}, {46, 7, 28}, {46, 7, 29}, {47, G, 29}})
+	door(47, F, 28, 1)
+	sign(48, F + 1, 24, "-x", "THE CEILING\nAs above, so below.")
+end
+
+-- C2: two pressure plates behind two slots in the south wall; the door to
+-- the silver bell's rope opens only while both bear weight (two pebbles).
+-- The logic lies in the rock south of the room.
+local function two_plates()
+	for _, x0 in ipairs({17, 22}) do
+		box(x0, CS, 21, x0 + 1, CS, 21, "stairs:slab_stonebrick", 0)
+		air(x0, CS + 1, 21, x0 + 1, CS + 1, 21)
+		air(x0, CS, 19, x0 + 1, CS + 1, 20)
+		for z = 19, 20 do
+			for x = x0, x0 + 1 do
+				set(x, CS, z, PLATE); mark(x, CS, z)
+				wire(x, CF, z)
+			end
+		end
+	end
+	set(17, CF, 17, TORCH, 4); mark(17, CF, 17)       -- on while plate A is bare
+	set(23, CF, 17, TORCH, 4); mark(23, CF, 17)       -- on while plate B is bare
+	for x = 16, 23 do wire(x, CF, 16) end              -- the bus
+	set(14, CF, 16, TORCH, 2); mark(14, CF, 16)       -- on while the bus is off
+	for z = 16, 36 do wire(13, CF, z) end              -- round to the door, through the rock
+	for x = 14, 25 do wire(x, CF, 36) end
+	wire(25, CF, 35)
+	door(25, CS, 34, 1)
+	set(16, CS, 24, "orthoverse_adventure:pebbles")
+	sign(16, CS + 1, 26, "-x", "THE TWO PLATES\nBoth must bear weight at once.")
 end
 
 local function tower()
@@ -335,6 +444,11 @@ function tb.build(origin)
 	library()
 	crypt()
 	four_levers()
+	stepping_stones()
+	sunken_lever()
+	dark_maze()
+	ceiling()
+	two_plates()
 	tower()
 	ropes()
 	-- Write the grid

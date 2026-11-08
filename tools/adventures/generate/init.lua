@@ -19,10 +19,11 @@ local function seq(steps)
 end
 
 local function forceload(O)
-	for x = 0, 59, 16 do for y = 0, 46, 16 do for z = 0, 41, 16 do
-		core.forceload_block(vector.add(O, {x = x, y = y, z = z}), true)
+	local size = tb.info.size
+	for x = 0, size.x + 15, 16 do for y = 0, size.y + 15, 16 do for z = 0, size.z + 15, 16 do
+		core.forceload_block(vector.add(O, {x = math.min(x, size.x - 1), y = math.min(y, size.y - 1),
+			z = math.min(z, size.z - 1)}), true)
 	end end end
-	for _, c in ipairs({{59, 46, 41}, {59, 0, 41}, {0, 46, 41}, {59, 46, 0}}) do core.forceload_block(vector.add(O, {x = c[1], y = c[2], z = c[3]}), true) end
 end
 local function door_open(O, d)
 	local p = vector.add(O, tb.doors[d])
@@ -32,18 +33,19 @@ local function door_open(O, d)
 end
 local function all_doors(O)
 	local r = {}
-	for _, d in ipairs({"grate", "library", "levers", "iron", "bronze", "silver"}) do r[#r + 1] = d .. "=" .. door_open(O, d) end
+	for _, d in ipairs({"grate", "library", "levers", "well", "ceiling", "plates", "iron", "bronze", "silver"}) do r[#r + 1] = d .. "=" .. door_open(O, d) end
 	return table.concat(r, " ")
 end
 local function click(O, rel)
 	local p = vector.add(O, rel)
 	local node = core.get_node(p)
 	local def = core.registered_nodes[node.name]
+	if not (def and def.on_rightclick) then say("NOT A LEVER at " .. core.pos_to_string(rel) .. ": " .. node.name); return end
 	def.on_rightclick(p, node, nil)
 end
 
 local function puzzles(O, label, done)
-	local item
+	local item, item2
 	seq({
 		function() say(label .. " start: " .. all_doors(O)); return 0.5 end,
 		function() item = core.add_item(vector.add(vector.add(O, tb.plates[2]), {x = 0, y = 0.7, z = 0}), "orthoverse_adventure:pebble"); return 2 end,
@@ -65,6 +67,21 @@ local function puzzles(O, label, done)
 			click(O, tb.levers.combination[2]); click(O, tb.levers.combination[1]); return 4 end,
 		function() say(label .. " low,low,high,low: levers=" .. door_open(O, "levers"))
 			click(O, tb.levers.iron); click(O, tb.levers.bronze); click(O, tb.levers.silver); return 2 end,
+		function() click(O, tb.levers.well); return 1.5 end,
+		function() say(label .. " sunken lever: well=" .. door_open(O, "well"))
+			click(O, tb.levers.ceiling[2]); click(O, tb.levers.ceiling[3]); return 4 end,
+		function() say(label .. " ceiling low,high,high,low: ceiling=" .. door_open(O, "ceiling"))
+			click(O, tb.levers.ceiling[1]); return 4 end,
+		function() say(label .. " ceiling high,high,high,low: ceiling=" .. door_open(O, "ceiling"))
+			click(O, tb.levers.ceiling[1]); return 4 end,
+		function() say(label .. " ceiling back to low,high,high,low: ceiling=" .. door_open(O, "ceiling"))
+			item = core.add_item(vector.add(vector.add(O, tb.two_plates[1]), {x = 0, y = 0.7, z = 0}), "orthoverse_adventure:pebble")
+			return 4 end,
+		function() say(label .. " one plate: plates=" .. door_open(O, "plates"))
+			item2 = core.add_item(vector.add(vector.add(O, tb.two_plates[2]), {x = 0, y = 0.7, z = 0}), "orthoverse_adventure:pebble")
+			return 4 end,
+		function() say(label .. " both plates: plates=" .. door_open(O, "plates")); item:remove(); return 4 end,
+		function() say(label .. " one taken off: plates=" .. door_open(O, "plates")); item2:remove(); return 1 end,
 		function()
 			say(label .. " ropes: " .. all_doors(O))
 			local function n(x, y, z) local nd = core.get_node(vector.add(O, {x = x, y = y, z = z})); return nd.name:gsub("^.*:", "") end
