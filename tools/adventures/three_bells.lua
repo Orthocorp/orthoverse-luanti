@@ -51,6 +51,7 @@ tb.info = {
 	name = "The Three Bells",
 	line = "A mad bellfounder hid three bells in his tower. Each room is a trap he built for thieves.",
 	limit = 60,
+	rank_min = 1, rank_max = 20,   -- puzzles only: every rank
 	size = {x = SX, y = SY, z = SZ},
 	ground = G,
 	dig = {

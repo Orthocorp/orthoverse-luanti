@@ -56,6 +56,8 @@
 	"limit": 60,
 	"line": "A mad bellfounder hid three bells in his tower. Each room is a trap he built for thieves.",
 	"name": "The Three Bells",
+	"rank_max": 20,
+	"rank_min": 1,
 	"size": {
 		"x": 60,
 		"y": 47,

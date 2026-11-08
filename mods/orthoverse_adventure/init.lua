@@ -44,7 +44,7 @@ local runs = {}             -- land key -> the run in progress
 local restocking = {}       -- land key -> true while the area is being restored
 local templates = {}        -- land key -> the saved dungeon, loaded
 
-orthoverse.adventure = {on_finish = {}}
+orthoverse.adventure = {on_finish = {}, on_enter = {}}
 
 ------------------------------------------------------------------------------
 -- Definitions
@@ -345,6 +345,41 @@ end
 
 local function now() return os.time() end
 
+-- Who may go in: character rank (orthoverse_rank), set by the builder
+local RANK_MIN_DEFAULT, RANK_MAX_DEFAULT = 1, 5
+-- Dying in a run keeps a player out of that adventure for a while: 10
+-- minutes, doubling with each further death there within 4 hours, at most an
+-- hour; it all clears the next day. Nothing else is lost.
+local LOCKOUT_FIRST, LOCKOUT_MAX, LOCKOUT_WINDOW = 600, 3600, 4 * 3600
+
+local function lockouts(player)
+	local meta = player:get_meta()
+	local raw = meta:get_string("orthoverse_adventure:lockout")
+	local t = raw ~= "" and core.parse_json(raw) or {}
+	if t.day ~= os.date("!%Y-%m-%d") then t = {day = os.date("!%Y-%m-%d"), keys = {}} end
+	t.keys = t.keys or {}
+	return t, function() meta:set_string("orthoverse_adventure:lockout", core.write_json(t)) end
+end
+
+-- Seconds a player must still wait before going back into an adventure
+local function locked_for(player, key)
+	local t = lockouts(player)
+	local k = t.keys[key]
+	return k and math.max(0, (k["until"] or 0) - now()) or 0
+end
+
+local function lock_out(player, key)
+	local t, save = lockouts(player)
+	local k = t.keys[key] or {deaths = 0}
+	if not k.last or now() - k.last > LOCKOUT_WINDOW then k.deaths = 0 end
+	k.deaths, k.last = k.deaths + 1, now()
+	local secs = math.min(LOCKOUT_MAX, LOCKOUT_FIRST * 2 ^ (k.deaths - 1))
+	k["until"] = now() + secs
+	t.keys[key] = k
+	save()
+	return secs
+end
+
 local function put_at_arrival(name, def, why)
 	local player = core.get_player_by_name(name)
 	if not player then return end
@@ -374,6 +409,24 @@ local function start_or_join(name, key)
 	if restocking[key] then return false, "The adventure is being restocked. Try again in a moment." end
 	local player = core.get_player_by_name(name)
 	if not player then return false end
+	if not may_manage(name, key) then
+		local wait = locked_for(player, key)
+		if wait > 0 then
+			return false, ("You fell in %s not long ago: you may go in again in %d minute%s."):format(
+				def.name, math.ceil(wait / 60), math.ceil(wait / 60) == 1 and "" or "s")
+		end
+		local R = orthoverse.rank
+		if R then
+			local r, lo, hi = R.get(player), def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT
+			if r < lo then
+				return false, ("%s is for ranks %d to %d, and you are rank %d. Come back when you have more experience."):format(
+					def.name, lo, hi, r)
+			elseif r > hi then
+				return false, ("%s is for ranks %d to %d: at rank %d you would make it too easy for yourself."):format(
+					def.name, lo, hi, r)
+			end
+		end
+	end
 	local run = runs[key]
 	if run then
 		if run.members[name] then return false, "You are already in this run." end
@@ -395,6 +448,7 @@ local function start_or_join(name, key)
 	end
 	core.chat_send_player(name, "To give up: /adventure leave")
 	player:set_pos(vec(def.start))
+	for _, f in ipairs(orthoverse.adventure.on_enter) do f(player, key, def, run) end
 	return true
 end
 
@@ -486,14 +540,81 @@ core.register_globalstep(function(dtime)
 	end
 end)
 
-core.register_on_dieplayer(function(player)
+-- Dying in a run: the run is over for that player, they are locked out of
+-- the adventure for a while, and they lose nothing: their inventory is put
+-- aside before Minetest Game's bones can take it (this runs first), and given
+-- back when they come back to life, at the adventure's entrance.
+local KEPT = "orthoverse_adventure:kept"
+
+local function keep_inventory(player)
+	local inv = player:get_inventory()
+	local out = {}
+	for _, list in ipairs({"main", "craft"}) do
+		local items = {}
+		for i, st in ipairs(inv:get_list(list) or {}) do items[i] = st:to_string() end
+		out[list] = items
+		inv:set_list(list, {})
+	end
+	player:get_meta():set_string(KEPT, core.serialize(out))
+end
+
+local function give_back(player)
+	local meta = player:get_meta()
+	local raw = meta:get_string(KEPT)
+	if raw == "" then return end
+	local kept = core.deserialize(raw) or {}
+	local inv = player:get_inventory()
+	for list, items in pairs(kept) do
+		for i, st in pairs(items) do
+			local stack = ItemStack(st)
+			if inv:get_stack(list, i):is_empty() then
+				inv:set_stack(list, i, stack)
+			else
+				local left = inv:add_item("main", stack)
+				if not left:is_empty() then core.add_item(player:get_pos(), left) end
+			end
+		end
+	end
+	meta:set_string(KEPT, "")
+end
+
+local respawn_at = {}   -- name -> where to come back to life
+
+local function on_death_in_run(player)
 	local name = player:get_player_name()
 	for key, run in pairs(runs) do
 		if run.members[name] then
 			run.members[name] = nil
-			core.chat_send_player(name, "You fell in " .. adventures[key].name .. ". Your run is over.")
+			local def = adventures[key]
+			keep_inventory(player)
+			respawn_at[name] = def.arrival and vec(def.arrival)
+			if may_manage(name, key) then
+				core.chat_send_player(name, "You fell in " .. def.name .. ". Your run is over (no lockout for its builder).")
+			else
+				local secs = lock_out(player, key)
+				core.chat_send_player(name, ("You fell in %s. Your run is over, and you may go in again in %d minutes. " ..
+					"You have lost nothing."):format(def.name, math.floor(secs / 60)))
+			end
 		end
 	end
+end
+-- Before every other mod's (bones) on dying
+table.insert(core.registered_on_dieplayers, 1, on_death_in_run)
+
+core.register_on_respawnplayer(function(player)
+	local name = player:get_player_name()
+	give_back(player)
+	local at = respawn_at[name]
+	respawn_at[name] = nil
+	if at then
+		player:set_pos(at)
+		return true
+	end
+end)
+
+-- Someone who left the game while dead gets their things back on joining
+core.register_on_joinplayer(function(player)
+	if player:get_hp() > 0 then give_back(player) end
 end)
 
 -- No creative mode inside an adventure that is open or in use, holder included
@@ -553,7 +674,8 @@ local function gate_formspec(name, key, def)
 		title(0.5, 0.35, 9, def.name or "Adventure"),
 		"textarea[0.5,1.1;9,1.4;;;", core.formspec_escape(def.line or ""), "]",
 		"label[0.5,2.9;", core.formspec_escape(status), "]",
-		"label[0.5,3.5;", core.formspec_escape(("Time limit %d minutes. Completed %d time%s (this version)."):format(
+		"label[0.5,3.5;", core.formspec_escape(("Ranks %d to %d. Time limit %d minutes. Completed %d time%s (this version)."):format(
+			def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT,
 			def.limit or LIMIT_DEFAULT, total, total == 1 and "" or "s")), "]",
 		title(0.5, 3.85, 9, "Fastest"),
 		"textlist[0.5,4.5;9,3;fast;", #lines > 0 and table.concat(lines, ",") or "Nobody yet: be the first.", ";0;true]",
@@ -813,6 +935,7 @@ local function place_template(tname, at, by, done)
 			limit = info.limit or LIMIT_DEFAULT, creator = by,
 			corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
 			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
+			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 		}
 		save_def(key)
 		write_public()
@@ -859,6 +982,8 @@ local HELP = table.concat({
 	"",
 	"Other commands:",
 	"/adventure limit <minutes>   The time limit, " .. LIMIT_MIN .. " to " .. LIMIT_MAX .. " minutes (60 at first).",
+	"/adventure ranks <lowest> <highest>   Who may go in, by character rank (1 to 5 at",
+	"   first); its loot chests give metals up to the highest.",
 	"/adventure name <text>   Rename it.",
 	"/adventure close   Close it to change it (save and open again after).",
 	"/adventure reset   Put the saved dungeon back as it was.",
@@ -881,12 +1006,13 @@ local function status(key, def)
 		def.start and "Start set." or "Start not set.",
 		def.arrival and "Arrival set." or "Arrival not set.",
 		("Time limit %d minutes."):format(def.limit or LIMIT_DEFAULT),
+		("Ranks %d to %d."):format(def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT),
 		run and "A run is in progress." or (restocking[key] and "Restocking." or ""),
 	}, " ")
 end
 
 core.register_chatcommand("adventure", {
-	params = "[leave | place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
+	params = "[leave | place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -976,6 +1102,13 @@ core.register_chatcommand("adventure", {
 				return false, ("The time limit is %d to %d minutes."):format(LIMIT_MIN, LIMIT_MAX)
 			end
 			def.limit = math.floor(m)
+		elseif cmd == "ranks" then
+			local lo, hi = rest:match("^(%d+)%s+(%d+)$")
+			lo, hi = tonumber(lo), tonumber(hi)
+			if not lo or not hi or lo < 1 or hi > 20 or lo > hi then
+				return false, "Give the lowest and highest rank that may go in, 1 to 20 (e.g. /adventure ranks 1 5)."
+			end
+			def.rank_min, def.rank_max = lo, hi
 		elseif cmd == "save" then
 			if def.open or run_active then return false, "Close it first (and wait for any run to end)." end
 			if not area_of(def) or not def.start then return false, "Set the corners and the start first." end
@@ -1019,6 +1152,7 @@ orthoverse.adventure.at = adventure_at
 -- Whether a player builds an adventure's land (or is the admin): their runs
 -- there count for nothing
 orthoverse.adventure.may_manage = may_manage
+orthoverse.adventure.locked_for = locked_for
 orthoverse.adventure.runs = runs
 orthoverse.adventure.list = adventures
 -- For tests: what the gate's Enter button and the finish block do
