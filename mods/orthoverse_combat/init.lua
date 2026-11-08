@@ -60,6 +60,21 @@ for id, w in pairs(weapons) do
 end
 
 ------------------------------------------------------------------------------
+-- Minetest Game's swords go: they do nothing to monsters (only these weapons
+-- do), so they would only confuse. Their recipes go with them, and any left
+-- in inventories or chests turn into short swords.
+
+for _, material in ipairs({"wood", "stone", "bronze", "steel", "mese", "diamond"}) do
+	local name = "default:sword_" .. material
+	if core.registered_items[name] then
+		core.clear_craft({output = name})
+		core.unregister_item(name)
+		core.register_alias(name, "orthoverse_combat:short_sword")
+	end
+end
+core.clear_craft({type = "fuel", recipe = "default:sword_wood"})
+
+------------------------------------------------------------------------------
 -- How strong a blow is, from how long it was held
 
 -- Returns strength (0.25 .. 1), the phase, and whether in the sweet spot
