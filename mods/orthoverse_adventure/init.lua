@@ -1,0 +1,767 @@
+-- orthoverse_adventure: adventures on lands.
+--
+-- A holder of a land at castle level 5 or more (or the admin, anywhere) can
+-- make an adventure there: a dungeon area (a box inside the land), a start
+-- point inside it, an arrival point outside it, and three kinds of block:
+--   * the gate, where players start a run (and see the records);
+--   * the finish, which a run reaches to complete the adventure;
+--   * the board, which shows who has completed it and the fastest.
+--
+-- One party at a time: the first player through the gate starts a run, and
+-- others may join through the gate for a minute after that. Then the gate is
+-- shut until the run ends: two minutes after reaching the finish, at the time
+-- limit, or when everyone has left (leaving the area, dying, or being away
+-- for five minutes). The dungeon area is then restored from its saved state
+-- ("restocking") before the next party may go in.
+--
+-- While an adventure is open, nobody but the run's players may be inside its
+-- area (others are put back at the arrival point), and nobody is in creative
+-- mode there, holder included. While it is closed, its holder builds it, then
+-- saves it as a new version (/adventure save) and opens it again.
+--
+-- Records of every completion are kept per version (a builder cannot quietly
+-- make it easier after a record), written to <world>/orthoverse_adventures/
+-- for the website, with the saved dungeons.
+--
+-- /adventure (no arguments) explains the commands.
+
+local C = orthoverse.coords
+local storage = core.get_mod_storage()
+local DIR = core.get_worldpath() .. "/orthoverse_adventures"
+core.mkdir(DIR)
+
+local UNLOCK_LEVEL = 5      -- castle level (either realm) that allows an adventure
+local JOIN_WINDOW = 60      -- seconds after a run starts in which others may join
+local AFTER_FINISH = tonumber(core.settings:get("orthoverse_adventure_after_finish")) or 120   -- seconds to look around after the finish
+local AWAY_GRACE = 300      -- seconds a run's player may be away before leaving it
+local PARTY_MAX = 6
+local LIMIT_MIN, LIMIT_MAX, LIMIT_DEFAULT = 30, 120, 60   -- run time limit, minutes
+local SLICE = 16            -- layers restored per server step
+local GUARD_EVERY = 1       -- seconds between checks of who is where
+
+local adventures = {}       -- land key -> definition (persisted in mod storage)
+local runs = {}             -- land key -> the run in progress
+local restocking = {}       -- land key -> true while the area is being restored
+local templates = {}        -- land key -> the saved dungeon, loaded
+
+orthoverse.adventure = {}
+
+------------------------------------------------------------------------------
+-- Definitions
+
+-- A JSON value from mod storage, or nil
+local function stored_json(field)
+	local raw = storage:get_string(field)
+	if raw == "" then return nil end
+	return core.parse_json(raw)
+end
+
+local function load_all()
+	for _, key in ipairs(stored_json("keys") or {}) do
+		local def = stored_json("adv:" .. key)
+		if type(def) == "table" then adventures[key] = def end
+	end
+end
+
+local function save_def(key)
+	local keys = {}
+	for k in pairs(adventures) do keys[#keys + 1] = k end
+	table.sort(keys)
+	storage:set_string("keys", core.write_json(keys))
+	if adventures[key] then
+		storage:set_string("adv:" .. key, core.write_json(adventures[key]))
+	else
+		storage:set_string("adv:" .. key, "")
+	end
+end
+
+local function vec(t) return t and vector.new(t.x, t.y, t.z) end
+
+-- The dungeon area's corners (smallest, largest), or nil if not set
+local function area_of(def)
+	if not def.corner1 or not def.corner2 then return nil end
+	local a, b = vec(def.corner1), vec(def.corner2)
+	return vector.new(math.min(a.x, b.x), math.min(a.y, b.y), math.min(a.z, b.z)),
+		vector.new(math.max(a.x, b.x), math.max(a.y, b.y), math.max(a.z, b.z))
+end
+
+local function inside(def, pos)
+	local p1, p2 = area_of(def)
+	if not p1 then return false end
+	return pos.x >= p1.x and pos.x <= p2.x + 0.99 and pos.y >= p1.y - 0.5 and pos.y <= p2.y + 0.99 and
+		pos.z >= p1.z and pos.z <= p2.z + 0.99
+end
+
+-- The adventure whose area holds `pos`: key, definition
+local function adventure_at(pos)
+	local _, key = orthoverse.land_at(pos)
+	local def = key and adventures[key]
+	if def and inside(def, pos) then return key, def end
+end
+
+-- The adventure on the land at `pos` (area or not)
+local function adventure_of_land(pos)
+	local _, key = orthoverse.land_at(pos)
+	return key, key and adventures[key]
+end
+
+------------------------------------------------------------------------------
+-- Who may make and run an adventure
+
+local function is_admin(name)
+	return core.check_player_privs(name, {protection_bypass = true})
+end
+
+local function may_manage(name, key)
+	if is_admin(name) then return true end
+	local land = orthoverse.lands[key]
+	if not land or orthoverse.henges[key] then return false end
+	local w = orthoverse.wallets
+	local wallet = w.wallet_of(name)
+	return wallet ~= nil and wallet == w.owner_of(land) and (tonumber(land.level) or 0) % 8 >= UNLOCK_LEVEL
+end
+
+------------------------------------------------------------------------------
+-- Saved dungeons (templates): every node of the area by name, param2,
+-- metadata and node timers, in a file per version
+
+local function template_file(key, version)
+	return DIR .. "/" .. key:gsub(":", "_") .. "-v" .. version .. ".dat"
+end
+
+local function save_template(key, def)
+	local p1, p2 = area_of(def)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(p1, p2)
+	local va = VoxelArea(e1, e2)
+	local data, p2data = vm:get_data(), vm:get_param2_data()
+	local palette, index_of, nodes, param2 = {}, {}, {}, {}
+	local n = 0
+	for z = p1.z, p2.z do
+		for y = p1.y, p2.y do
+			for x = p1.x, p2.x do
+				local i = va:index(x, y, z)
+				local cid = data[i]
+				local pi = index_of[cid]
+				if not pi then
+					palette[#palette + 1] = core.get_name_from_content_id(cid)
+					pi = #palette
+					index_of[cid] = pi
+				end
+				n = n + 1
+				nodes[n] = pi
+				param2[n] = p2data[i]
+			end
+		end
+	end
+	local metas, timers = {}, {}
+	for _, pos in ipairs(core.find_nodes_with_meta(p1, p2)) do
+		local m = core.get_meta(pos):to_table()
+		-- Inventories hold item stacks: kept as text
+		for listname, list in pairs(m.inventory or {}) do
+			for i, stack in ipairs(list) do
+				list[i] = type(stack) == "string" and stack or stack:to_string()
+			end
+		end
+		local rel = vector.subtract(pos, p1)
+		metas[#metas + 1] = {p = {x = rel.x, y = rel.y, z = rel.z}, m = m}
+	end
+	for z = p1.z, p2.z do
+		for y = p1.y, p2.y do
+			for x = p1.x, p2.x do
+				local t = core.get_node_timer({x = x, y = y, z = z})
+				if t:is_started() then
+					timers[#timers + 1] = {p = {x = x - p1.x, y = y - p1.y, z = z - p1.z}, t = t:get_timeout(), e = t:get_elapsed()}
+				end
+			end
+		end
+	end
+	local size = vector.subtract(p2, p1)
+	local tpl = {size = {x = size.x, y = size.y, z = size.z}, palette = palette, nodes = nodes, param2 = param2,
+		metas = metas, timers = timers}
+	local blob = core.compress(core.serialize(tpl), "zstd")
+	local file = template_file(key, def.version + 1)
+	if not core.safe_file_write(file, blob) then return nil, "The dungeon could not be written to " .. file .. "." end
+	templates[key] = {version = def.version + 1, tpl = tpl}
+	return true, n
+end
+
+local function load_template(key, def)
+	local t = templates[key]
+	if t and t.version == def.version then return t.tpl end
+	local f = io.open(template_file(key, def.version), "rb")
+	if not f then return nil end
+	local blob = f:read("*a")
+	f:close()
+	local ok, tpl = pcall(function() return core.deserialize(core.decompress(blob, "zstd"), true) end)
+	if not ok or type(tpl) ~= "table" then return nil end
+	templates[key] = {version = def.version, tpl = tpl}
+	return tpl
+end
+
+------------------------------------------------------------------------------
+-- Restoring a dungeon from its saved state, a few layers per server step
+
+local jobs = {}   -- land key -> {p1, tpl, y, done}
+
+local function restore(key, done)
+	local def = adventures[key]
+	local tpl = def and load_template(key, def)
+	if not tpl then
+		if done then done(false) end
+		return
+	end
+	local p1, p2 = area_of(def)
+	-- Dropped items and creatures left behind go first
+	for _, obj in ipairs(core.get_objects_in_area(p1, vector.add(p2, 1))) do
+		if not obj:is_player() then obj:remove() end
+	end
+	restocking[key] = true
+	jobs[key] = {p1 = p1, tpl = tpl, y = 0, done = done}
+end
+
+local function restore_step(key, job)
+	local tpl, p1 = job.tpl, job.p1
+	local sx, sy, sz = tpl.size.x + 1, tpl.size.y + 1, tpl.size.z + 1
+	local y0, y1 = job.y, math.min(job.y + SLICE - 1, sy - 1)
+	local a1 = vector.new(p1.x, p1.y + y0, p1.z)
+	local a2 = vector.new(p1.x + sx - 1, p1.y + y1, p1.z + sz - 1)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(a1, a2)
+	local va = VoxelArea(e1, e2)
+	local data, p2data = vm:get_data(), vm:get_param2_data()
+	local cids = job.cids
+	if not cids then
+		cids = {}
+		local air = core.get_content_id("air")
+		for i, name in ipairs(tpl.palette) do
+			cids[i] = core.registered_nodes[name] and core.get_content_id(name) or air
+		end
+		job.cids = cids
+	end
+	for z = 0, sz - 1 do
+		for y = y0, y1 do
+			local n = z * sy * sx + y * sx   -- position in the saved order (z, then y, then x)
+			local vi = va:index(p1.x, p1.y + y, p1.z + z)
+			for x = 0, sx - 1 do
+				data[vi + x] = cids[tpl.nodes[n + x + 1]]
+				p2data[vi + x] = tpl.param2[n + x + 1]
+			end
+		end
+	end
+	vm:set_data(data)
+	vm:set_param2_data(p2data)
+	vm:write_to_map(true)
+	job.y = y1 + 1
+	if job.y < sy then return false end
+	-- Last layer: metadata and timers (cleared where none was saved)
+	local p2 = vector.add(p1, tpl.size)
+	for _, pos in ipairs(core.find_nodes_with_meta(p1, p2)) do
+		core.get_meta(pos):from_table(nil)
+	end
+	for _, m in ipairs(tpl.metas) do
+		core.get_meta(vector.add(p1, m.p)):from_table(m.m)
+	end
+	for _, t in ipairs(tpl.timers) do
+		core.get_node_timer(vector.add(p1, t.p)):set(t.t, t.e)
+	end
+	return true
+end
+
+core.register_globalstep(function()
+	for key, job in pairs(jobs) do
+		local ok, finished = pcall(restore_step, key, job)
+		if not ok then
+			core.log("error", "[orthoverse_adventure] restoring " .. key .. " failed: " .. tostring(finished))
+			finished = true
+		end
+		if finished then
+			jobs[key] = nil
+			restocking[key] = nil
+			storage:set_string("dirty:" .. key, "")
+			if job.done then job.done(ok) end
+		end
+	end
+end)
+
+------------------------------------------------------------------------------
+-- Records
+
+local records = stored_json("records") or {}   -- key -> {["v"..n] = {list}}
+
+local function format_time(secs)
+	return ("%d:%02d"):format(math.floor(secs / 60), secs % 60)
+end
+
+-- For the website: the adventures and their records
+local function write_public()
+	local list = {}
+	for key, def in pairs(adventures) do
+		local land = orthoverse.lands[key]
+		local vrec = (records[key] or {})["v" .. def.version] or {}
+		local best
+		for _, r in ipairs(vrec) do
+			if not best or r.secs < best.secs then best = r end
+		end
+		list[#list + 1] = {key = key, land = land and land.name, name = def.name, line = def.line,
+			open = def.open == true, version = def.version, limit = def.limit, completions = #vrec,
+			first = vrec[1], best = best, records = vrec}
+	end
+	table.sort(list, function(a, b) return (a.name or "") < (b.name or "") end)
+	core.safe_file_write(DIR .. "/adventures.json", core.write_json({updated = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+		adventures = list}, true))
+end
+
+local function record_completion(key, def, run, secs)
+	local names = {}
+	for name in pairs(run.members) do
+		if not orthoverse.wallets.is_guest(name) and not may_manage(name, key) then names[#names + 1] = name end
+	end
+	if #names == 0 then return nil end
+	table.sort(names)
+	records[key] = records[key] or {}
+	local v = "v" .. def.version
+	records[key][v] = records[key][v] or {}
+	local list = records[key][v]
+	local first = #list == 0
+	list[#list + 1] = {names = names, secs = secs, size = #names, at = os.date("!%Y-%m-%dT%H:%M:%SZ")}
+	storage:set_string("records", core.write_json(records))
+	write_public()
+	return first, names
+end
+
+-- The fastest completions of the current version, best first
+local function fastest(key, def, n)
+	local list = {}
+	for _, r in ipairs((records[key] or {})["v" .. def.version] or {}) do list[#list + 1] = r end
+	table.sort(list, function(a, b) return a.secs < b.secs end)
+	local out = {}
+	for i = 1, math.min(n, #list) do out[i] = list[i] end
+	return out, #list
+end
+
+------------------------------------------------------------------------------
+-- Runs
+
+local function now() return os.time() end
+
+local function put_at_arrival(name, def, why)
+	local player = core.get_player_by_name(name)
+	if not player then return end
+	if def.arrival then player:set_pos(vec(def.arrival)) end
+	if why then core.chat_send_player(name, why) end
+end
+
+local function end_run(key, why)
+	local run = runs[key]
+	local def = adventures[key]
+	if not run or not def then return end
+	runs[key] = nil
+	for name in pairs(run.members) do
+		local player = core.get_player_by_name(name)
+		if player and inside(def, player:get_pos()) then
+			put_at_arrival(name, def, why)
+		elseif player and why then
+			core.chat_send_player(name, why)
+		end
+	end
+	restore(key, function() core.log("action", "[orthoverse_adventure] " .. key .. " restocked") end)
+end
+
+local function start_or_join(name, key)
+	local def = adventures[key]
+	if not def or not def.open then return false, "This adventure is closed." end
+	if restocking[key] then return false, "The adventure is being restocked. Try again in a moment." end
+	local player = core.get_player_by_name(name)
+	if not player then return false end
+	local run = runs[key]
+	if run then
+		if run.members[name] then return false, "You are already in this run." end
+		if now() > run.join_until or run.finished then
+			return false, ("Another party is inside (%s so far). The gate opens again when they come out."):format(
+				format_time(now() - run.started))
+		end
+		local n = 0
+		for _ in pairs(run.members) do n = n + 1 end
+		if n >= PARTY_MAX then return false, "The party inside is full." end
+		run.members[name] = true
+	else
+		run = {members = {[name] = true}, started = now(), join_until = now() + JOIN_WINDOW,
+			version = def.version, away = {}}
+		runs[key] = run
+		storage:set_string("dirty:" .. key, "1")
+		core.chat_send_player(name, ("The run has begun. Companions may follow you through the gate for the next %d " ..
+			"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
+	end
+	player:set_pos(vec(def.start))
+	return true
+end
+
+local function finish(name, key)
+	local run = runs[key]
+	local def = adventures[key]
+	if not run or not run.members[name] or run.finished then return end
+	run.finished = now()
+	local secs = run.finished - run.started
+	local first, names = record_completion(key, def, run, secs)
+	local who = {}
+	for n in pairs(run.members) do who[#who + 1] = n end
+	table.sort(who)
+	for n in pairs(run.members) do
+		core.chat_send_player(n, ("%s completed in %s. You have %s to look around before you are taken out."):format(
+			def.name, format_time(secs), AFTER_FINISH >= 120 and (math.floor(AFTER_FINISH / 60) .. " minutes") or (AFTER_FINISH .. " seconds")))
+	end
+	if first and names then
+		core.chat_send_all(("%s has been completed for the first time, by %s, in %s!"):format(
+			def.name, table.concat(names, ", "), format_time(secs)))
+	end
+end
+
+-- Who is where, once a second
+local guard_timer = 0
+core.register_globalstep(function(dtime)
+	guard_timer = guard_timer + dtime
+	if guard_timer < GUARD_EVERY then return end
+	guard_timer = 0
+	local t = now()
+	-- Runs: time limit, the finish, players who left or are away
+	for key, run in pairs(runs) do
+		local def = adventures[key]
+		local remaining = 0
+		for name in pairs(run.members) do
+			local player = core.get_player_by_name(name)
+			if player then
+				run.away[name] = nil
+				if not inside(def, player:get_pos()) and t > run.started + 2 then
+					run.members[name] = nil
+					core.chat_send_player(name, "You have left " .. def.name .. ".")
+				else
+					remaining = remaining + 1
+				end
+			else
+				run.away[name] = run.away[name] or t
+				if t - run.away[name] > AWAY_GRACE then
+					run.members[name] = nil
+				else
+					remaining = remaining + 1
+				end
+			end
+		end
+		if remaining == 0 then
+			end_run(key, nil)
+		elseif run.finished and t > run.finished + AFTER_FINISH then
+			end_run(key, "You are back outside " .. def.name .. ".")
+		elseif t > run.started + (def.limit or LIMIT_DEFAULT) * 60 then
+			end_run(key, "Time is up for " .. def.name .. ".")
+		end
+	end
+	-- Nobody else inside an open or restocking adventure, nor a closed one
+	-- but its builders
+	for _, player in ipairs(core.get_connected_players()) do
+		local name = player:get_player_name()
+		local key, def = adventure_at(player:get_pos())
+		if def and not is_admin(name) then
+			local run = runs[key]
+			local member = run and run.members[name]
+			if def.open and not member then
+				put_at_arrival(name, def, "Adventurers go in through the gate.")
+			elseif not def.open and not may_manage(name, key) then
+				put_at_arrival(name, def, def.name .. " is closed while it is being built.")
+			end
+		end
+	end
+end)
+
+core.register_on_dieplayer(function(player)
+	local name = player:get_player_name()
+	for key, run in pairs(runs) do
+		if run.members[name] then
+			run.members[name] = nil
+			core.chat_send_player(name, "You fell in " .. adventures[key].name .. ". Your run is over.")
+		end
+	end
+end)
+
+-- No creative mode inside an adventure that is open or in use, holder included
+local creative_allowed = orthoverse.creative.allowed
+function orthoverse.creative.allowed(name, pos)
+	local key, def = adventure_at(pos)
+	if def and (def.open or runs[key] or restocking[key]) then return false end
+	return creative_allowed(name, pos)
+end
+
+-- After a restart: runs are gone, so restore any dungeon a run had changed
+core.register_on_mods_loaded(function()
+	core.after(3, function()
+		for key, def in pairs(adventures) do
+			if storage:get_string("dirty:" .. key) == "1" and def.version > 0 then
+				local p1, p2 = area_of(def)
+				core.emerge_area(p1, p2, function(_, _, left)
+					if left == 0 then restore(key) end
+				end)
+			end
+		end
+	end)
+end)
+
+------------------------------------------------------------------------------
+-- The blocks
+
+local function gate_formspec(name, key, def)
+	local lines = {}
+	local list, total = fastest(key, def, 5)
+	for i, r in ipairs(list) do
+		lines[#lines + 1] = core.formspec_escape(("%d. %s  %s"):format(i, format_time(r.secs), table.concat(r.names, ", ")))
+	end
+	local status
+	local run = runs[key]
+	if not def.open then
+		status = "Closed while it is being built."
+	elseif restocking[key] then
+		status = "Being restocked. Try again in a moment."
+	elseif run and (now() > run.join_until or run.finished) then
+		status = ("A party is inside (%s so far)."):format(format_time(now() - run.started))
+	elseif run then
+		status = ("A party has just gone in: you may join them for %d more seconds."):format(run.join_until - now())
+	else
+		status = "The way is open."
+	end
+	return table.concat({
+		"formspec_version[4]size[10,9.2]",
+		"label[0.5,0.7;", core.formspec_escape(def.name or "Adventure"), "]",
+		"textarea[0.5,1.1;9,1.4;;;", core.formspec_escape(def.line or ""), "]",
+		"label[0.5,2.9;", core.formspec_escape(status), "]",
+		"label[0.5,3.5;", core.formspec_escape(("Time limit %d minutes. Completed %d time%s (this version)."):format(
+			def.limit or LIMIT_DEFAULT, total, total == 1 and "" or "s")), "]",
+		"label[0.5,4.2;Fastest:]",
+		"textlist[0.5,4.5;9,3;fast;", #lines > 0 and table.concat(lines, ",") or "Nobody yet: be the first.", ";0;true]",
+		"button_exit[0.5,7.9;4,0.9;enter;Enter]",
+		"button_exit[5.5,7.9;4,0.9;close;Not now]",
+	})
+end
+
+local gate_of = {}   -- player name -> adventure key, while its gate form is open
+orthoverse.adventure.gate_formspec = function(name, key) return gate_formspec(name, key, adventures[key]) end
+
+core.register_node("orthoverse_adventure:gate", {
+	description = "Adventure gate (where a run starts)",
+	tiles = {"orthoverse_adventure_gate_side.png", "orthoverse_adventure_gate_side.png", "orthoverse_adventure_gate.png"},
+	paramtype2 = "facedir",
+	groups = {cracky = 2},
+	sounds = default and default.node_sound_stone_defaults(),
+	on_rightclick = function(pos, node, clicker)
+		if not clicker or not clicker:is_player() then return end
+		local name = clicker:get_player_name()
+		local key, def = adventure_of_land(pos)
+		if not def then
+			core.chat_send_player(name, "This gate belongs to no adventure (/adventure create on this land).")
+			return
+		end
+		gate_of[name] = key
+		core.show_formspec(name, "orthoverse_adventure:gate", gate_formspec(name, key, def))
+	end,
+})
+
+core.register_on_player_receive_fields(function(player, formname, fields)
+	if formname ~= "orthoverse_adventure:gate" then return end
+	local name = player:get_player_name()
+	local key = gate_of[name]
+	gate_of[name] = nil
+	if fields.enter and key then
+		local ok, why = start_or_join(name, key)
+		if not ok and why then core.chat_send_player(name, why) end
+	end
+	return true
+end)
+
+local function at_finish(pos, player)
+	if not player or not player:is_player() then return end
+	local name = player:get_player_name()
+	local key, def = adventure_at(pos)
+	if not def then return end
+	local run = runs[key]
+	if run and run.members[name] then
+		finish(name, key)
+	elseif may_manage(name, key) and not def.open then
+		core.chat_send_player(name, "This is the finish of " .. def.name .. ": a run that reaches it completes the adventure.")
+	end
+end
+
+core.register_node("orthoverse_adventure:finish", {
+	description = "Adventure finish (touch it to complete the adventure)",
+	tiles = {"orthoverse_adventure_finish.png"},
+	light_source = 6,
+	groups = {cracky = 2},
+	sounds = default and default.node_sound_stone_defaults(),
+	on_rightclick = function(pos, node, clicker) at_finish(pos, clicker) end,
+	on_punch = function(pos, node, puncher) at_finish(pos, puncher) end,
+})
+
+core.register_node("orthoverse_adventure:board", {
+	description = "Adventure board (who has completed it)",
+	drawtype = "nodebox",
+	tiles = {"orthoverse_adventure_wood.png", "orthoverse_adventure_wood.png", "orthoverse_adventure_wood.png",
+		"orthoverse_adventure_wood.png", "orthoverse_adventure_wood.png", "orthoverse_adventure_board.png"},
+	paramtype = "light",
+	paramtype2 = "facedir",
+	node_box = {type = "fixed", fixed = {-0.5, -0.5, 0.375, 0.5, 0.5, 0.5}},
+	groups = {choppy = 2},
+	sounds = default and default.node_sound_wood_defaults(),
+	on_rightclick = function(pos, node, clicker)
+		if not clicker or not clicker:is_player() then return end
+		local key, def = adventure_of_land(pos)
+		if not def then return end
+		local list, total = fastest(key, def, 10)
+		local rows = {}
+		for i, r in ipairs(list) do
+			rows[#rows + 1] = core.formspec_escape(("%d. %s  %s (%s)"):format(i, format_time(r.secs),
+				table.concat(r.names, ", "), r.at:sub(1, 10)))
+		end
+		local vrec = (records[key] or {})["v" .. def.version] or {}
+		local first = vrec[1]
+		core.show_formspec(clicker:get_player_name(), "orthoverse_adventure:board", table.concat({
+			"formspec_version[4]size[11,8.5]",
+			"label[0.5,0.7;", core.formspec_escape((def.name or "Adventure") .. ": records"), "]",
+			"label[0.5,1.4;", core.formspec_escape(first and ("First to complete: " .. table.concat(first.names, ", ") ..
+				" (" .. first.at:sub(1, 10) .. ")") or "Nobody has completed it yet."), "]",
+			"label[0.5,2.0;", core.formspec_escape(("Completed %d time%s. Fastest:"):format(total, total == 1 and "" or "s")), "]",
+			"textlist[0.5,2.4;10,5;rec;", #rows > 0 and table.concat(rows, ",") or "", ";0;true]",
+			"button_exit[3.5,7.6;4,0.7;close;Close]",
+		}))
+	end,
+})
+
+------------------------------------------------------------------------------
+-- The command
+
+local HELP = table.concat({
+	"/adventure: the adventure on the land you stand on.",
+	"  create <name>: make an adventure on this land (castle level " .. UNLOCK_LEVEL .. " or more)",
+	"  name <text> / line <text>: its name / its one-line description",
+	"  corner1, corner2: corners of the dungeon area, where you stand (a box within the land)",
+	"  start: where runs begin (inside the area); arrival: where players wait and come out (outside it)",
+	"  limit <minutes>: the time limit (" .. LIMIT_MIN .. " to " .. LIMIT_MAX .. ")",
+	"  save: save the dungeon as it is now, as a new version (while closed)",
+	"  open / close: let players in, or close it to build; reset: restore the saved dungeon",
+	"  delete: remove the adventure (its records are kept)",
+	"Place the gate near the arrival point and the finish inside the area (from the Creative tab).",
+}, "\n")
+
+local function status(key, def)
+	local p1, p2 = area_of(def)
+	local run = runs[key]
+	return table.concat({
+		("%s on %s: %s, version %d."):format(def.name, key, def.open and "open" or "closed", def.version),
+		p1 and ("Area %s to %s."):format(core.pos_to_string(p1), core.pos_to_string(p2)) or "Area not set (corner1, corner2).",
+		def.start and "Start set." or "Start not set.",
+		def.arrival and "Arrival set." or "Arrival not set.",
+		("Time limit %d minutes."):format(def.limit or LIMIT_DEFAULT),
+		run and "A run is in progress." or (restocking[key] and "Restocking." or ""),
+	}, " ")
+end
+
+core.register_chatcommand("adventure", {
+	params = "[create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | save | open | close | reset | delete]",
+	description = "Make and run an adventure on your land",
+	func = function(name, param)
+		local player = core.get_player_by_name(name)
+		if not player then return false, "No player." end
+		local pos = vector.round(player:get_pos())
+		local land, key = orthoverse.land_at(pos)
+		local cmd, rest = param:match("^%s*(%S*)%s*(.-)%s*$")
+		local def = key and adventures[key]
+		if cmd == "" or cmd == "help" then
+			return true, (def and (status(key, def) .. "\n") or "") .. HELP
+		end
+		if not land then return false, "Stand on a land first." end
+		if not may_manage(name, key) then
+			return false, "Adventures are for holders of a land at castle level " .. UNLOCK_LEVEL .. " or more, on that land."
+		end
+		if cmd == "create" then
+			if def then return false, "This land already has an adventure: " .. def.name .. "." end
+			if rest == "" then return false, "Give it a name: /adventure create <name>" end
+			adventures[key] = {name = rest:sub(1, 60), line = "", version = 0, open = false, limit = LIMIT_DEFAULT,
+				creator = name}
+			save_def(key)
+			return true, "Adventure " .. rest .. " made on " .. land.name .. ". Next: corner1, corner2, start, arrival, then save and open."
+		end
+		if not def then return false, "This land has no adventure yet: /adventure create <name>" end
+		local run_active = runs[key] ~= nil
+		if cmd == "name" or cmd == "line" then
+			if rest == "" then return false, "Give the text too." end
+			def[cmd] = rest:sub(1, cmd == "name" and 60 or 200)
+		elseif cmd == "corner1" or cmd == "corner2" then
+			if def.open then return false, "Close it first." end
+			def[cmd] = pos
+			local p1, p2 = area_of(def)
+			if p1 then
+				local _, k1 = orthoverse.land_at(p1)
+				local _, k2 = orthoverse.land_at(p2)
+				if k1 ~= key or k2 ~= key then
+					def[cmd] = nil
+					save_def(key)
+					return false, "The dungeon area must lie within this land."
+				end
+			end
+		elseif cmd == "start" then
+			if not inside(def, pos) then return false, "The start must be inside the dungeon area (set its corners first)." end
+			def.start = player:get_pos()
+		elseif cmd == "arrival" then
+			if inside(def, pos) then return false, "The arrival point must be outside the dungeon area." end
+			def.arrival = player:get_pos()
+		elseif cmd == "limit" then
+			local m = tonumber(rest)
+			if not m or m < LIMIT_MIN or m > LIMIT_MAX then
+				return false, ("The time limit is %d to %d minutes."):format(LIMIT_MIN, LIMIT_MAX)
+			end
+			def.limit = math.floor(m)
+		elseif cmd == "save" then
+			if def.open or run_active then return false, "Close it first (and wait for any run to end)." end
+			if not area_of(def) or not def.start then return false, "Set the corners and the start first." end
+			local ok, n = save_template(key, def)
+			if not ok then return false, n end
+			def.version = def.version + 1
+			save_def(key)
+			write_public()
+			return true, ("Saved as version %d (%d blocks). Records start afresh for this version."):format(def.version, n)
+		elseif cmd == "open" then
+			if def.version == 0 then return false, "Save it first (/adventure save)." end
+			if not def.arrival then return false, "Set the arrival point first." end
+			def.open = true
+		elseif cmd == "close" then
+			if run_active then end_run(key, def.name .. " has been closed by its builder.") end
+			def.open = false
+		elseif cmd == "reset" then
+			if run_active then return false, "A run is in progress." end
+			if def.version == 0 then return false, "Nothing saved yet." end
+			restore(key, function(ok) core.chat_send_player(name, ok and "Restored." or "Could not restore.") end)
+			return true, "Restoring " .. def.name .. "…"
+		elseif cmd == "delete" then
+			if run_active then end_run(key, def.name .. " has been removed.") end
+			adventures[key] = nil
+			save_def(key)
+			write_public()
+			return true, "The adventure is removed. Its records and saved dungeons are kept."
+		else
+			return false, HELP
+		end
+		save_def(key)
+		write_public()
+		return true, status(key, def)
+	end,
+})
+
+load_all()
+write_public()
+
+orthoverse.adventure.at = adventure_at
+orthoverse.adventure.runs = runs
+orthoverse.adventure.list = adventures
+-- For tests: what the gate's Enter button and the finish block do
+orthoverse.adventure.enter = start_or_join
+orthoverse.adventure.finish = finish
+orthoverse.adventure.in_run = function(name)
+	for key, run in pairs(runs) do
+		if run.members[name] then return key end
+	end
+end
