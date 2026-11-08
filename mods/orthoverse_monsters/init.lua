@@ -101,11 +101,57 @@ local function finish_windup(self)
 		core.sound_play("mobs_swing", {object = self.object, gain = 0.3, pitch = 0.8, max_hear_distance = 8}, true)
 		return
 	end
+	self._fought = now()
 	self.object:set_animation({x = ANIM.punch_start, y = ANIM.punch_end}, 30, 0, false)
 	local dir = vector.normalize(vector.subtract(p, s))
 	target:punch(self.object, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = self.damage}}, dir)
 	if target:is_player() then
 		target:add_velocity({x = dir.x * 1.5, y = 1, z = dir.z * 1.5})
+	end
+end
+
+------------------------------------------------------------------------------
+-- Choosing whom to fight. Mobs Redo keeps a monster on the first player it
+-- picks until it loses them; ours turn to a player who comes clearly nearer
+-- (by two blocks or more) and can be seen, and to one who strikes them from
+-- no further away than their target, so a party's fight spreads out.
+
+local function can_fight(self, p)
+	return p and p:is_player() and p:get_hp() > 0
+		and not core.check_player_privs(p:get_player_name(), "peaceful_player")
+end
+
+local function sees(self, p)
+	local pos = self.object:get_pos()
+	local cb = self.object:get_properties().collisionbox
+	return core.line_of_sight(vector.add(pos, {x = 0, y = cb[5] * 0.9, z = 0}),
+		vector.add(p:get_pos(), {x = 0, y = 1.4, z = 0}))
+end
+
+local function retarget(self)
+	if self.state ~= "attack" or not self.attack or not self.attack:get_pos() then return end
+	local pos = self.object:get_pos()
+	local dcur = vector.distance(pos, self.attack:get_pos())
+	local best, bd
+	for _, p in ipairs(core.get_connected_players()) do
+		if p ~= self.attack and can_fight(self, p) then
+			local d = vector.distance(pos, p:get_pos())
+			if d <= (self.view_range or 14) and (not bd or d < bd) and sees(self, p) then best, bd = p, d end
+		end
+	end
+	if best and bd + 2 <= dcur then
+		self._windup = nil
+		self:do_attack(best, true)
+	end
+end
+
+local function struck_by(self, a)
+	if not can_fight(self, a) or a == self.attack then return end
+	local pos = self.object:get_pos()
+	local cur = self.attack and self.attack:get_pos()
+	if not cur or vector.distance(pos, a:get_pos()) <= vector.distance(pos, cur) then
+		self._windup = nil
+		self:do_attack(a, true)
 	end
 end
 
@@ -127,9 +173,10 @@ local function on_blow(self, blow)
 		self.pause_timer = blow.stun or 0.25
 		if blow.stun then self._windup = nil end
 		if self._hx then self._hx.stagger = blow.stun or 0.5 end
-		if not self.attack and a:is_player() then self:do_attack(a) end
+		struck_by(self, a)
 	end
 	self:check_for_death({type = "punch", puncher = a})
+	if self.state == "die" and orthoverse.rank and a then orthoverse.rank.killed(self, a) end
 	if self.state ~= "die" then
 		label(self, blow.text, blow.sweet and "#f5c64a" or "#efe6d0")
 	end
@@ -199,6 +246,14 @@ local function monster(id, def)
 			if self._check > 2 then
 				self._check = 0
 				if not in_place(self) then self.object:remove(); return false end
+				retarget(self)
+				-- Close to its target and able to see them counts as fighting
+				-- (for experience: a monster that cannot reach anyone gives none)
+				local a = self.attack
+				if self.state == "attack" and a and a:get_pos()
+						and vector.distance(a:get_pos(), self.object:get_pos()) <= (self.reach or 2) + 3 and sees(self, a) then
+					self._fought = now()
+				end
 			end
 			if def.do_custom then return def.do_custom(self, dtime) end
 		end,
@@ -209,34 +264,35 @@ local function monster(id, def)
 	ent._orthoverse_target = {ac = def.ac or 10}
 	ent._on_blow = on_blow
 	ent._windup_time = def.windup
+	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
 	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc}
 end
 
 monster("kobold", {
-	desc = S("Kobold"), size = 0.6, hp = 7, ac = 12, damage = 2, windup = 0.4, interval = 1.2,
+	desc = S("Kobold"), level = 1, xp = 25, size = 0.6, hp = 10, ac = 12, damage = 2, windup = 0.4, interval = 1.2,
 	walk = 1.8, run = 3.8, weapon = "orthoverse_combat:dagger_steel_carried",
 	sounds = {random = "orthoverse_monsters_mossling_chatter", damage = "orthoverse_monsters_mossling_hurt",
 		death = "orthoverse_monsters_mossling_death", distance = 12},
 })
 monster("goblin", {
-	desc = S("Goblin"), size = 0.65, hp = 9, ac = 13, damage = 3, windup = 0.45, interval = 1.3,
+	desc = S("Goblin"), level = 2, xp = 50, size = 0.65, hp = 13, ac = 13, damage = 3, windup = 0.45, interval = 1.3,
 	walk = 1.7, run = 3.6, weapon = "orthoverse_combat:spear_steel_carried", reach = 2.4,
 	sounds = {random = "orthoverse_monsters_mossling_call", damage = "orthoverse_monsters_mossling_hurt",
 		death = "orthoverse_monsters_mossling_death", distance = 14},
 })
 monster("orc", {
-	desc = S("Orc"), size = 1.12, hp = 18, ac = 13, damage = 5, windup = 0.65, interval = 1.8,
+	desc = S("Orc"), level = 4, xp = 100, size = 1.12, hp = 26, ac = 13, damage = 5, windup = 0.65, interval = 1.8,
 	walk = 1.4, run = 3.0, weapon = "orthoverse_combat:morning_star_steel_carried", reach = 2.3,
 	sounds = {random = "orthoverse_monsters_hexer_hiss", damage = "orthoverse_monsters_hexer_hurt",
 		death = "orthoverse_monsters_hexer_death", distance = 16},
 })
 monster("skeleton", {
-	desc = S("Skeleton"), size = 1.0, hp = 13, ac = 13, damage = 4, windup = 0.5, interval = 1.5,
+	desc = S("Skeleton"), level = 3, xp = 75, size = 1.0, hp = 18, ac = 13, damage = 4, windup = 0.5, interval = 1.5,
 	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword_bronze_carried", alpha = true,
 	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 12},
 })
 monster("mossling", {
-	desc = S("Mossling"), size = 0.55, hp = 10, ac = 11, damage = 2, windup = 0.4, interval = 1.5,
+	desc = S("Mossling"), level = 1, xp = 25, size = 0.55, hp = 10, ac = 11, damage = 2, windup = 0.4, interval = 1.5,
 	walk = 1.6, run = 3.4,
 	sounds = {random = "orthoverse_monsters_mossling_chatter", attack = "orthoverse_monsters_mossling_swipe",
 		damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_monsters_mossling_death", distance = 12},
@@ -487,6 +543,7 @@ local function hexer_think(self)
 				if e then e._owner = self.object end
 			end
 			drain(self, pos)
+			self._fought = now()
 			h.cooldown = HEX.cast_every + math.random(0, 10) / 10
 			h.watch = time / 2
 			self:set_animation("stand")
@@ -539,7 +596,7 @@ local function hexer_think(self)
 end
 
 monster("hexer", {
-	desc = S("Hexer"), size = 1.0, hp = 16, ac = 12, damage = 4,
+	desc = S("Hexer"), level = 4, xp = 120, size = 1.0, hp = 20, ac = 12, damage = 4,
 	walk = 1.0, run = 2.6, view_range = HEX.view,
 	sounds = {random = "orthoverse_monsters_hexer_mutter", damage = "orthoverse_monsters_hexer_hurt",
 		death = "orthoverse_monsters_hexer_death", distance = 16},
@@ -593,7 +650,7 @@ function mobs:boom(mob, pos, node_radius, entity_radius, texture)
 end
 
 monster("wisp", {
-	desc = S("Wisp"), visual = "sprite", size = 0.9, hp = 20, ac = 11, damage = 12, attack_type = "explode",
+	desc = S("Wisp"), level = 3, xp = 75, visual = "sprite", size = 0.9, hp = 20, ac = 11, damage = 12, attack_type = "explode",
 	glow = 14, collisionbox = {-0.35, -0.35, -0.35, 0.35, 0.35, 0.35}, walk = 1.2, run = 2.6,
 	mobs = {fly = true, fly_in = {"air"}, keep_flying = true, explosion_radius = 2, explosion_damage_radius = 4,
 		explosion_timer = 1.5, allow_fuse_reset = true, stop_to_explode = true, fall_damage = false, jump = false,
@@ -610,6 +667,7 @@ monster("wisp", {
 		local pos = self.object:get_pos()
 		if not pos or self.state == "die" then return end
 		self._bob = (self._bob or 0) + dtime
+		if self.v_start then self._fought = now() end
 		local want
 		local target = self.attack and self.attack:get_pos()
 		if target then
@@ -666,7 +724,7 @@ local function spawn_at(pos, kind, count, run_id, key)
 			local obj = core.add_entity(vector.add(p, {x = 0, y = -0.45, z = 0}), kind)
 			local ent = obj and obj:get_luaentity()
 			if ent then
-				ent._adventure, ent._run = key, run_id
+				ent._adventure, ent._run, ent._spawner = key, run_id, core.pos_to_string(pos)
 				spawned = spawned + 1
 			end
 		end

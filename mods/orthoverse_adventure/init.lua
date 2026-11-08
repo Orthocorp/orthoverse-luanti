@@ -44,7 +44,7 @@ local runs = {}             -- land key -> the run in progress
 local restocking = {}       -- land key -> true while the area is being restored
 local templates = {}        -- land key -> the saved dungeon, loaded
 
-orthoverse.adventure = {}
+orthoverse.adventure = {on_finish = {}}
 
 ------------------------------------------------------------------------------
 -- Definitions
@@ -426,6 +426,9 @@ local function finish(name, key)
 		core.chat_send_all(("%s has been completed for the first time, by %s, in %s!"):format(
 			def.name, table.concat(names, ", "), format_time(secs)))
 	end
+	-- Other mods (rank: the finishing bonus) hear of it: the adventure, the
+	-- run, and the members whose run counts
+	for _, f in ipairs(orthoverse.adventure.on_finish) do f(key, def, run, names or {}) end
 end
 
 -- Who is where, once a second
@@ -1013,6 +1016,9 @@ load_all()
 write_public()
 
 orthoverse.adventure.at = adventure_at
+-- Whether a player builds an adventure's land (or is the admin): their runs
+-- there count for nothing
+orthoverse.adventure.may_manage = may_manage
 orthoverse.adventure.runs = runs
 orthoverse.adventure.list = adventures
 -- For tests: what the gate's Enter button and the finish block do

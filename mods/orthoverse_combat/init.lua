@@ -52,10 +52,10 @@ local kinds = {
 }
 local KIND_ORDER = {"dagger", "short_sword", "broadsword", "spear", "mace", "morning_star", "war_hammer"}
 local materials = {
-	{id = "steel", desc = "Steel", dmg = 0},
-	{id = "bronze", desc = "Bronze", dmg = 1},
-	{id = "mese", desc = "Mese", dmg = 2},
-	{id = "diamond", desc = "Diamond", dmg = 3},
+	{id = "steel", desc = "Steel", dmg = 0, rank = 1},
+	{id = "bronze", desc = "Bronze", dmg = 1, rank = 3},   -- rank: from which the metal counts in full
+	{id = "mese", desc = "Mese", dmg = 2, rank = 6},
+	{id = "diamond", desc = "Diamond", dmg = 3, rank = 10},
 }
 
 local weapons = {}   -- "<kind>_<material>" -> the weapon
@@ -73,7 +73,8 @@ for _, kid in ipairs(KIND_ORDER) do
 		w.image = "orthoverse_combat_" .. w.id .. ".png"
 		weapons[w.id], by_item[w.item] = w, w
 		core.register_tool(w.item, {
-			description = S(w.desc) .. "\n" .. S("Hold to wind up, release to strike"),
+			description = S(w.desc) .. "\n" .. S("Hold to wind up, release to strike")
+				.. (m.rank > 1 and ("\n" .. S("Full strength from rank @1", m.rank)) or ""),
 			inventory_image = w.image,
 			wield_scale = {x = k.wield_scale or 1.3, y = k.wield_scale or 1.3, z = 1},
 			-- digs nothing; the default punch does nothing (blows are ours)
@@ -139,7 +140,8 @@ end)
 -- How strong a blow is, from how long it was held
 
 -- Returns strength (0.25 .. 1), the phase, and whether in the sweet spot
-local function strength(w, held)
+local function strength(w, held, sweet_width)
+	local SWEET = sweet_width or SWEET
 	if held < w.ready then return 0.25, "feeble", false end
 	if held < w.full then return 0.5 + 0.5 * (held - w.ready) / (w.full - w.ready), "rising", false end
 	if held < w.full + SWEET then return 1, "sweet", true end
@@ -188,7 +190,12 @@ local function blow_sound(name, pos, gain)
 end
 
 local function strike(player, w, held)
-	local s, phase, sweet = strength(w, held)
+	-- The striker's rank (orthoverse_rank): a wider sweet spot, extra damage,
+	-- and how much of the weapon's metal counts
+	local R = orthoverse.rank
+	local rank = R and R.get(player) or 1
+	local s, phase, sweet = strength(w, held, R and R.sweet(rank))
+	local metal = R and math.min(w.dmg, R.material_cap(rank)) or w.dmg
 	local props = player:get_properties()
 	local eye = vector.add(player:get_pos(), {x = 0, y = props.eye_height or 1.47, z = 0})
 	local dir = player:get_look_dir()
@@ -274,7 +281,7 @@ local function strike(player, w, held)
 		blow.crit = phase ~= "feeble" and math.random(20) == 20
 		local dice = (phase == "sweet" or phase == "full") and w.full_dice or w.dice
 		local n, sides = dice[1], dice[2]
-		local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or w.dmg)
+		local dmg = roll(blow.crit and 2 * n or n, sides) + (phase == "feeble" and 0 or metal + (R and R.damage(rank) or 0))
 			+ (sweet and SWEET_BONUS or 0) + (blow.side == "side" and 1 or 0)
 		dmg = dmg * s
 		if blow.zone == "head" then dmg = dmg * 1.5 end
