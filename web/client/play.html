@@ -12,7 +12,7 @@
      only files from this site: the logo, the Midnight font, a screenshot */
   @font-face { font-family: "Midnight"; src: url("/fonts/midnight.ttf") format("truetype"); font-display: swap; }
   :root { --bg: #141a33; --panel: rgba(30, 39, 80, 0.92); --ink: #efe6d0; --quiet: #b3b8d0;
-    --accent: #f5c64a; --bronze: #7a4a17; --line: #1c1208; --grass: #5d9b3a; --stone: #8d8a84;
+    --accent: #f5c64a; --bronze: #7a4a17; --line: #1c1208; --grass: #3f7d26; --stone: #8d8a84;
     --bad: #ff8a80; --bad-bg: rgba(255, 123, 114, 0.12); --good: #6ee7a0; }
   * { box-sizing: border-box; }
   html { background: var(--bg); }
@@ -40,15 +40,14 @@
     background: #0c1024; border: 2px solid #2b3466; border-radius: 0; }
   input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .hint { font-size: 13px; color: var(--quiet); margin-top: 4px; }
-  /* Block buttons, as on the home page */
+  /* Block buttons, as on the rest of the site: green, and grey only when disabled */
   main .go { margin-top: 14px; width: 100%; padding: 14px 12px; font: 16px/16px "Midnight", monospace;
     color: #fff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45); background: var(--grass);
     border: 3px solid var(--line); border-radius: 0; cursor: pointer;
     box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
-  main .go.second { background: var(--stone); }
   main .go:hover:not(:disabled) { filter: brightness(1.1); }
   main .go:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
-  main .go:disabled { opacity: 0.55; cursor: progress; }
+  main .go:disabled { background: var(--stone); opacity: 0.55; cursor: progress; box-shadow: none; }
   main .go:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   .who { margin-top: 10px; font-size: 14px; color: var(--quiet); }
   .who b { color: var(--ink); font-weight: 600; }
@@ -92,7 +91,7 @@
         carry and achieve. Holders build on their own lands; anyone signed in may mine and build on the crofts,
         the common lands (characters without a wallet after their first hour of play).</p>
       <button id="wallet-signin" class="go" type="button">Sign in</button>
-      <button id="wallet-register" class="go second" type="button">Make a character</button>
+      <button id="wallet-register" class="go" type="button">Make a character</button>
     </div>
     <div id="wallet-name" hidden>
       <h2>Choose your player name</h2>
@@ -111,7 +110,7 @@
   <section class="panel" aria-labelledby="guest-title">
     <h2 id="guest-title">Play as a guest</h2>
     <p>Explore, ride and travel by the henges. Guests cannot build.</p>
-    <button id="guest-play" class="go second" type="button" disabled>Loading…</button>
+    <button id="guest-play" class="go" type="button" disabled>Loading…</button>
     <div class="who" id="guest-who"></div>
   </section>
 

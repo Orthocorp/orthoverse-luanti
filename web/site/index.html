@@ -38,7 +38,7 @@
     font: 18px/1.6 "Atkinson Hyperlegible", system-ui, sans-serif; }
   img { max-width: 100%; display: block; }
   a { color: var(--gold); }
-  a:focus-visible, .btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   .pixel { font-family: "Midnight", monospace; font-weight: normal; letter-spacing: 0;
     -webkit-font-smoothing: none; font-smooth: never; }
 
@@ -59,13 +59,7 @@
     text-shadow: -2px 0 0 var(--outline), 2px 0 0 var(--outline), 0 -2px 0 var(--outline),
       0 2px 0 var(--outline), 3px 3px 0 var(--outline); }
   .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: auto; padding-top: 48px; }
-  .btn { display: inline-block; padding: 16px 24px; font-size: 16px; line-height: 16px; text-decoration: none;
-    color: #fff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
-    border: 3px solid var(--outline); background: var(--stone);
-    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
-  .btn.go { background: var(--grass); }
-  .btn:hover { filter: brightness(1.1); }
-  .btn:active { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
+  .actions .ov-btn { padding: 16px 24px; }
   .hero .small { margin: 16px 0 0; font-size: 16px; color: #fff; max-width: 36em;
     text-shadow: 0 0 6px var(--night), 0 0 2px var(--night), 1px 1px 0 var(--outline); }
 
@@ -141,8 +135,8 @@
   <h1 style="margin:0"><img class="logo" src="/img/logo.png" width="498" height="105" alt="The Orthoverse"></h1>
   <p class="tagline pixel">Every Orthoverse token is a land you can walk on.</p>
   <div class="actions">
-    <a class="btn go pixel" href="/play/">Play in your browser</a>
-    <a class="btn pixel" href="/map/">Explore the map</a>
+    <a class="ov-btn" href="/play/">Play in your browser</a>
+    <a class="ov-btn" href="/map/">Explore the map</a>
   </div>
   <p class="small">Free, on a computer with a recent Chrome, Edge or Firefox. Sign in with any Ethereum wallet to build, or come as a guest.</p>
 </header>
@@ -204,7 +198,7 @@
         <p>Anyone may wander the whole Orthoverse, as under the Finnish everyman's right. Each land's holder
           builds on it, and the crofts are common land where anyone signed in may build. Find any land by its
           name or token ID on the map.</p>
-        <a class="btn pixel" href="/map/">Explore the map</a>
+        <a class="ov-btn" href="/map/">Explore the map</a>
       </div>
     </div>
   </section>

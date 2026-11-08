@@ -18,22 +18,28 @@
   --bad: #ff8a80;
   --good: #6ee7a0;
   --line: #2b3466;
+  /* Button colours, by what a button does (white text on each is 4.5:1 or more) */
+  --btn-go: #3f7d26;     /* green: go to a page, or any action that spends nothing */
+  --btn-info: #16837b;   /* teal: show information */
+  --btn-spend: #b4532a;  /* terracotta: spends ETH */
   --body-font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .pixel { font-family: "Midnight", monospace; font-weight: normal; letter-spacing: 0; -webkit-font-smoothing: none; }
 
-/* Block buttons */
+/* Block buttons. Green unless told otherwise (class "info" for teal,
+   "spend" for terracotta); only a disabled button is grey. */
 .ov-btn { display: inline-block; padding: 12px 18px; font: 16px/16px "Midnight", monospace; color: #fff;
   text-decoration: none; cursor: pointer; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
-  border: 3px solid var(--outline); border-radius: 0; background: var(--stone);
+  border: 3px solid var(--outline); border-radius: 0; background: var(--btn-go);
   box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
-.ov-btn.go { background: var(--grass); }
-.ov-btn.gold { background: #b9852a; }
-.ov-btn.signed { background: #1f9e95; }      /* turquoise: signed in */
+.ov-btn.info { background: var(--btn-info); }
+.ov-btn.spend { background: var(--btn-spend); }
+.ov-btn.chosen { outline: 3px solid var(--gold); outline-offset: 2px; }
 .ov-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .ov-btn:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
-.ov-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ov-btn:disabled, .ov-btn[aria-disabled="true"] { background: var(--stone); opacity: 0.55; cursor: not-allowed;
+  box-shadow: none; filter: none; }
 .ov-btn:focus-visible, .ov-bar a:focus-visible, .ov-bar button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
 /* The header */

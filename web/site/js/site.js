@@ -170,7 +170,7 @@
     // Step 1: sign in, with a name and password or a wallet
     const lName = input('ov-l-name', { maxlength: '19', autocomplete: 'username' });
     const lPass = input('ov-l-pass', { type: 'password', maxlength: '128', autocomplete: 'current-password' });
-    const lBtn = el('button', { class: 'ov-btn go', type: 'submit' }, 'Sign in');
+    const lBtn = el('button', { class: 'ov-btn', type: 'submit' }, 'Sign in');
     const noWallet = el('p', { class: 'ov-quiet' }, 'No wallet in this browser. A wallet (such as MetaMask) lets you hold lands; ' +
       'without one you can still have a character, or explore as a guest.');
     const signBtn = el('button', { class: 'ov-btn', type: 'button', onclick: signIn }, 'Sign in with a wallet');
@@ -189,7 +189,7 @@
 
     // Step 2: a player name, the first time a wallet signs in
     const name = input('ov-name', { maxlength: '19' });
-    const nameBtn = el('button', { class: 'ov-btn go', type: 'submit' }, 'Take this name');
+    const nameBtn = el('button', { class: 'ov-btn', type: 'submit' }, 'Take this name');
     const step2 = el('form', { novalidate: true, onsubmit: chooseName },
       el('h2', {}, 'Choose your player name'),
       el('p', {}, 'This is your name in the game and on the site. It stays with this wallet for good.'),
@@ -207,7 +207,7 @@
     const rPass = input('ov-r-pass', { type: 'password', maxlength: '128', autocomplete: 'new-password' });
     const rPass2 = input('ov-r-pass2', { type: 'password', maxlength: '128', autocomplete: 'new-password' });
     const robot = el('div', { class: 'ov-robot' });
-    const rBtn = el('button', { class: 'ov-btn go', type: 'submit' }, 'Make my character');
+    const rBtn = el('button', { class: 'ov-btn', type: 'submit' }, 'Make my character');
     const stepRegister = el('form', { novalidate: true, hidden: true, onsubmit: register },
       el('h2', {}, 'Make a character'),
       el('p', {}, 'Your name in the game and on the site. Your character keeps what you carry and what you achieve, ' +
@@ -222,7 +222,7 @@
     const cName = input('ov-c-name', { maxlength: '19', autocomplete: 'username' });
     const cCode = input('ov-c-code', { maxlength: '24', placeholder: 'XXXX-XXXX-XXXX-XXXX' });
     const cPass = input('ov-c-pass', { type: 'password', maxlength: '128', autocomplete: 'new-password' });
-    const cBtn = el('button', { class: 'ov-btn go', type: 'submit' }, 'Set the new password');
+    const cBtn = el('button', { class: 'ov-btn', type: 'submit' }, 'Set the new password');
     const stepRecover = el('form', { novalidate: true, hidden: true, onsubmit: recover },
       el('h2', {}, 'Forgot your password?'),
       el('p', {}, 'Use the recovery code you were given when you made your character. If your character has a wallet, ' +
@@ -244,7 +244,7 @@
         el('button', { class: 'ov-btn', type: 'button', onclick: async () => {
           try { await navigator.clipboard.writeText(codeBox.textContent); copied.textContent = 'Copied.'; } catch (e) { copied.textContent = 'Select it and copy it by hand.'; }
         } }, 'Copy'),
-        el('button', { class: 'ov-btn go', type: 'button', onclick: () => dialog.close() }, 'I have written it down'),
+        el('button', { class: 'ov-btn', type: 'button', onclick: () => dialog.close() }, 'I have written it down'),
         copied));
 
     dialog = el('dialog', { class: 'ov-dialog', 'aria-label': 'Sign in' },
@@ -377,7 +377,7 @@
       dialog.list.innerHTML = '';
       for (const a of addresses) {
         const isSel = selected && a.toLowerCase() === selected.toLowerCase();
-        dialog.list.append(el('button', { class: 'ov-btn' + (isSel ? ' go' : ''), type: 'button', title: a,
+        dialog.list.append(el('button', { class: 'ov-btn' + (isSel ? ' chosen' : ''), type: 'button', title: a,
           style: 'text-align:left;font:15px/1.4 var(--body-font);word-break:break-all',
           onclick: () => resolve(a) }, a, isSel ? el('br') : null, isSel ? '(selected in your wallet)' : null));
       }
@@ -477,12 +477,12 @@
   function drawHeader(slot) {
     bar = el('div', { class: 'ov-bar' + (slot.classList.contains('over') ? ' over' : ''), role: 'banner' });
     who = el('div', { class: 'ov-who' });
-    const burger = el('button', { class: 'ov-btn ov-burger', type: 'button', 'aria-label': 'Menu', 'aria-expanded': 'false',
+    const burger = el('button', { class: 'ov-btn info ov-burger', type: 'button', 'aria-label': 'Menu', 'aria-expanded': 'false',
       onclick: () => { bar.classList.toggle('open'); burger.setAttribute('aria-expanded', String(bar.classList.contains('open'))); } }, '≡');
     bar.append(
       el('a', { class: 'ov-logo', href: '/' }, el('img', { src: '/img/logo.png', width: '498', height: '105', alt: 'The Orthoverse, home' })),
       el('nav', { 'aria-label': 'Site' }, link('/map/', 'Map'), link('/adventures/', 'Adventures'), link('/account/', 'Account'),
-        el('a', { class: 'ov-btn go', href: '/play/', 'aria-current': here.startsWith('/play/') ? 'page' : false }, 'Play')),
+        el('a', { class: 'ov-btn', href: '/play/', 'aria-current': here.startsWith('/play/') ? 'page' : false }, 'Play')),
       burger, who);
     slot.replaceWith(bar);
     drawWho();
@@ -516,7 +516,7 @@
       return;
     }
     if (!me.name) {
-      who.append(el('button', { class: 'ov-btn gold', type: 'button', onclick: OV.signIn }, 'Choose your name'));
+      who.append(el('button', { class: 'ov-btn', type: 'button', onclick: OV.signIn }, 'Choose your name'));
       return;
     }
     const menu = el('div', { class: 'ov-menu', hidden: true },
@@ -524,7 +524,7 @@
         : 'Signed in with your password' + (me.address ? ' (wallet ' + W.short(me.address) + ')' : '')),
       el('a', { href: '/account/' }, me.address ? 'Account: your lands' : 'Account'),
       el('button', { class: 'ov-link', type: 'button', onclick: OV.signOut }, 'Sign out'));
-    const btn = el('button', { class: 'ov-btn signed', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
+    const btn = el('button', { class: 'ov-btn info', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
       onclick: () => { menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)); } }, me.name + ' ▾');
     who.append(btn, menu);
   }
@@ -560,7 +560,7 @@
   function phoneCard() {
     const link = location.origin + '/play/';
     const copied = el('p', { class: 'ov-copied', 'aria-live': 'polite' });
-    const send = el('button', { class: 'ov-btn go', type: 'button', onclick: async () => {
+    const send = el('button', { class: 'ov-btn', type: 'button', onclick: async () => {
       try {
         if (navigator.share) { await navigator.share({ title: 'The Orthoverse', text: 'Play the Orthoverse on my computer', url: link }); return; }
         await navigator.clipboard.writeText(link);
