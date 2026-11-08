@@ -47,6 +47,7 @@ RUN { bash -c 'source ./common.sh && emcc --clear-cache --clear-ports' \
 # rebuilds incremental)
 COPY web/client/patches/ /patches/
 COPY web/client/textures/ /textures/
+COPY web/client/fonts/ /fonts/
 COPY docker/client/build-engine.sh /usr/local/bin/build-engine
 RUN --mount=type=cache,target=/cache,id=orthoverse-luanti-wasm-engine \
     build-engine "$LUANTI_WASM_COMMIT" > /tmp/engine.log 2>&1 \

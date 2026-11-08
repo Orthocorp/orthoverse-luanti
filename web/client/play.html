@@ -376,6 +376,14 @@
     // language: the explanations above match the engine's English messages.
     mtl.setLang('en');
     mtl.setConf('viewing_range', 120);
+    // The Orthoverse's fonts are bundled in place of the engine's (see
+    // docker/client/build-engine.sh): Alegreya for chat and text, Midnight
+    // (the "mono" font) for titles and buttons, kept to whole multiples of its
+    // 8-pixel size so it stays crisp
+    mtl.setConf('font_size', 18);
+    mtl.setConf('mono_font_size', 16);
+    mtl.setConf('mono_font_size_divisible_by', 8);
+    mtl.setConf('font_shadow', 1);
 
     $('page').remove();
     OV.unmount();

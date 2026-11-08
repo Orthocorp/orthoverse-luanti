@@ -517,6 +517,14 @@ end)
 ------------------------------------------------------------------------------
 -- The blocks
 
+-- A window title in the Midnight font (the game's "mono" font in the browser
+-- client), and buttons in it too
+local function title(x, y, w, text)
+	return ("hypertext[%s,%s;%s,0.9;title;<global size=16><mono>%s</mono>]"):format(x, y, w,
+		core.formspec_escape(core.hypertext_escape(text)))
+end
+local MONO_BUTTONS = "style_type[button,button_exit;font=mono]"
+
 local function gate_formspec(name, key, def)
 	local lines = {}
 	local list, total = fastest(key, def, 5)
@@ -537,13 +545,13 @@ local function gate_formspec(name, key, def)
 		status = "The way is open."
 	end
 	return table.concat({
-		"formspec_version[4]size[10,9.2]",
-		"label[0.5,0.7;", core.formspec_escape(def.name or "Adventure"), "]",
+		"formspec_version[4]size[10,9.2]", MONO_BUTTONS,
+		title(0.5, 0.35, 9, def.name or "Adventure"),
 		"textarea[0.5,1.1;9,1.4;;;", core.formspec_escape(def.line or ""), "]",
 		"label[0.5,2.9;", core.formspec_escape(status), "]",
 		"label[0.5,3.5;", core.formspec_escape(("Time limit %d minutes. Completed %d time%s (this version)."):format(
 			def.limit or LIMIT_DEFAULT, total, total == 1 and "" or "s")), "]",
-		"label[0.5,4.2;Fastest:]",
+		title(0.5, 3.85, 9, "Fastest"),
 		"textlist[0.5,4.5;9,3;fast;", #lines > 0 and table.concat(lines, ",") or "Nobody yet: be the first.", ";0;true]",
 		"button_exit[0.5,7.9;4,0.9;enter;Enter]",
 		"button_exit[5.5,7.9;4,0.9;close;Not now]",
@@ -630,8 +638,8 @@ core.register_node("orthoverse_adventure:board", {
 		local vrec = (records[key] or {})["v" .. def.version] or {}
 		local first = vrec[1]
 		core.show_formspec(clicker:get_player_name(), "orthoverse_adventure:board", table.concat({
-			"formspec_version[4]size[11,8.5]",
-			"label[0.5,0.7;", core.formspec_escape((def.name or "Adventure") .. ": records"), "]",
+			"formspec_version[4]size[11,8.5]", MONO_BUTTONS,
+			title(0.5, 0.35, 10, (def.name or "Adventure") .. ": records"),
 			"label[0.5,1.4;", core.formspec_escape(first and ("First to complete: " .. table.concat(first.names, ", ") ..
 				" (" .. first.at:sub(1, 10) .. ")") or "Nobody has completed it yet."), "]",
 			"label[0.5,2.0;", core.formspec_escape(("Completed %d time%s. Fastest:"):format(total, total == 1 and "" or "s")), "]",
@@ -715,8 +723,8 @@ core.register_chatcommand("adventure", {
 			-- In a window: the chat is too small for it
 			local text = (def and (status(key, def) .. "\n\n") or "") .. HELP
 			core.show_formspec(name, "orthoverse_adventure:help", table.concat({
-				"formspec_version[4]size[16,11]",
-				"label[0.5,0.6;Adventures]",
+				"formspec_version[4]size[16,11]", MONO_BUTTONS,
+				title(0.5, 0.25, 15, "Adventures"),
 				"textarea[0.5,1;15,8.9;;;", core.formspec_escape(text), "]",
 				"button_exit[6,10;4,0.8;close;Close]",
 			}))

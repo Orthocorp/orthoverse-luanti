@@ -149,5 +149,5 @@ browser through a small WebSocket proxy. See `web/README.md`.
 ## Licences
 
 Minetest Game (mods/mtg) is LGPL-2.1-or-later for code and CC BY-SA 3.0 for media;
-see `mods/mtg/LICENSE-minetest_game.txt`. Animalia and Creatura (mods/animals) are MIT, by ElCeejo. Mesecons (mods/mesecons, the parts dungeons need) is LGPL-3.0 for code and CC BY-SA 3.0 for media, by the Mesecons Mod Developer Team. WorldEdit (mods/worldedit, core and commands, for the admin only) is AGPL-3.0, by sfan5 and contributors: the AGPL asks that its source be offered to the server's users, which this public repository does. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
+see `mods/mtg/LICENSE-minetest_game.txt`. Animalia and Creatura (mods/animals) are MIT, by ElCeejo. In the browser game, Alegreya (web/client/fonts, by Juan Pablo del Peral and Huerta Tipográfica) is under the SIL Open Font License 1.1. Mesecons (mods/mesecons, the parts dungeons need) is LGPL-3.0 for code and CC BY-SA 3.0 for media, by the Mesecons Mod Developer Team. WorldEdit (mods/worldedit, core and commands, for the admin only) is AGPL-3.0, by sfan5 and contributors: the AGPL asks that its source be offered to the server's users, which this public repository does. Leaflet (web/site/map/vendor/leaflet) is BSD-2-Clause. Licence for the Orthoverse
 mods and web code: to be decided.

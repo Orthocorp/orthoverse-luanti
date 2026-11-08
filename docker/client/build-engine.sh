@@ -65,6 +65,19 @@ for t in /textures/*.png; do
 	cp "$t" "$PACK/"
 done
 
+# Our fonts (web/client/fonts/) in place of the engine's own, under the
+# engine's file names, so its defaults pick them up wherever the browser game
+# keeps its files: Alegreya for chat and text (as Arimo), Midnight for titles
+# and buttons (as Cousine, the "mono" font that windows ask for by style)
+FONTS="build/luanti-install/fonts"
+[[ -d "$FONTS" ]] || { echo "No $FONTS: the engine's install layout changed" >&2; exit 1; }
+for v in Regular Bold Italic BoldItalic; do
+	cp /fonts/Alegreya.ttf "$FONTS/Arimo-$v.ttf"
+	cp /fonts/midnight.ttf "$FONTS/Cousine-$v.ttf"
+done
+cp /fonts/Alegreya-OFL.txt "$FONTS/"
+echo "fonts: Alegreya and Midnight"
+
 ./build_fsroot.sh
 ./build_www.sh
 # The object files stay in the cache, not in the image
