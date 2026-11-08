@@ -65,7 +65,7 @@ It needs 60 blocks east by 42 north. The buildings rise 38 blocks above the grou
 
 ### The puzzles (solutions)
 
-- **The Grate.** A slot in the north wall is too low to climb through. Beyond it, two pressure plates sit in an alcove. The steel door opens while something lies on a plate. The solution: punch the **pile of pebbles** in the corner for a pebble, stand at the slot and drop it through (the drop key, Q by default).
+- **The Grate.** A slot in the north wall, three blocks wide, is too low for a player to climb through: a half slab and one block high. Beyond it, six pressure plates sit in an alcove. The steel door opens while something lies on a plate. The solution: punch the **pile of pebbles** in the corner for a pebble, stand right at the slot looking straight through it (or slightly up) and drop the pebble (the drop key, Q by default). From further back it hits the wall. Pebbles drop for real even in creative mode, so you can test it while building.
 - **The Library.** Four levers hang among the bookshelves, and only one works. The sign says "my own book lies beneath my golden name": it's the lever under the gold block.
 - **The Four Levers.** The levers on the east wall open the door only when set high, low, high, low (first and third pulled, second and fourth left down), as the sign says. Any other setting closes it again. The logic sits behind the wall: two Mesecons torches and a wire.
 - **The ropes.** Pulling the lever in each rope room opens its door in the tower. A door stays open as long as its lever stays pulled.

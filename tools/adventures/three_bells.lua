@@ -68,7 +68,7 @@ tb.levers = {
 	combination = {{x = 34, y = CS, z = 23}, {x = 34, y = CS, z = 25}, {x = 34, y = CS, z = 27}, {x = 34, y = CS, z = 29}},
 	iron = {x = 22, y = F, z = 28}, bronze = {x = 37, y = F, z = 28}, silver = {x = 29, y = CS, z = 35},
 }
-tb.plates = {{x = 17, y = F, z = 22}, {x = 17, y = F, z = 23}}
+tb.plates = {{x = 16, y = F, z = 22}, {x = 18, y = F, z = 23}}
 tb.finish = {x = 29, y = 33, z = 30}
 
 ------------------------------------------------------------------------------
@@ -185,19 +185,27 @@ local function ground_floor()
 	end
 end
 
--- W1: a slot in the north wall too low to climb through; beyond it two
+-- W1: a slot in the north wall too low to climb through; beyond it six
 -- pressure plates. Something thrown through (a pebble from the pile) opens the
 -- door to W2 while it lies there.
 local function grate()
-	set(17, F + 1, 21, "air")                         -- the slot
-	air(17, F, 22, 17, F + 1, 23)                     -- the alcove beyond
-	set(17, F, 22, PLATE); mark(17, F, 22)
-	set(17, F, 23, PLATE); mark(17, F, 23)
-	wires({{16, G, 22}, {16, G, 23}, {16, G, 21}, {15, G, 21}, {14, G, 21}, {13, G, 21}, {12, G, 21},
+	-- The slot: three wide, a half slab and a block high, so a pebble fits
+	-- through but a player (1.77 tall) does not
+	box(16, F, 21, 18, F, 21, "stairs:slab_stonebrick", 0)
+	air(16, F + 1, 21, 18, F + 1, 21)
+	air(16, F, 22, 18, F + 1, 23)                     -- the alcove beyond
+	for z = 22, 23 do
+		for x = 16, 18 do
+			set(x, F, z, PLATE); mark(x, F, z)
+			wire(x, G, z)                             -- under the plates
+		end
+	end
+	wires({{16, G, 21}, {15, G, 21}, {14, G, 21}, {13, G, 21}, {12, G, 21},
 		{12, G, 20}, {12, G, 19}, {12, G, 18}, {12, G, 17}})
 	door(12, F, 16, 1)
 	set(14, F, 19, "orthoverse_adventure:pebbles")
-	sign(19, F + 1, 20, "+z", "THE FOUNDER'S GRATE\nMy door opens while something weighs on the floor beyond the slot.")
+	sign(19, F + 1, 20, "+z", "THE FOUNDER'S GRATE\nMy door opens while something weighs on the floor beyond the slot. " ..
+		"(Stand right at the slot, look straight through it and throw with the drop key.)")
 end
 
 -- E1: bookshelves along two walls; one of four levers among them works, the

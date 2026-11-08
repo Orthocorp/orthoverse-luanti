@@ -660,6 +660,7 @@ core.register_craftitem("orthoverse_adventure:pebble", {
 	description = "Pebble (throw it with the drop key)",
 	inventory_image = "orthoverse_adventure_pebble.png",
 	stack_max = PEBBLES_MAX,
+	groups = {throwable = 1},   -- dropped for real even in creative mode (orthoverse_creative)
 })
 
 local function take_pebble(pos, player)

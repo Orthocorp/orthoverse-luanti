@@ -96,6 +96,32 @@ core.after(2, function()
 			return 0.5
 		end,
 		function(nxt) puzzles(A, "built", nxt) end,
+		-- Throwing a pebble as a player does (core.item_drop): from where, at which angle
+		function(nxt)
+			local tries = {}
+			for _, z in ipairs({20.2, 19.7, 19.2, 18.5}) do
+				for _, deg in ipairs({-10, 0, 10, 20, 30, 40}) do
+					for _, x in ipairs({17.0}) do tries[#tries + 1] = {x = x, z = z, deg = deg} end
+				end
+			end
+			local results = {}
+			local function one(i)
+				local t = tries[i]
+				if not t then say("throws (z = distance south, deg up): " .. table.concat(results, "  ")); return nxt() end
+				local feet = vector.add(A, {x = t.x, y = 8.5, z = t.z})
+				local a = math.rad(t.deg)
+				local obj = core.add_item(vector.add(feet, {x = 0, y = 1.2, z = 0}), "orthoverse_adventure:pebble")
+				obj:set_velocity({x = 0, y = math.sin(a) * 2.9 + 2, z = math.cos(a) * 2.9})
+				core.after(2.5, function()
+					local on = core.get_node(vector.add(A, tb.doors.grate)).name
+					local door = door_open(A, "grate")
+					results[#results + 1] = ("%.1f/%d:%s"):format(t.z, t.deg, door == "open" and "IN" or "out")
+					obj:remove()
+					core.after(1.2, function() one(i + 1) end)
+				end)
+			end
+			one(1)
+		end,
 		-- Placing it on a land with the command's code
 		function(nxt)
 			local key

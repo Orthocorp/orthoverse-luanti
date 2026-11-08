@@ -364,10 +364,12 @@ core.register_on_player_hpchange(function(player, change, reason)
 end, true)
 
 -- Dropping a creative block throws it away instead of onto the ground, where
--- it could be picked up off the land
+-- it could be picked up off the land. Things made to be thrown and worth
+-- nothing (group throwable: an adventure's pebbles) are dropped as usual.
 local old_item_drop = core.item_drop
 function core.item_drop(itemstack, dropper, pos)
-	if dropper and dropper.is_player and dropper:is_player() and is_creative(dropper) then
+	if dropper and dropper.is_player and dropper:is_player() and is_creative(dropper) and
+			core.get_item_group(ItemStack(itemstack):get_name(), "throwable") == 0 then
 		return ItemStack("")
 	end
 	return old_item_drop(itemstack, dropper, pos)
