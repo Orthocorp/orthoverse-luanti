@@ -83,6 +83,7 @@ tools/make_desktop_art.py    the pixel-art computer on the play page for phones
 tools/make_cave.py           the cave wall round the web map, from the game's textures
 compose.yaml, docker/         running it all on Docker Compose (see docker/README.md)
 web/                         orthoverse.land: site, map, proxy, browser game (see web/README.md)
+docs/                        design documents: land abilities, accounts, adventures (see docs/README.md)
 ```
 
 ## Coordinates
