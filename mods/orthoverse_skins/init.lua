@@ -23,8 +23,9 @@ local BUILT_IN = {
 
 local skins, by_key = {}, {}
 
-local function add(key, label, texture)
-	local skin = {key = key, label = label, texture = texture}
+local function add(key, label, texture, file)
+	-- file: the PNG itself (texture may be a modifier on it)
+	local skin = {key = key, label = label, texture = texture, file = file or texture}
 	skins[#skins + 1] = skin
 	by_key[key] = skin
 end
@@ -63,9 +64,9 @@ for _, file in ipairs(core.get_dir_list(modpath .. "/textures", false)) do
 		if not by_key[key] then
 			local w, h = png_size(modpath .. "/textures/" .. file)
 			if w == 64 and h == 32 then
-				extra[#extra + 1] = {key, file}
+				extra[#extra + 1] = {key, file, file}
 			elseif w == 64 and h == 64 then
-				extra[#extra + 1] = {key, "[combine:64x32:0,0=" .. file}
+				extra[#extra + 1] = {key, "[combine:64x32:0,0=" .. file, file}
 			else
 				core.log("warning", ("[orthoverse_skins] %s: expected a 64x32 or 64x64 PNG, found %sx%s; skipping")
 					:format(file, tostring(w), tostring(h)))
@@ -75,7 +76,7 @@ for _, file in ipairs(core.get_dir_list(modpath .. "/textures", false)) do
 end
 table.sort(extra, function(a, b) return a[1] < b[1] end)
 for _, e in ipairs(extra) do
-	add(e[1], label_for(e[1]), e[2])
+	add(e[1], label_for(e[1]), e[2], e[3])
 end
 
 local names = {}

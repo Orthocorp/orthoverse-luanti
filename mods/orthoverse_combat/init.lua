@@ -39,7 +39,7 @@ local kinds = {
 	broadsword = {desc = "broadsword", kind = "slash", ready = 0.4, full = 1.2, tires = 2.5, best = 2.5, reach = 3.5,
 		dice = {1, 8}, full_dice = {1, 10}},
 	spear = {desc = "spear", kind = "jab", ready = 0.3, full = 0.8, tires = 2.5, best = 3.5, reach = 4.5,
-		dice = {1, 6}},
+		dice = {1, 6}, wield_scale = 2.0},
 	mace = {desc = "mace", kind = "bash", ready = 0.4, full = 1.0, tires = 2.5, best = 2.0, reach = 3.0,
 		dice = {1, 6}},
 	morning_star = {desc = "morning star", kind = "bash", ready = 0.5, full = 1.2, tires = 2.6, best = 2.0, reach = 3.0,
@@ -72,8 +72,7 @@ for _, kid in ipairs(KIND_ORDER) do
 		core.register_tool(w.item, {
 			description = S(w.desc) .. "\n" .. S("Hold to wind up, release to strike"),
 			inventory_image = w.image,
-			wield_image = "orthoverse_combat_" .. w.id .. "_held.png",   -- a fist on the grip
-			wield_scale = {x = 1.3, y = 1.3, z = 1},
+			wield_scale = {x = k.wield_scale or 1.3, y = k.wield_scale or 1.3, z = 1},
 			-- digs nothing; the default punch does nothing (blows are ours)
 			tool_capabilities = {full_punch_interval = 0.5, max_drop_level = 0, groupcaps = {}, damage_groups = {fleshy = 0}},
 			groups = {orthoverse_weapon = 1, hold_attack = math.floor(k.full * 1000), hold_tires = math.floor(k.tires * 1000),
@@ -126,7 +125,11 @@ core.register_on_mods_loaded(function()
 end)
 
 core.register_on_punchplayer(function(player, hitter)
-	if hitter and hitter:is_player() then return true end   -- no player hurts a player
+	-- no player hurts another (a blast is a player "punching" themselves:
+	-- Mobs Redo's explosions do it that way, so that one goes through)
+	if hitter and hitter:is_player() and hitter:get_player_name() ~= player:get_player_name() then
+		return true
+	end
 end)
 
 ------------------------------------------------------------------------------
@@ -246,6 +249,7 @@ end
 orthoverse.combat.weapons = weapons
 orthoverse.combat.kinds = kinds
 orthoverse.combat.strength = strength
+orthoverse.combat.strike = strike   -- for tests
 
 ------------------------------------------------------------------------------
 -- Watching the attack button
@@ -280,17 +284,50 @@ core.register_on_leaveplayer(function(player)
 	holding[name] = nil
 end)
 
--- A weapon left invisible by the earlier on-screen raised weapon (patch
--- 1023, now replaced) is shown again
-core.register_on_joinplayer(function(player)
-	local inv = player:get_inventory()
-	for i, stack in ipairs(inv:get_list("main") or {}) do
-		if by_item[stack:get_name()] and stack:get_meta():get_string("wield_image") ~= "" then
-			stack:get_meta():set_string("wield_image", "")
-			inv:set_stack("main", i, stack)
-		end
+-- A fist on the grip of the weapon in the hand, in the colour of the
+-- player's own skin: the bottom row of the right arm (the hand in the 64 x 32
+-- skin layout), filled into the fist's shape, with its shading laid over it.
+-- It goes on the wielded weapon's own picture (item meta wield_image), so
+-- everyone sees it, and changes when the skin or the weapon does.
+
+local function skin_file(player)
+	local skin = orthoverse_skins and orthoverse_skins.get(player)
+	return skin and skin.file or "character.png"
+end
+
+local function esc(t) return (t:gsub("%^", "\\^"):gsub(":", "\\:")) end
+
+local function fist_image(w, skin)
+	local k = w.kind_id
+	return w.image .. "^([combine:1x1:-45,-31=" .. esc(skin) .. "^[resize:16x16^[mask:orthoverse_combat_fist_" .. k .. ".png)"
+		.. "^orthoverse_combat_fist_" .. k .. "_shade.png"
+end
+orthoverse.combat.fist_image = fist_image
+
+local fisted = {}   -- name -> "wield index|item|skin" last looked at
+
+local function fit_fist(player)
+	local name = player:get_player_name()
+	local idx = player:get_wield_index()
+	local stack = player:get_wielded_item()
+	local skin = skin_file(player)
+	local key = idx .. "|" .. stack:get_name() .. "|" .. skin
+	if fisted[name] == key then return end
+	fisted[name] = key
+	local w = by_item[stack:get_name()]
+	if not w then return end
+	local want = fist_image(w, skin)
+	local meta = stack:get_meta()
+	if meta:get_string("wield_image") ~= want then
+		meta:set_string("wield_image", want)
+		player:set_wielded_item(stack)
 	end
+end
+
+core.register_globalstep(function()
+	for _, player in ipairs(core.get_connected_players()) do fit_fist(player) end
 end)
+core.register_on_leaveplayer(function(player) fisted[player:get_player_name()] = nil end)
 
 ------------------------------------------------------------------------------
 -- The training dummy: takes every blow and shows it over its head.

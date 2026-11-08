@@ -1,5 +1,5 @@
 diff --git a/src/client/camera.cpp b/src/client/camera.cpp
-index a1b9848..9f5a166 100644
+index a1b9848..1813f16 100644
 --- a/src/client/camera.cpp
 +++ b/src/client/camera.cpp
 @@ -3,6 +3,7 @@
@@ -23,7 +23,7 @@ index a1b9848..9f5a166 100644
 +	static const f32 poses[3][6] = {
 +		{0.0f, 22.0f, 0.0f, 0.0f, 0.0f, 30.0f},
 +		{-12.0f, 6.0f, 2.0f, 0.0f, -30.0f, 0.0f},
-+		{-16.0f, 2.0f, 4.0f, 0.0f, 25.0f, 60.0f},
++		{-40.0f, 0.0f, 6.0f, 0.0f, 72.0f, 40.0f},
 +	};
 +	static const char *keys[3] = {"hold_pose", "hold_pose_thrust", "hold_pose_jab"};
 +	style = std::max(0, std::min(2, style));
@@ -38,7 +38,7 @@ index a1b9848..9f5a166 100644
  Camera::Camera(MapDrawControl &draw_control, Client *client, RenderingEngine *rendering_engine):
  	m_draw_control(draw_control),
  	m_client(client),
-@@ -540,6 +562,43 @@ void Camera::update(LocalPlayer* player, f32 frametime, f32 tool_reload_ratio)
+@@ -540,6 +562,53 @@ void Camera::update(LocalPlayer* player, f32 frametime, f32 tool_reload_ratio)
  		wield_position.X -= std::sin(bobfrac*M_PI*2.0) * 3.0;
  		wield_position.Y += std::sin(my_modf(bobfrac*2.0)*M_PI) * 3.0;
  	}
@@ -52,7 +52,7 @@ index a1b9848..9f5a166 100644
 +		}
 +		if (target >= m_hold_amount)
 +			m_hold_amount = target;
-+		else
++		else if (m_jab_time < 0)   // a jab keeps its aim until it is back
 +			m_hold_amount = std::max(target, m_hold_amount - frametime * 6.0f);
 +		if (m_hold_amount > 0) {
 +			f32 hp[6];
@@ -62,14 +62,24 @@ index a1b9848..9f5a166 100644
 +			wield_rotation += v3f(hp[3], hp[4], hp[5]) * e;
 +		}
 +		if (m_jab_time >= 0) {
-+			// a jab: straight out along the way it points, and back
++			// a jab: driven straight out along the spear, quickly, and drawn
++			// back more slowly (hold_jab_time and hold_jab_vector in the
++			// settings override it, for tuning)
++			f32 jab_time = 0.28f, jv[3] = {-12.0f, 2.0f, 40.0f};
++			if (g_settings->exists("hold_jab_time"))
++				jab_time = std::max(0.05f, g_settings->getFloat("hold_jab_time"));
++			if (g_settings->exists("hold_jab_vector")) {
++				std::istringstream is(g_settings->get("hold_jab_vector"));
++				for (int i = 0; i < 3 && (is >> jv[i]); i++) {}
++			}
 +			m_jab_time += frametime;
-+			f32 f = m_jab_time / 0.3f;
++			f32 f = m_jab_time / jab_time;
 +			if (f >= 1.0f) {
 +				m_jab_time = -1.0f;
 +			} else {
-+				f32 out = std::sin(f * (f32)M_PI);
-+				wield_position += v3f(-18.0f, 2.0f, 36.0f) * out;
++				f32 out = f < 0.3f ? std::sin(f / 0.3f * (f32)M_PI * 0.5f)
++					: std::cos((f - 0.3f) / 0.7f * (f32)M_PI * 0.5f);
++				wield_position += v3f(jv[0], jv[1], jv[2]) * out;
 +			}
 +		}
 +		if (m_hold_progress >= 0 && m_hold_tires > 0 && m_hold_progress > m_hold_tires) {
