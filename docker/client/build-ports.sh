@@ -8,8 +8,11 @@
 # and CMake stops with "Could not find a package configuration file provided
 # by SDL2". The client Dockerfile runs this in its own layer, so engine builds
 # never depend on those downloads; build-engine.sh runs it again as a check.
-# One failed download fails the whole lot, so it tries three times.
+# Emscripten downloads each port once, from one address, so fetch-ports
+# downloads them first, with retries and second addresses where they exist.
 set -uo pipefail
+
+fetch-ports || exit 1
 
 SDL2_CMAKE="emsdk/upstream/emscripten/cache/sysroot/lib/cmake/SDL2/sdl2-config.cmake"
 

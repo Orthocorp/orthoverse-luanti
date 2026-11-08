@@ -42,9 +42,11 @@ RUN { bash -c 'source ./common.sh && emcc --clear-cache --clear-ports' \
       && ./build_openssl.sh && ./build_curl.sh && ./build_libzip.sh ; } > /tmp/libs.log 2>&1 \
     || { tail -n 40 /tmp/libs.log; exit 1; }
 
-# Emscripten's ports (SDL2, zlib, libpng, freetype...), downloaded and built
-# once here with the engine's flags (see build-ports.sh), so engine rebuilds
-# never depend on those downloads
+# Emscripten's ports (SDL2, zlib, libpng, freetype...), downloaded (with
+# retries and second addresses, see fetch-ports.py) and built once here with
+# the engine's flags (see build-ports.sh), so engine rebuilds never depend on
+# those downloads
+COPY docker/client/fetch-ports.py /usr/local/bin/fetch-ports
 COPY docker/client/build-ports.sh /usr/local/bin/build-ports
 RUN build-ports > /tmp/ports.log 2>&1 || { tail -n 60 /tmp/ports.log; exit 1; }
 
