@@ -1084,6 +1084,38 @@ end
 -- message) when finished (the area is loaded first).
 local CLEAR_ABOVE = 40
 
+-- The land's own ground where the admin stands: its surface and what lies
+-- under it (grass and dirt, or tarmac and dirt on a land of the flipped
+-- realm). A ready-made adventure's ground is grass over dirt, and takes
+-- these instead, so it fits the land.
+local function land_ground(at)
+	local function solid(name)
+		local d = core.registered_nodes[name]
+		return d and d.walkable ~= false and (d.liquidtype or "none") == "none" and name or nil
+	end
+	return solid(core.get_node(at).name), solid(core.get_node(vector.offset(at, 0, -1, 0)).name)
+end
+
+local function wear_land_ground(p1, p2, ground, top, under)
+	local swap = {}
+	if top and top ~= "default:dirt_with_grass" then swap["default:dirt_with_grass"] = core.get_content_id(top) end
+	if under and under ~= "default:dirt" then swap["default:dirt"] = core.get_content_id(under) end
+	if not next(swap) then return end
+	local ids = {}
+	for from, to in pairs(swap) do ids[core.get_content_id(from)] = to end
+	local a, b = vector.new(p1.x, ground - 3, p1.z), vector.new(p2.x, ground, p2.z)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(a, b)
+	local va = VoxelArea(e1, e2)
+	local data = vm:get_data()
+	for i in va:iterp(a, b) do
+		local to = ids[data[i]]
+		if to then data[i] = to end
+	end
+	vm:set_data(data)
+	vm:write_to_map(true)
+end
+
 local function place_template(tname, at, by, done, turned)
 	local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
 	local data = read_file(TEMPLATES_DIR .. "/" .. tname .. ".we")
@@ -1112,6 +1144,7 @@ local function place_template(tname, at, by, done, turned)
 	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), top, function(_, _, left)
 		if left > 0 then return end
 		local ground = p1.y + (info.ground or 0)
+		local surf, under = land_ground(vector.round(at))
 		local air = core.get_content_id("air")
 		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), top)) do
 			if not obj:is_player() then obj:remove() end
@@ -1128,6 +1161,8 @@ local function place_template(tname, at, by, done, turned)
 		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
 		-- so a castle upgrade or a flip of the land keeps it
 		if orthoverse.note_built then orthoverse.note_built(p1, p2) end
+		-- its ground takes the land's: tarmac on a land of the flipped realm
+		wear_land_ground(p1, p2, ground, surf, under)
 		-- WorldEdit sets nodes without starting their timers: pressure plates
 		-- and monster spawners need theirs
 		local q2 = vector.add(p1, {x = (info.size or {}).x or 96, y = (info.size or {}).y or 64, z = (info.size or {}).z or 96})

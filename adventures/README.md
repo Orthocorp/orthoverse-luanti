@@ -114,9 +114,9 @@ Every spawner brings its monsters once per run, when a player comes within its w
 
 ## The Fallen Star
 
-A ship from the futuristic realm came down in the hills, and its machines are still running. A combat adventure for ranks 3 to 7 (it overlaps The Gullet), a party of one to four. It is 64 blocks by 64. Only the salvagers' camp stands on the ground (no more than four blocks high); the ship lies buried, deck below deck, under a crater with a kerb and fence round its rim. Placing it clears the land above it and replaces the ground below it down to 26 blocks.
+A ship from the futuristic realm came down in the hills, and its machines are still running. A combat adventure for ranks 3 to 7 (it overlaps The Gullet), a party of one to four. It is 64 blocks by 64. Only the salvagers' camp stands on the ground (no more than four blocks high); the ship lies buried, deck below deck, under a crater roofed by a low glass dome (four blocks high at most, flush with the ground at its rim). Placing it clears the land above it and replaces the ground below it down to 26 blocks.
 
-- **The salvagers' camp** (outside the dungeon, at the south end, or the north with `north`): the gate, the board, the arrival point, tents and salvage, and a notice of what the salvagers have seen.
+- **The salvagers' camp** (outside the dungeon, at the south end, or the north with `north`): the gate, the board, the arrival point, two shelters of salvaged plating, crates of salvage, and a notice of what the salvagers have seen.
 - **The upper deck**, through the ship's torn hull off the crater floor:
   - the cargo hold (the start): crates, 3 scrap drones, a common locker;
   - the crew corridor (a security robot) with six cabins: two crew cabins and the captain's to the west, the medbay (a medical station: a full heal once per run, and a common locker), a crew cabin and the security office (2 security robots, a weapon locker) to the east;

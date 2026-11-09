@@ -11,9 +11,9 @@
 --
 --   The salvagers' camp (on the ground, outside the dungeon), south: the
 --     gate, the board, the arrival point, and what they have seen.
---   The crater, behind it: open to the sky, stepping back a block every four
---     (too high to climb), a kerb and fence round its rim. The ship's torn
---     hull opens off its floor.
+--   The crater, behind it: stepping back a block every four (too high to
+--     climb), under a low glass dome. The ship's torn hull opens off its
+--     floor.
 --   The upper deck (floor y 18):
 --     the cargo hold (the start): crates, scrap drones, a loot locker;
 --     the crew corridor, with three cabins each side: crew cabins and the
@@ -48,9 +48,8 @@ local CONSOLE = "orthoverse_scifi:console"
 local REACTOR = "orthoverse_scifi:reactor"
 local GLASS = "orthoverse_scifi:glass"
 local LOOSE = "orthoverse_scifi:loose_panel"
-local MOSSY = "default:mossycobble"
-local FENCE = "default:fence_wood"
-local SIGN = "default:sign_wall_wood"
+local BARS = "xpanes:bar"
+local SIGN = "default:sign_wall_steel"
 local SPAWNER = "orthoverse_monsters:spawner"
 local LOOT = "orthoverse_loot:locker"
 local CARD_LOCKER = "orthoverse_scifi:locker"
@@ -70,7 +69,7 @@ g.info = {
 	arrival = {x = 32.5, y = NF, z = 2.5},
 }
 
-g.spawners, g.chests, g.signs, g.rim = {}, {}, {}, {}
+g.spawners, g.chests, g.signs = {}, {}, {}
 g.finish = {x = 44, y = L3 + 2, z = 30}
 g.gate = {x = 32, y = NF, z = 4}
 g.surface = NF
@@ -194,15 +193,31 @@ local function crater()
 	end end
 	-- scorched earth and twisted plates on the floor
 	for _, p in ipairs({{27, 13}, {38, 16}, {30, 18}, {35, 11}}) do set(p[1], L1 + 1, p[2], SCORCH) end
-	-- the rim: a stone kerb with a fence on it, two blocks high
-	local function open(x, z) return x >= 0 and x < SX and z >= 0 and z < SZ and get(x, NG, z) == "air" end
+	-- a glass dome over it: flush with the ground at the rim, rising to four
+	-- blocks above it in the middle, sealed between its steps
+	local hgt = {}
+	local function k(x, z) return x .. "," .. z end
 	for z = 0, SZ - 1 do for x = 0, SX - 1 do
-		if not open(x, z) then
-			local edge = false
-			for dx = -1, 1 do for dz = -1, 1 do if open(x + dx, z + dz) then edge = true end end end
-			if edge then
-				set(x, NF, z, MOSSY); set(x, NF + 1, z, FENCE)
-				g.rim[#g.rim + 1] = {x, z}
+		if get(x, NG, z) == "air" then
+			local dn = math.sqrt(((x - 32) / 11) ^ 2 + ((z - 15) / 7.5) ^ 2)
+			hgt[k(x, z)] = NG + math.max(0, math.floor(4 * (1 - dn * dn) + 0.5))
+		end
+	end end
+	for z = 0, SZ - 1 do for x = 0, SX - 1 do
+		local y = hgt[k(x, z)]
+		if y then
+			local low = y
+			for _, d in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) do
+				low = math.min(low, hgt[k(x + d[1], z + d[2])] or NG)
+			end
+			for yy = math.max(NG, low), y do set(x, yy, z, GLASS) end
+		end
+	end end
+	-- and a ring of hull round its foot
+	for z = 1, SZ - 2 do for x = 1, SX - 2 do
+		if not hgt[k(x, z)] then
+			for _, d in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) do
+				if hgt[k(x + d[1], z + d[2])] then set(x, NG, z, HULL) end
 			end
 		end
 	end end
@@ -212,14 +227,16 @@ end
 local function camp()
 	set(g.gate.x, g.gate.y, g.gate.z, "orthoverse_adventure:gate", 0)
 	set(28, NF, 4, "orthoverse_adventure:board", 0)
-	-- tents
-	local function tent(x1, z1, colour)
-		box(x1, NF, z1, x1 + 2, NF + 1, z1 + 2, colour)
-		set(x1 + 1, NF + 2, z1 + 1, colour)
-		air(x1 + 1, NF, z1, x1 + 1, NF + 1, z1)
+	-- prefab shelters of salvaged plating, with a window each
+	local function shelter(x1, z1)
+		box(x1, NF, z1, x1 + 3, NF + 2, z1 + 3, HULL)
+		air(x1 + 1, NF, z1 + 1, x1 + 2, NF + 1, z1 + 2)
+		air(x1 + 1, NF, z1, x1 + 2, NF + 1, z1)               -- the door
+		set(x1, NF + 1, z1 + 2, GLASS); set(x1 + 3, NF + 1, z1 + 2, GLASS)
+		set(x1 + 1, NF + 2, z1 + 1, LIGHT)
 	end
-	tent(20, 2, "wool:white")
-	tent(42, 2, "wool:grey")
+	shelter(19, 1)
+	shelter(42, 1)
 	-- crates of salvage, a lamp post, the notices on crates
 	for _, p in ipairs({{25, 1}, {26, 1}, {25, 2}, {38, 1}, {39, 1}, {39, 2}}) do set(p[1], NF, p[2], CRATE) end
 	set(26, NF + 1, 1, CRATE)
@@ -344,7 +361,7 @@ local function reactor()
 	-- the catwalk: along the west wall, then down a stair along the south
 	box(18, L2, 27, 19, L2, 36, DECK)
 	box(18, L2, 25, 19, L2, 26, DECK)
-	for z = 27, 36 do set(20, L2 + 1, z, FENCE) end
+	for z = 27, 36 do set(20, L2 + 1, z, BARS) end
 	for k = 1, 10 do box(19 + k, L2 - k, 25, 19 + k, L2 - k, 26, DECK) end
 	-- three reactor cores
 	for _, x in ipairs({28, 34, 40}) do box(x, L3 + 1, 31, x, L3 + 14, 31, REACTOR) end
@@ -390,7 +407,7 @@ end
 
 function g.build(origin)
 	grid, p2grid, metas = {}, {}, {}
-	g.spawners, g.chests, g.signs, g.rim = {}, {}, {}, {}
+	g.spawners, g.chests, g.signs = {}, {}, {}
 	seed = 4242
 	ground()
 	hull()

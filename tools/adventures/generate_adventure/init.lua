@@ -110,6 +110,28 @@ local function check(O, label)
 		end
 	end
 	say(label .. ": the rim can be climbed from the land: " .. tostring(over))
+	-- and nobody on the land gets into the dungeon without the gate
+	local into = false
+	local c1, c2 = g.info.corner1, g.info.corner2
+	for k3 in pairs(seen3) do
+		local x, y, z = k3:match("^([^,]+),([^,]+),([^,]+)$")
+		x, y, z = tonumber(x) - O.x, tonumber(y) - O.y, tonumber(z) - O.z
+		if x >= math.min(c1.x, c2.x) and x <= math.max(c1.x, c2.x) and z >= math.min(c1.z, c2.z) and z <= math.max(c1.z, c2.z)
+				and y >= math.min(c1.y, c2.y) and y <= math.max(c1.y, c2.y) then into = true break end
+	end
+	say(label .. ": the dungeon reachable from the land: " .. tostring(into))
+	-- where the ground is open to the sky (a player could fall in, unless a
+	-- barrier keeps them off)
+	local holes = 0
+	local gy = g.info.ground
+	for x = 0, g.info.size.x - 1 do for z = 0, g.info.size.z - 1 do
+		local open = true
+		for y = gy, math.min(gy + 6, g.info.size.y - 1) do
+			if walkable(vector.add(O, {x = x, y = y, z = z})) then open = false break end
+		end
+		if open and not walkable(vector.add(O, {x = x, y = gy - 1, z = z})) then holes = holes + 1 end
+	end end
+	say(label .. ": open holes in the ground: " .. holes)
 	-- and the portcullis is down: from inside, the fort cannot be reached
 	local back = false
 	for dx = -1, 1 do for dz = -1, 1 do
