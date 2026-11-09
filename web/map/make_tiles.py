@@ -234,6 +234,13 @@ def update(db, lands_path, new_lands_path, tokens_path, heraldry_dir, out, chang
         if card is not None and list(card_inputs(land, tokens)) != card:
             todo.add(key)
     if not todo:
+        # Nothing to draw, but the names may have changed (the henges'
+        # English names, a land renamed): keep the list up to date
+        lands_now = land_list(data, lands, tokens)
+        if lands_now != current.get("lands"):
+            current["lands"] = lands_now
+            write_json(os.path.join(out, "lands.json"), current)
+            print("lands.json: names and levels brought up to date", flush=True)
         return 0
 
     version = os.environ.get("MAP_VERSION") or time.strftime("%Y%m%d%H%M%S", time.gmtime())
