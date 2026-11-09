@@ -13,7 +13,8 @@
 --   Thornwatch (on the ground, outside the dungeon): a palisade fort at the
 --     mouth of the gorge, with the gate, the board, the smithy and the
 --     arrival point. Its gate tower stands over the drop, portcullis down,
---     with a ladder below it to the gorge floor. A fence runs round the rim.
+--     with a ladder below it to the gorge floor. A kerb and fence, two
+--     blocks high, run round the rim.
 --   The ravine (the gorge) runs north between rock walls. Caves in the walls, graded:
 --     west: the mossling warren, then the wisp hollow;
 --     east: the kobold den;
@@ -225,9 +226,12 @@ local function ravine()
 	end
 	-- the ladder down from the gate tower (on the gorge's south face)
 	box(32, F, 13, 32, NG, 13, "default:ladder_wood", SIGN_P2["-z"])
-	-- a fence round the rim, so nobody up on the land walks over the edge
-	for z = 13, 77 do set(23, NF, z, FENCE); set(41, NF, z, FENCE) end
-	for x = 23, 41 do set(x, NF, 77, FENCE) end
+	-- round the rim, a stone kerb with a fence on it: two blocks high, so
+	-- nobody up on the land walks or jumps over the edge
+	local function rail(x, z) set(x, NF, z, MOSSY); set(x, NF + 1, z, FENCE) end
+	for z = 13, 77 do rail(23, z); rail(41, z) end
+	for x = 24, 40 do rail(x, 77) end
+	g.rim = {{23, 13, 23, 77}, {41, 13, 41, 77}, {24, 77, 40, 77}}
 	sign(24, F + 1, 15, "-x", "Clear the caves, or go straight for the warlord. The way to his temple runs " ..
 		"through the orc hall, up the ramp in the east wall.")
 	-- the rockfall at the head of the ravine

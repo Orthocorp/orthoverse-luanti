@@ -98,6 +98,15 @@ local function check(O, label)
 		if seen3[key3(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then gate_ok = true end
 	end end
 	say(label .. ": outside standable " .. tostring(standable(outside)) .. "; gate reachable from outside: " .. tostring(gate_ok))
+	-- and from the land, nobody gets up onto the rim's barrier (to jump into
+	-- the gorge)
+	local over = false
+	for _, r in ipairs(g.rim or {}) do
+		for x = r[1], r[3] do for z = r[2], r[4] do for y = g.surface, g.surface + 3 do
+			if seen3[key3(vector.add(O, {x = x, y = y, z = z}))] then over = true end
+		end end end
+	end
+	say(label .. ": the rim can be climbed from the land: " .. tostring(over))
 	-- and the portcullis is down: from inside, the fort cannot be reached
 	local back = false
 	for dx = -1, 1 do for dz = -1, 1 do

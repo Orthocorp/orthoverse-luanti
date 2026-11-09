@@ -40,4 +40,4 @@ cp /tmp/gu/world/gullet.we adventures/
 python3 -m json.tool --tab --sort-keys /tmp/gu/world/gullet.json > adventures/gullet.json
 ```
 
-Expected: `finish reachable true; unreachable: none`, `temple reachable without the two ways in: false` and `gate reachable from outside: true`.
+Expected: `finish reachable true; unreachable: none`, `temple reachable without the two ways in: false`, `gate reachable from outside: true`, `the rim can be climbed from the land: false`, `fort reachable from inside: false`, `can climb out of the gorge: false` and `signs not on a wall: none`.
