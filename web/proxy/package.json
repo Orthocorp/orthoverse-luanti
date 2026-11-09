@@ -6,12 +6,14 @@
   "main": "proxy.js",
   "license": "MIT",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node proxy.js",
     "test": "node test/handshake.js"
   },
   "dependencies": {
-    "ws": "8.18.3"
+    "ws": "8.21.3"
   }
 }

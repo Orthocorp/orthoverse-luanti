@@ -118,6 +118,12 @@ setInterval(() => {
 
 let openSockets = 0;
 const perIp = new Map();
+// Connections from one address that have not yet bound (or looked up a name):
+// a few at a time, and only for a few seconds, so nobody can hold open
+// thousands of idle sockets
+const waitingPerIp = new Map();
+const MAX_WAITING_PER_IP = 20;
+const COMMAND_MS = 15000;
 let connId = 0;
 
 function countIp(ip, delta) {
@@ -143,6 +149,26 @@ class Connection {
         ws.on('message', (data, isBinary) => this.onMessage(data, isBinary));
         ws.on('close', () => this.close());
         ws.on('error', () => this.close('websocket error'));
+        this.waiting = true;
+        const w = (waitingPerIp.get(this.ip) || 0) + 1;
+        waitingPerIp.set(this.ip, w);
+        if (w > MAX_WAITING_PER_IP) {
+            log(`[${this.id}] ${this.ip} refused: too many new connections from this address`);
+            this.close();
+            return;
+        }
+        this.commandTimer = setTimeout(() => {
+            if (this.mode !== 'udp') this.close();
+        }, COMMAND_MS);
+    }
+
+    // No longer waiting (bound to the game, or closed)
+    doneWaiting() {
+        if (!this.waiting) return;
+        this.waiting = false;
+        clearTimeout(this.commandTimer);
+        const w = (waitingPerIp.get(this.ip) || 0) - 1;
+        if (w <= 0) waitingPerIp.delete(this.ip); else waitingPerIp.set(this.ip, w);
     }
 
     send(data) {
@@ -155,6 +181,7 @@ class Connection {
         if (this.mode === 'closed') return;
         if (reason && this.mode === 'udp') log(`[${this.id}] ${this.ip} closed: ${reason}`);
         this.mode = 'closed';
+        this.doneWaiting();
         clearInterval(this.idleTimer);
         if (this.udp) {
             try { this.udp.close(); } catch (e) { /* already closed */ }
@@ -246,6 +273,7 @@ class Connection {
         udp.on('error', (e) => this.close('udp error ' + e.message));
         udp.connect(TARGET_PORT, TARGET_HOST, () => {
             this.mode = 'udp';
+            this.doneWaiting();
             log(`[${this.id}] ${this.ip} bound (${openSockets} open)`);
             this.send('BIND OK');
         });

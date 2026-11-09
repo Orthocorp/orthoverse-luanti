@@ -721,7 +721,23 @@ local function spawner_formspec(pos)
 	}), spos
 end
 
+-- No more than this many monsters near one spawner, so a spawner clicked
+-- again and again (its test button, or a hacked client) cannot flood the
+-- server with entities
+local NEAR_CAP, NEAR_RADIUS = 30, 32
+
+local function monsters_near(pos)
+	local n = 0
+	for _, obj in ipairs(core.get_objects_inside_radius(pos, NEAR_RADIUS)) do
+		local ent = obj:get_luaentity()
+		if ent and ent.name and ent.name:sub(1, 20) == "orthoverse_monsters:" then n = n + 1 end
+	end
+	return n
+end
+
 local function spawn_at(pos, kind, count, run_id, key)
+	if not core.registered_entities[kind] then return 0 end
+	count = math.min(count, NEAR_CAP - monsters_near(pos))
 	local spawned = 0
 	for _ = 1, count * 6 do
 		if spawned >= count then break end
@@ -808,8 +824,9 @@ core.register_on_player_receive_fields(function(player, formname, fields)
 	meta:set_string("infotext", S("Monster spawner") .. ": " .. meta:get_int("count") .. " × " .. desc)
 	if fields.test then
 		local key = orthoverse.adventure and orthoverse.adventure.at(pos)
-		local n = spawn_at(pos, kind, meta:get_int("count"), nil, key)
-		core.chat_send_player(name, ("Brought %d. /adventure reset clears them."):format(n))
+		local n = spawn_at(pos, kind, math.max(1, math.min(6, meta:get_int("count"))), nil, key)
+		core.chat_send_player(name, n > 0 and ("Brought %d. /adventure reset clears them."):format(n)
+			or "There are enough monsters here already. /adventure reset clears them.")
 	end
 	return true
 end)

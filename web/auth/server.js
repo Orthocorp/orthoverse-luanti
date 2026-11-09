@@ -34,6 +34,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
 import { createMetadata } from './metadata.js';
+import { srpVerifier } from './srp.js';
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -138,6 +139,27 @@ for (const p of Object.values(registry.players)) {
 
 function saveRegistry() {
 	writeJsonAtomic(REGISTRY_FILE, registry);
+}
+
+// A character by lower-case name (never an inherited property such as
+// "__proto__" or "constructor")
+function entryOf(key) {
+	return Object.hasOwn(registry.players, key) ? registry.players[key] : undefined;
+}
+
+// Each character carries its game account's password record (srp), so the game
+// creates the account with the right password before anyone else can join
+// under the name (see srp.js). Characters made before this get one now.
+function withSrp(entry) {
+	entry.srp = srpVerifier(entry.name, gamePassword(entry.name));
+	return entry;
+}
+{
+	let added = 0;
+	for (const p of Object.values(registry.players)) {
+		if (p && p.name && !p.srp) { withSrp(p); added++; }
+	}
+	if (added) { saveRegistry(); log(`game password records added for ${added} characters`); }
 }
 
 // Whether the game already has an account with this name (any capitals)
@@ -428,10 +450,10 @@ function readSession(req) {
 	if (!s.e || s.e < Date.now()) return null;
 	if (s.a) {
 		const name = nameOfAddress.get(s.a) || null;
-		return { address: s.a, name, entry: name ? registry.players[name.toLowerCase()] : null, wallet: true };
+		return { address: s.a, name, entry: name ? entryOf(name.toLowerCase()) : null, wallet: true };
 	}
 	if (s.n) {
-		const entry = registry.players[s.n];
+		const entry = entryOf(s.n);
 		if (!entry || !entry.pw || entry.pw.v !== s.v) return null;   // password changed since
 		return { address: entry.address ? entry.address.toLowerCase() : null, name: entry.name, entry, wallet: false };
 	}
@@ -483,7 +505,7 @@ function passwordProblem(password, name) {
 function nameProblem(name) {
 	if (!NAME_RE.test(name)) return 'Names are 3 to 19 letters, digits, - and _, with no spaces.';
 	if (GUEST_RE.test(name)) return 'Names starting with "Guest" are kept for guests.';
-	if (registry.players[name.toLowerCase()] || accountExists(name)) {
+	if (entryOf(name.toLowerCase()) || accountExists(name)) {
 		return 'That name is taken (perhaps with different capitals). Choose another.';
 	}
 	return null;
@@ -621,7 +643,7 @@ function me(who) {
 		? { address: who, name: nameOfAddress.get(who) || null, wallet: true }
 		: who;
 	const name = sess.name || null;
-	const entry = name ? registry.players[name.toLowerCase()] : null;
+	const entry = name ? entryOf(name.toLowerCase()) : null;
 	const address = sess.address || null;
 	return {
 		signedIn: true,
@@ -713,11 +735,11 @@ const routes = {
 			return send(res, 429, { error: 'Too many new characters from here today. Try again tomorrow.' });
 		}
 		const code = makeRecoveryCode();
-		const entry = {
+		const entry = withSrp({
 			name, since: new Date().toISOString(),
 			pw: { ...(await makeHash(body.password)), v: 1 },
 			rc: await makeHash(normalCode(code)),
-		};
+		});
 		registry.players[name.toLowerCase()] = entry;
 		saveRegistry();
 		log('new password character', name);
@@ -733,7 +755,7 @@ const routes = {
 		if (loginBlocked(key)) {
 			return send(res, 429, { error: 'Too many wrong passwords for this name. Wait 15 minutes, or use your recovery code.' });
 		}
-		const entry = registry.players[key];
+		const entry = entryOf(key);
 		if (entry && !entry.pw) {
 			return send(res, 400, { error: 'This character signs in with its wallet. Add a password on the Account page to use one.' });
 		}
@@ -783,7 +805,7 @@ const routes = {
 		const body = await readBody(req);
 		const key = String(body.name || '').trim().toLowerCase();
 		if (loginBlocked(key)) return send(res, 429, { error: 'Too many tries for this name. Wait 15 minutes.' });
-		const entry = registry.players[key];
+		const entry = entryOf(key);
 		if (!entry || !entry.rc || !await hashMatches(normalCode(body.code), entry.rc)) {
 			loginFailed(key);
 			return send(res, 400, { error: 'That name and recovery code do not match.' });
@@ -854,7 +876,7 @@ const routes = {
 		const name = String(body.name || '').trim();
 		const problem = nameProblem(name);
 		if (problem) return send(res, 400, { error: problem });
-		registry.players[name.toLowerCase()] = { name, address, since: new Date().toISOString() };
+		registry.players[name.toLowerCase()] = withSrp({ name, address, since: new Date().toISOString() });
 		nameOfAddress.set(address, name);
 		saveRegistry();
 		log('name', name, 'for', address);
@@ -1006,6 +1028,7 @@ const metadata = createMetadata({
 	heraldryDir: HERALDRY,
 	publicUrl: PUBLIC_URL,
 	royaltyRecipient: () => contractOwner,
+	limited: req => limited(req, 60),
 });
 
 const server = http.createServer(async (req, res) => {

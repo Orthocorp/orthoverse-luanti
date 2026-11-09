@@ -58,7 +58,12 @@ local function reload()
 			registry = {}
 			for key, p in pairs(data.players) do
 				if type(p) == "table" and type(p.name) == "string" then
-					registry[key] = {name = p.name, address = type(p.address) == "string" and p.address:lower() or nil}
+					registry[key] = {
+						name = p.name,
+						address = type(p.address) == "string" and p.address:lower() or nil,
+						-- the game account's password record (see below)
+						srp = type(p.srp) == "string" and p.srp:match("^#1#[%w+/]+=*#[%w+/]+=*$") and p.srp or nil,
+					}
 				end
 			end
 			last_raw.registry = raw
@@ -180,11 +185,24 @@ core.register_on_prejoinplayer(function(name)
 	if not is_registered(name) then
 		reload()   -- a name chosen a moment ago
 	end
-	if is_registered(name) then
+	if not is_registered(name) then
+		return "This name is not known here. At " .. PLAY_URL ..
+			" sign in or make a character, or play as a guest."
+	end
+	-- A character's game account is made here, with the password the website
+	-- gives the player, before the engine looks the name up. Otherwise the
+	-- first client to join under a new name would set its password, and
+	-- anyone who saw the name first could take the character.
+	local auth = core.get_auth_handler()
+	if auth.get_auth(name) then
 		return
 	end
-	return "This name is not known here. At " .. PLAY_URL ..
-		" sign in or make a character, or play as a guest."
+	local srp = registry[name:lower()].srp
+	if srp and auth.create_auth(name, srp) then
+		core.log("action", "[orthoverse_wallets] game account made for " .. name)
+		return
+	end
+	return "This character is still being set up. Try again in a minute."
 end)
 
 ------------------------------------------------------------------------------

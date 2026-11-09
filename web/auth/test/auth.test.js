@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Wallet, Interface } from 'ethers';
+import { srpVerifier } from '../srp.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'ov-auth-'));
 const failures = [];
@@ -190,6 +191,14 @@ try {
 
 	const reg = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8'));
 	check(reg.players.alice_1 && reg.players.alice_1.address === alice.address.toLowerCase(), 'registry.json has the name and wallet');
+	{
+		// The game makes the account from this, so it must be the record of the
+		// password the player was given (same salt, same verifier)
+		const srp = reg.players.alice_1.srp || '';
+		const salt = Buffer.from(srp.split('#')[2] || '', 'base64');
+		check(/^#1#[A-Za-z0-9+/]+=*#[A-Za-z0-9+/]+=*$/.test(srp) && salt.length === 16 &&
+			srpVerifier('Alice_1', password, salt) === srp, "registry.json has the game account's password record");
+	}
 
 	r = await call('GET', '/auth/me');
 	check(r.body.name === 'Alice_1' && r.body.password === password, 'the session remembers the player; same password each time');
@@ -293,10 +302,16 @@ try {
 	check(regP && regP.name === 'Pat' && !regP.address && regP.pw && regP.rc &&
 		!JSON.stringify(regP).includes('correct horse') && !JSON.stringify(regP).includes(patCode.replace(/-/g, '')),
 		'registry.json: the character, with only hashes of the password and code');
+	{
+		const salt = Buffer.from((regP.srp || '').split('#')[2] || '', 'base64');
+		check(salt.length === 16 && srpVerifier('Pat', patGame, salt) === regP.srp, "and its game account's password record");
+	}
 
 	await call('POST', '/auth/logout', {});
 	r = await call('POST', '/auth/login', { name: 'pat', password: 'wrong password' });
 	check(r.status === 400 && /do not match/.test(r.body.error), 'login: a wrong password is refused');
+	r = await call('POST', '/auth/login', { name: '__proto__', password: 'x' });
+	check(r.status === 400 && /do not match/.test(r.body.error), 'login: a name like __proto__ is just an unknown name');
 	r = await call('POST', '/auth/login', { name: 'PAT', password: 'correct horse' });
 	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === patGame, 'login: name in any capitals and the password');
 	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'anything at all' });

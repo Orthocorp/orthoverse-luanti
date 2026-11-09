@@ -1063,6 +1063,7 @@ core.register_chatcommand("adventure", {
 					". Stand on the ground at the south-west corner and type /adventure place <name>.")
 					or "There are no ready-made adventures in " .. TEMPLATES_DIR .. "."
 			end
+			if not rest:match("^[%w_%-]+$") then return false, "No ready-made adventure called that." end
 			local feet = vector.round(player:get_pos())
 			place_template(rest, vector.new(feet.x, feet.y - 1, feet.z), name, function(ok, msg)
 				core.chat_send_player(name, msg)

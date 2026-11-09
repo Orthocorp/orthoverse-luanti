@@ -48,7 +48,7 @@ function watched(path) {
 	};
 }
 
-export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex, heraldryDir, publicUrl, royaltyRecipient }) {
+export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex, heraldryDir, publicUrl, royaltyRecipient, limited = () => false }) {
 	const BASE = publicUrl.replace(/\/+$/, '');
 	const API = BASE + '/api/metadata';
 
@@ -231,6 +231,9 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex
 			const k = token + '-' + level + (m[3] || '');
 			let png = classics.get(k);
 			if (!png) {
+				// Drawing one costs time, and any token id can be asked for:
+				// so few drawings a minute from one address
+				if (limited(req)) { sendJson(res, 429, { error: 'Too many requests; wait a minute.' }); return true; }
 				png = classicCard(token, level, !!m[3]);
 				if (classics.size > 500) classics.clear();
 				classics.set(k, png);

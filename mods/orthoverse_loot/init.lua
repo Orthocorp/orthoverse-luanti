@@ -164,8 +164,11 @@ local function share_inv(name)
 	inv = core.create_detached_inventory("orthoverse_loot_" .. name, {
 		allow_put = function() return 0 end,
 		allow_move = function() return 0 end,
+		-- Only while the share is open: once closed, the detached list is
+		-- emptied, and the share lives on in `shares` alone (so a client that
+		-- keeps taking after closing cannot take the same items twice)
 		allow_take = function(_, _, _, stack, player)
-			return player:get_player_name() == name and stack:get_count() or 0
+			return player:get_player_name() == name and open_share[name] and stack:get_count() or 0
 		end,
 		on_take = function(dinv)
 			local id = open_share[name]
@@ -179,6 +182,12 @@ local function share_inv(name)
 	}, name)
 	inv:set_size("main", 8)
 	return inv
+end
+
+local function close_share(name)
+	open_share[name] = nil
+	local inv = core.get_inventory({type = "detached", name = "orthoverse_loot_" .. name})
+	if inv then inv:set_list("main", {}) end
 end
 
 local function open_chest(pos, player)
@@ -236,7 +245,7 @@ core.register_node(CHEST, {
 core.register_on_player_receive_fields(function(player, formname, fields)
 	local name = player:get_player_name()
 	if formname == "orthoverse_loot:share" then
-		if fields.quit then open_share[name] = nil end
+		if fields.quit then close_share(name) end
 		return true
 	end
 	if formname ~= "orthoverse_loot:setup" then return end
@@ -253,7 +262,7 @@ core.register_on_player_receive_fields(function(player, formname, fields)
 	return true
 end)
 
-core.register_on_leaveplayer(function(player) open_share[player:get_player_name()] = nil end)
+core.register_on_leaveplayer(function(player) close_share(player:get_player_name()) end)
 
 ------------------------------------------------------------------------------
 -- A weapon for anyone who goes in without one

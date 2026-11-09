@@ -246,7 +246,10 @@
   map.on('mousemove', (e) => {
     const { land } = landAt(e.latlng);
     if (land && map.getZoom() >= 3) {
-      tip.setLatLng(e.latlng).setContent(land.h || land.n);
+      // As text: a land's name is chosen by its holder, so never read as HTML
+      const label = document.createElement('span');
+      label.textContent = land.h || land.n;
+      tip.setLatLng(e.latlng).setContent(label);
       if (!map.hasLayer(tip)) tip.addTo(map);
     } else if (map.hasLayer(tip)) {
       tip.remove();
