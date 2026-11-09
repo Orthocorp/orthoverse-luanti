@@ -165,6 +165,7 @@ local function on_blow(self, blow)
 		return
 	end
 	self.health = self.health - blow.damage
+	if self._on_struck then self._on_struck(self, blow) end
 	local a = blow.attacker
 	if a and a:get_pos() then
 		local dir = vector.normalize(vector.subtract(self.object:get_pos(), a:get_pos()))
@@ -263,6 +264,7 @@ local function monster(id, def)
 	local ent = core.registered_entities[name]
 	ent._orthoverse_target = {ac = def.ac or 10}
 	ent._on_blow = on_blow
+	ent._on_struck = def.on_struck
 	ent._windup_time = def.windup
 	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
 	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc}
@@ -304,6 +306,30 @@ monster("mossling", {
 	walk = 1.6, run = 3.4,
 	sounds = {random = "orthoverse_monsters_mossling_chatter", attack = "orthoverse_monsters_mossling_swipe",
 		damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_monsters_mossling_death", distance = 12},
+})
+
+-- A kobold in a painted skull mask, a sheet with bones painted on it: a
+-- skeleton, until struck. Then the mask cracks and it is plainly a kobold
+-- (The Mill at Withy Ford's haunting is staged).
+monster("masked", {
+	desc = S("Skeleton?"), level = 1, xp = 30, size = 0.6, hp = 11, ac = 12, damage = 2, windup = 0.4, interval = 1.2,
+	walk = 1.8, run = 3.8, weapon = "orthoverse_combat:dagger_steel_carried",
+	sounds = {damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_monsters_mossling_death", distance = 12},
+	on_struck = function(self)
+		if self._unmasked then return end
+		self._unmasked = true
+		self.object:set_properties({textures = {"orthoverse_monsters_kobold.png"}})
+		self.textures = {"orthoverse_monsters_kobold.png"}
+		self.base_texture = self.textures
+		local pos = self.object:get_pos()
+		if pos then
+			core.add_particlespawner({amount = 12, time = 0.2, pos = vector.offset(pos, 0, 1.1 * 0.6, 0), radius = 0.2,
+				vel = {min = {x = -1.5, y = 0, z = -1.5}, max = {x = 1.5, y = 2, z = 1.5}}, exptime = {min = 0.4, max = 0.9},
+				size = {min = 1, max = 2}, texture = "default_paper.png^[colorize:#e8e2d0:200"})
+			core.sound_play("default_dig_snappy", {pos = pos, gain = 0.8, max_hear_distance = 12}, true)
+		end
+		self._desc = S("Kobold (unmasked)")
+	end,
 })
 
 ------------------------------------------------------------------------------
@@ -605,6 +631,25 @@ end
 
 monster("hexer", {
 	desc = S("Hexer"), level = 4, xp = 120, size = 1.0, hp = 20, ac = 12, damage = 4,
+	walk = 1.0, run = 2.6, view_range = HEX.view,
+	sounds = {random = "orthoverse_monsters_hexer_mutter", damage = "orthoverse_monsters_hexer_hurt",
+		death = "orthoverse_monsters_hexer_death", distance = 16},
+	do_custom = function(self, dtime)
+		self._hx = self._hx or {cooldown = 0, fuse = 0, watch = 0, swing = 0, unseen = 0, wander = 0, think = 0}
+		local h = self._hx
+		h.think = h.think + dtime
+		if h.think >= HEX.think then
+			h.think = 0
+			hexer_think(self)
+		end
+		return false   -- the hexer's own mind, not Mobs Redo's
+	end,
+})
+
+-- The Ringmaster: a hexer in a fine coat who runs the smuggling ring under
+-- the mill, the boss of The Mill at Withy Ford. Sturdier than a hexer.
+monster("ringmaster", {
+	desc = S("The Ringmaster"), level = 5, xp = 300, size = 1.1, hp = 45, ac = 13, damage = 5,
 	walk = 1.0, run = 2.6, view_range = HEX.view,
 	sounds = {random = "orthoverse_monsters_hexer_mutter", damage = "orthoverse_monsters_hexer_hurt",
 		death = "orthoverse_monsters_hexer_death", distance = 16},

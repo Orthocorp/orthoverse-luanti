@@ -138,11 +138,14 @@ local function check(O, label)
 		if seen[key(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then back = true end
 	end end
 	say(label .. ": entrance reachable from inside: " .. tostring(back))
-	-- nobody climbs out of the gorge onto the land
+	-- nobody gets out of the dungeon's area (onto the land, or above it)
 	local out = false
+	local a1, a2 = g.info.corner1, g.info.corner2
 	for k in pairs(seen) do
-		local y = tonumber(k:match("^[^,]+,([^,]+),"))
-		if y and y - O.y >= g.surface then out = true break end
+		local x, y, z = k:match("^([^,]+),([^,]+),([^,]+)$")
+		x, y, z = tonumber(x) - O.x, tonumber(y) - O.y, tonumber(z) - O.z
+		if x < math.min(a1.x, a2.x) or x > math.max(a1.x, a2.x) or z < math.min(a1.z, a2.z) or z > math.max(a1.z, a2.z)
+				or y > math.max(a1.y, a2.y) then out = true break end
 	end
 	say(label .. ": can climb out: " .. tostring(out))
 	-- every sign hangs on something solid

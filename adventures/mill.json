@@ -1,0 +1,47 @@
+{
+	"arrival": {
+		"x": 32.5,
+		"y": 27,
+		"z": 5.5
+	},
+	"corner1": {
+		"x": 2,
+		"y": 0,
+		"z": 16
+	},
+	"corner2": {
+		"x": 61,
+		"y": 34,
+		"z": 62
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 63,
+				"y": 25,
+				"z": 63
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"ground": 26,
+	"limit": 60,
+	"line": "Lights in the old mill at night, and screams. The miller vanished last spring. Nobody goes there now.",
+	"name": "The Mill at Withy Ford",
+	"rank_max": 5,
+	"rank_min": 1,
+	"size": {
+		"x": 64,
+		"y": 31,
+		"z": 64
+	},
+	"start": {
+		"x": 32.5,
+		"y": 27,
+		"z": 21.5
+	}
+}

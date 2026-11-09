@@ -128,3 +128,15 @@ A ship from the futuristic realm came down in the hills, and its machines are st
 
 Everything is put back after each run: doors locked, relays open, the floor live, the cards back in (other) lockers.
 
+## The Mill at Withy Ford
+
+Lights in the old mill at night, and screams; the miller vanished last spring. A haunted-mill adventure with a twist (after *The Sinister Secret of Saltmarsh*), for ranks 1 to 5, a party of one to four. It is 64 blocks by 64. Withy Ford and the mill yard stand on the ground, no more than four blocks high; the cellar, the smugglers' run, the river and the hall are below. Placing it clears the land above it and replaces the ground below it down to 26 blocks.
+
+- **Withy Ford** (outside the dungeon, at the south end, or the north with `north`): a green with the gate, the board, a well, two cottages and what the villagers say.
+- **The mill yard**, walled two blocks high (nobody climbs in or out): the millpond, the mill race and its broken waterwheel, dead trees, and wisps. The yard is the dungeon's ground floor: the run starts in the mill.
+- **The mill**, roofless: sacks, the millstone, 2 mosslings; the miller's rooms (his diary, breaking off mid-sentence, and a common chest).
+- **The cellar**, down a stair: the bone pit, where 2 skeletons rise, and 2 more "skeletons" that are kobolds in painted skull masks (strike one and the mask cracks); a common chest; a scratched warning that the bones are painted.
+- **The secret shelf**: a loose brick in the cellar's north wall slides two bookshelves away, onto the smugglers' run, a stair down to the jetty on an **underground river**. A rowing boat waits at the mooring (a new one if it has gone, up to six a run). Downstream, past a ledge where 2 wisps lurk, is the landing.
+- **The smugglers' hall**: 3 kobolds and 3 goblins among the contraband, a common and a weapon chest, and the **Ringmaster's office**: the Ringmaster (a hexer in a red coat, 45 health), 2 goblin bodyguards, the miller in chains, and the **ledger** on the desk, the finish, with the finish chest.
+- **The shortcut**: three windlasses, one by the waterwheel, one in the miller's rooms, one in the cellar. Wind all three and the cellar's sluice gate rises on a dry culvert that runs down to the hall.
+
