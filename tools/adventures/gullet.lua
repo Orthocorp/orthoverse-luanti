@@ -142,11 +142,17 @@ end
 local function thornwatch()
 	box(20, G, 1, 44, G, 11, "default:dirt")
 	for z = 2, 11 do set(32, G, z, GRAVEL); set(33, G, z, GRAVEL) end
-	-- the palisade: logs, three high, a point on every other one
+	-- the palisade: logs, three high, a point on every other one, with the
+	-- way in from outside on the south side (x 31 to 34), under a lintel
 	for x = 20, 44 do
-		box(x, F, 1, x, F + 2, 1, LOG)
-		if x % 2 == 0 then set(x, F + 3, 1, LOG) end
+		if x < 31 or x > 34 then
+			box(x, F, 1, x, F + 2, 1, LOG)
+			if x % 2 == 0 then set(x, F + 3, 1, LOG) end
+		end
 	end
+	box(30, F + 3, 1, 30, F + 4, 1, LOG); box(35, F + 3, 1, 35, F + 4, 1, LOG)
+	box(30, F + 4, 1, 35, F + 4, 1, PLANK)
+	for x = 31, 34 do set(x, G, 0, GRAVEL); set(x, G, 1, GRAVEL) end
 	for z = 1, 11 do
 		box(20, F, z, 20, F + 2, z, LOG); box(44, F, z, 44, F + 2, z, LOG)
 		if z % 2 == 0 then set(20, F + 3, z, LOG); set(44, F + 3, z, LOG) end
@@ -162,6 +168,7 @@ local function thornwatch()
 	box(29, F + 4, 12, 36, F + 4, 12, PLANK)
 	for _, p in ipairs({{21, 2}, {43, 2}, {21, 11}, {43, 11}}) do set(p[1], F, p[2], "default:mese_post_light") end
 	set(32, F, 9, "orthoverse_adventure:gate", 0)
+	g.gate = {x = 32, y = F, z = 9}
 	set(28, F, 10, "orthoverse_adventure:board", 0)
 	sign(34, F + 1, 11, "+z", "THE GULLET\nTribes dig into the walls of the ravine, and an orc warlord rules them " ..
 		"from a temple at its head.\nRight-click the gate to go in. Ranks 1 to 5.")

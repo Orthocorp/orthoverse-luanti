@@ -89,6 +89,15 @@ local function check(O, label)
 		if seen2[key2(vector.add(fin, {x = dx, y = -1, z = dz - 1}))] or seen2[key2(vector.add(fin, {x = dx, y = 0, z = dz - 1}))] then inside = true end
 	end end
 	say(label .. ": temple reachable without the two ways in: " .. tostring(inside))
+	-- Thornwatch has a way in from outside: from open ground west of the fort
+	-- (the side the land is on), the gate can be reached
+	local outside = vector.add(O, {x = 10, y = g.gate.y, z = 5})
+	local seen3, key3 = reach(O, outside)
+	local gate_ok = false
+	for dx = -1, 1 do for dz = -1, 1 do
+		if seen3[key3(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then gate_ok = true end
+	end end
+	say(label .. ": outside standable " .. tostring(standable(outside)) .. "; gate reachable from outside: " .. tostring(gate_ok))
 end
 
 core.after(2, function()
