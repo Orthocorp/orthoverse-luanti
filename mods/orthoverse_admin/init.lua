@@ -230,3 +230,43 @@ core.register_on_joinplayer(function(player)
 		core.log("action", "[orthoverse_admin] admin " .. name .. " granted: " .. table.concat(added, ", "))
 	end
 end)
+
+------------------------------------------------------------------------------
+-- Day and night: two thirds of the time day, one third night (the engine's
+-- night, with dusk and dawn, is nearer half). The clock runs slower by day
+-- and faster by night, keeping the whole day as long as before:
+--   orthoverse_time_speed = 72        -- the average speed (the engine's
+--                                        time_speed, 72: a 20 minute day)
+--   orthoverse_day_share = 0.667      -- of real time, the share that is day
+-- Night here is 18:43 to 05:17 (the dark, and most of dusk and dawn).
+
+local NIGHT_FROM, NIGHT_TO = 0.78, 0.22            -- time of day
+local BASE = tonumber(core.settings:get("orthoverse_time_speed")) or 72
+local SHARE = math.min(0.95, math.max(0.05, tonumber(core.settings:get("orthoverse_day_share")) or 2 / 3))
+local NIGHT_PART = (1 - NIGHT_FROM) + NIGHT_TO     -- of the clock: 0.44
+local DAY_PART = 1 - NIGHT_PART
+-- Real time (in units of a day at the average speed) spent in each:
+-- DAY_PART / day_speed = SHARE, NIGHT_PART / night_speed = 1 - SHARE
+local DAY_SPEED = BASE * DAY_PART / SHARE
+local NIGHT_SPEED = BASE * NIGHT_PART / (1 - SHARE)
+
+local function is_night(t) return t >= NIGHT_FROM or t < NIGHT_TO end
+
+local current
+local function pace()
+	local t = core.get_timeofday()
+	if not t then return end
+	local speed = is_night(t) and NIGHT_SPEED or DAY_SPEED
+	if speed ~= current then
+		current = speed
+		core.settings:set("time_speed", tostring(speed))
+	end
+end
+local since = 0
+core.register_globalstep(function(dtime)
+	since = since + dtime
+	if since < 2 then return end
+	since = 0
+	pace()
+end)
+core.after(0, pace)
