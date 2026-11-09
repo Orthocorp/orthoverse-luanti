@@ -11,7 +11,7 @@ The server image copies this folder into the game, so after a `git pull` and `do
 
 1. Go to the land that should hold it. The land must have no adventure yet; use `/adventure delete` first if it has one.
 2. Stand on the ground at the **south-west corner** of where it should go. It extends east and north from there, and must fit on the land. The game says so if it doesn't.
-3. Type `/adventure place three-bells` (or `gullet`). On its own, `/adventure place` lists the adventures in this folder.
+3. Type `/adventure place three-bells` (or `gullet`). On its own, `/adventure place` lists the adventures in this folder. Add `north` (`/adventure place gullet north`) to turn it round, so its entrance is at the north end.
 
 The command does the following:
 - It clears everything above the ground over the whole footprint.

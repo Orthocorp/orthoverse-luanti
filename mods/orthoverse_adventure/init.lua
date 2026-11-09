@@ -993,16 +993,96 @@ local function underpin(p1, p2, ground, skip)
 	vm:write_to_map(true)
 end
 
+-- Turning a ready-made adventure round (half a turn, seen from above), so
+-- its entrance is at the other end: where a block goes, and which way it
+-- faces. Positions are relative to the south-west corner.
+local FACEDIR_HALF = {2, 3, 0, 1, 10, 11, 8, 9, 6, 7, 4, 5, 18, 19, 16, 17, 14, 15, 12, 13, 22, 23, 20, 21}
+local WALLMOUNTED_HALF = {0, 1, 3, 2, 5, 4, 6, 7}
+
+local function half_turn_param2(name, param2)
+	local def = core.registered_nodes[name]
+	local pt = def and def.paramtype2 or "none"
+	param2 = param2 or 0
+	if pt == "facedir" or pt == "colorfacedir" then
+		local o = param2 % 32
+		return param2 - o + (FACEDIR_HALF[o + 1] or o)
+	elseif pt == "4dir" or pt == "color4dir" then
+		local o = param2 % 4
+		return param2 - o + (o + 2) % 4
+	elseif pt == "wallmounted" or pt == "colorwallmounted" then
+		local o = param2 % 8
+		return param2 - o + WALLMOUNTED_HALF[o + 1]
+	elseif pt == "degrotate" then
+		return (param2 + 120) % 240
+	elseif pt == "colordegrotate" then
+		local o = param2 % 32
+		return param2 - o + (o + 12) % 24
+	end
+	return param2
+end
+
+-- The template's description turned round: its points and boxes
+local function half_turn_info(info)
+	local sx, sz = info.size.x - 1, info.size.z - 1
+	local function pt(t)
+		if type(t) ~= "table" then return t end
+		return {x = sx - t.x, y = t.y, z = sz - t.z}
+	end
+	local out = {}
+	for k, v in pairs(info) do out[k] = v end
+	for _, k in ipairs({"corner1", "corner2", "start", "arrival"}) do out[k] = pt(info[k]) end
+	if type(info.dig) == "table" then
+		out.dig = {}
+		for i, box in ipairs(info.dig) do
+			local a, b = pt(box.min), pt(box.max)
+			out.dig[i] = {min = {x = math.min(a.x, b.x), y = math.min(a.y, b.y), z = math.min(a.z, b.z)},
+				max = {x = math.max(a.x, b.x), y = math.max(a.y, b.y), z = math.max(a.z, b.z)}}
+		end
+	end
+	return out
+end
+
+-- WorldEdit's deserialize, with each block put where the turned-round
+-- adventure has it. It sets every block with core.add_node(entry, entry) and
+-- its metadata with core.get_meta(entry), where the entry (unlike any position
+-- the engine passes, as to on_construct) has a name: so those calls are moved.
+local function deserialize_half_turned(p1, size, data)
+	local add_node, get_meta = core.add_node, core.get_meta
+	local function moved(pos)
+		return {x = p1.x + (size.x - 1) - (pos.x - p1.x), y = pos.y, z = p1.z + (size.z - 1) - (pos.z - p1.z)}
+	end
+	core.add_node = function(pos, node)
+		if type(pos) == "table" and pos.name then
+			return add_node(moved(pos), {name = node.name, param1 = node.param1,
+				param2 = half_turn_param2(node.name, node.param2)})
+		end
+		return add_node(pos, node)
+	end
+	core.get_meta = function(pos)
+		if type(pos) == "table" and pos.name then return get_meta(moved(pos)) end
+		return get_meta(pos)
+	end
+	local ok, n = pcall(worldedit.deserialize, p1, data)
+	core.add_node, core.get_meta = add_node, get_meta
+	if not ok then
+		core.log("error", "[orthoverse_adventure] placing turned round: " .. tostring(n))
+		return nil
+	end
+	return n
+end
+
 -- Place ready-made adventure `tname` with its south-west corner's ground
 -- layer at `at` (the block a player stands on), and make it this land's
--- adventure (closed, not yet saved). Calls done(ok, message) when finished
--- (the area is loaded first).
-local function place_template(tname, at, by, done)
+-- adventure (closed, not yet saved). `turned`: half a turn round, so the
+-- entrance is at the north end instead of the south. Calls done(ok,
+-- message) when finished (the area is loaded first).
+local function place_template(tname, at, by, done, turned)
 	local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
 	local data = read_file(TEMPLATES_DIR .. "/" .. tname .. ".we")
 	if type(info) ~= "table" or type(info.size) ~= "table" or not data then
 		return done(false, "There is no ready-made adventure called " .. tname .. ".")
 	end
+	if turned then info = half_turn_info(info) end
 	if not (worldedit and worldedit.deserialize) then return done(false, "Placing it needs WorldEdit.") end
 	local p1 = vector.subtract(vector.round(at), vector.new(0, info.ground or 0, 0))
 	local p2 = offset(p1, {x = info.size.x - 1, y = info.size.y - 1, z = info.size.z - 1})
@@ -1032,7 +1112,8 @@ local function place_template(tname, at, by, done)
 			fill(dig[#dig][1], dig[#dig][2], air)
 		end
 		underpin(p1, p2, ground, dig)
-		local n = worldedit.deserialize(p1, data)
+		local n
+		if turned then n = deserialize_half_turned(p1, info.size, data) else n = worldedit.deserialize(p1, data) end
 		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
 		-- so a castle upgrade or a flip of the land keeps it
 		if orthoverse.note_built then orthoverse.note_built(p1, p2) end
@@ -1056,8 +1137,9 @@ local function place_template(tname, at, by, done)
 		}
 		save_def(key)
 		write_public()
-		done(true, ("%s placed on %s (%d blocks). It is closed: look round and change what you like, then " ..
-			"/adventure save and /adventure open."):format(adventures[key].name, land.name, n))
+		done(true, ("%s placed on %s (%d blocks)%s. It is closed: look round and change what you like, then " ..
+			"/adventure save and /adventure open."):format(adventures[key].name, land.name, n,
+			turned and ", turned round (its entrance at the north end)" or ""))
 	end)
 end
 
@@ -1106,8 +1188,9 @@ local HELP = table.concat({
 	"/adventure reset   Put the saved dungeon back as it was.",
 	"/adventure status   How it stands, in the chat.",
 	"/adventure delete   Remove it (its records and saved dungeons are kept).",
-	"/adventure place <name>   (Admin) Place a ready-made adventure, standing on the ground",
-	"   at its south-west corner; /adventure place on its own lists them.",
+	"/adventure place <name> [north]   (Admin) Place a ready-made adventure, standing on the ground",
+	"   at its south-west corner (north: turned round, its entrance at the north end);",
+	"   /adventure place on its own lists them.",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
 	"builder, the admin and guests are not recorded: test it with another character to",
@@ -1129,7 +1212,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[leave | place <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
+	params = "[leave | place <name> [north] | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -1169,15 +1252,20 @@ core.register_chatcommand("adventure", {
 			if rest == "" then
 				local names = template_names()
 				return true, #names > 0 and ("Ready-made adventures: " .. table.concat(names, ", ") ..
-					". Stand on the ground at the south-west corner and type /adventure place <name>.")
+					". Stand on the ground at the south-west corner and type /adventure place <name>, " ..
+					"or /adventure place <name> north for its entrance at the north end.")
 					or "There are no ready-made adventures in " .. TEMPLATES_DIR .. "."
 			end
-			if not rest:match("^[%w_%-]+$") then return false, "No ready-made adventure called that." end
+			local tname, facing = rest:match("^(%S+)%s*(%S*)$")
+			if not tname or not tname:match("^[%w_%-]+$") then return false, "No ready-made adventure called that." end
+			if facing ~= "" and facing ~= "north" and facing ~= "south" then
+				return false, "Its entrance can be at the south end (as made) or the north: /adventure place " .. tname .. " north"
+			end
 			local feet = vector.round(player:get_pos())
-			place_template(rest, vector.new(feet.x, feet.y - 1, feet.z), name, function(ok, msg)
+			place_template(tname, vector.new(feet.x, feet.y - 1, feet.z), name, function(ok, msg)
 				core.chat_send_player(name, msg)
-			end)
-			return true, "Placing " .. rest .. "…"
+			end, facing == "north")
+			return true, "Placing " .. tname .. "…"
 		end
 		if not land then return false, "Stand on a land first." end
 		if not may_manage(name, key) then
