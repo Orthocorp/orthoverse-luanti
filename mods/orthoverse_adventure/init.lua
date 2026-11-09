@@ -1084,16 +1084,16 @@ end
 -- message) when finished (the area is loaded first).
 local CLEAR_ABOVE = 40
 
--- The land's own ground where the admin stands: its surface and what lies
--- under it (grass and dirt, or tarmac and dirt on a land of the flipped
--- realm). A ready-made adventure's ground is grass over dirt, and takes
--- these instead, so it fits the land.
-local function land_ground(at)
-	local function solid(name)
-		local d = core.registered_nodes[name]
-		return d and d.walkable ~= false and (d.liquidtype or "none") == "none" and name or nil
+-- The land's own ground, as the map makes it: on a land of the flipped
+-- (futuristic) realm, castle level 8 and up, tarmac over stone; otherwise
+-- grass over dirt. A ready-made adventure's ground is grass over dirt, and
+-- takes the land's instead, so it fits the land (whatever was left on the
+-- spot before, such as an earlier adventure's grass).
+local function land_ground(land)
+	if land and (tonumber(land.level) or 0) >= 8 and core.registered_nodes["orthoverse_nodes:tarmac"] then
+		return "orthoverse_nodes:tarmac", "default:stone"
 	end
-	return solid(core.get_node(at).name), solid(core.get_node(vector.offset(at, 0, -1, 0)).name)
+	return nil, nil
 end
 
 local function wear_land_ground(p1, p2, ground, top, under)
@@ -1144,7 +1144,7 @@ local function place_template(tname, at, by, done, turned)
 	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), top, function(_, _, left)
 		if left > 0 then return end
 		local ground = p1.y + (info.ground or 0)
-		local surf, under = land_ground(vector.round(at))
+		local surf, under = land_ground(land)
 		local air = core.get_content_id("air")
 		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), top)) do
 			if not obj:is_player() then obj:remove() end
