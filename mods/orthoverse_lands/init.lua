@@ -356,6 +356,7 @@ end
 
 -- Lands whose level changed: made again, a few at a time
 local remake_queue, remaking, queued = {}, 0, {}
+local after_remake = {}   -- key -> function to call when it is made again
 local REMAKE_AT_ONCE = 4
 
 local function pump()
@@ -380,6 +381,9 @@ local function pump()
 			core.log("action", ("[orthoverse_lands] %s (%s) made again at level %d, %d of 36 tiles kept as built")
 				:format(land.name, key, level, #cols))
 			note_changed(tonumber(lx), tonumber(lz))
+			local f = after_remake[key]
+			after_remake[key] = nil
+			if f then f() end
 			pump()
 		end)
 	end
@@ -573,6 +577,54 @@ function orthoverse.may_goto(name)
 	local w = orthoverse.wallets
 	return w ~= nil and (w.highest_level(name) or -1) >= orthoverse.GOTO_LEVEL
 end
+
+-- /remakeland <land> confirm (admin): make a land again from scratch, as the
+-- map first made it at its level, losing everything built on it (all its
+-- tiles, built or not). Whoever is on it is put on its ground again after.
+core.register_chatcommand("remakeland", {
+	params = "<land name or x:z> confirm",
+	description = "Make a land again from scratch, losing everything built on it (admin)",
+	privs = {server = true},
+	func = function(name, param)
+		local query, confirm = param:match("^%s*(.-)%s+(confirm)%s*$")
+		query = query or param:match("^%s*(.-)%s*$")
+		if query == "" then return false, "Which land? /remakeland <land name or x:z> confirm" end
+		local keys, all = find_lands(query)
+		if #keys ~= 1 then
+			return false, #keys == 0 and ('No land called "' .. query .. '".') or "More than one land matches: be exact."
+		end
+		local key = keys[1]
+		local land = orthoverse.lands[key]
+		if not land or orthoverse.henges[key] then return false, "Only a land can be made again (not the sea or a henge)." end
+		local ad = orthoverse.adventure
+		if ad and ad.list and ad.list[key] then
+			return false, land.name .. " has an adventure: stand on it and /adventure close, then /adventure delete, first."
+		end
+		if not confirm then
+			return false, ("This makes %s (%s) again from scratch: everything built on it is lost. " ..
+				"To go ahead: /remakeland %s confirm"):format(land.name, key, query)
+		end
+		if queued[key] or pending[key] then return false, land.name .. " is already being made again." end
+		-- Everything goes: no tile is kept as built
+		built[key] = nil
+		built_unsaved = true
+		save_built()
+		local here = {}
+		for _, p in ipairs(core.get_connected_players()) do
+			local _, k = orthoverse.land_at(p:get_pos())
+			if k == key then here[#here + 1] = p:get_player_name() end
+		end
+		after_remake[key] = function()
+			for _, n in ipairs(here) do orthoverse.teleport_to_land(n, key, land.name) end
+			core.chat_send_player(name, land.name .. " has been made again.")
+		end
+		core.log("action", ("[orthoverse_lands] %s makes %s (%s) again from scratch"):format(name, land.name, key))
+		queued[key] = true
+		remake_queue[#remake_queue + 1] = key
+		pump()
+		return true, "Making " .. land.name .. " again..."
+	end,
+})
 
 core.register_chatcommand("goto", {
 	params = "<land name or x:z>",
