@@ -5,12 +5,16 @@
 --   g.build(origin)        -- origin: the south-west bottom corner
 --   g.info                 -- what goes in adventures/gullet.json
 --
--- Coordinates are relative to the origin: x east, z north, y up. The ground
--- layer is y = 8 (players stand at y = 9).
+-- Coordinates are relative to the origin: x east, z north, y up. The land's
+-- ground is y = 35 (players stand at y = 36): nothing rises more than four
+-- blocks above it. Below it, the gorge: its floor is y = 8 (players stand at
+-- y = 9), 27 blocks down, open to the sky.
 --
---   Thornwatch (outside the dungeon): a palisade fort at the mouth of the
---     ravine, with the gate, the board, the smithy and the arrival point.
---   The ravine runs north between rock walls. Caves in the walls, graded:
+--   Thornwatch (on the ground, outside the dungeon): a palisade fort at the
+--     mouth of the gorge, with the gate, the board, the smithy and the
+--     arrival point. Its gate tower stands over the drop, portcullis down,
+--     with a ladder below it to the gorge floor. A fence runs round the rim.
+--   The ravine (the gorge) runs north between rock walls. Caves in the walls, graded:
 --     west: the mossling warren, then the wisp hollow;
 --     east: the kobold den;
 --     the floor: the goblin camp, behind a fence;
@@ -27,7 +31,9 @@
 local g = {}
 
 local SX, SY, SZ = 64, 40, 80
-local G, F = 8, 9
+local G, F = 8, 9           -- the gorge floor, and where players stand on it
+local NG, NF = 35, 36       -- the land's ground, and where players stand on it
+local BED = 4               -- the template's rock goes down to here
 
 local ROCK = "default:stone"
 local COBBLE = "default:cobble"
@@ -51,12 +57,16 @@ g.info = {
 	limit = 60,
 	rank_min = 1, rank_max = 5,
 	size = {x = SX, y = SY, z = SZ},
-	ground = G,
-	dig = {},
+	ground = NG,
+	-- everything below the ground is the template's (rock, and the gorge and
+	-- caves cut into it): cleared first
+	dig = {{min = {x = 0, y = BED, z = 0}, max = {x = SX - 1, y = NG - 1, z = SZ - 1}}},
 	corner1 = {x = 2, y = 0, z = 13},
-	corner2 = {x = 61, y = SY - 1, z = 78},
+	-- the area: the gorge and the caves, up to the ground (players up on the
+	-- land around the gorge are not in it)
+	corner2 = {x = 61, y = NG, z = 78},
 	start = {x = 32.5, y = F, z = 15.5},
-	arrival = {x = 32.5, y = F, z = 4.5},
+	arrival = {x = 32.5, y = NF, z = 4.5},
 }
 
 -- Where things are, for tests: spawners (kind, count, wake), chests (kind)
@@ -137,75 +147,72 @@ end
 -- The parts
 
 local function ground()
-	box(0, G, 0, SX - 1, G, SZ - 1, "default:dirt_with_grass")
+	box(0, BED, 0, SX - 1, NG - 4, SZ - 1, ROCK)
+	box(0, NG - 3, 0, SX - 1, NG - 1, SZ - 1, "default:dirt")
+	box(0, NG, 0, SX - 1, NG, SZ - 1, "default:dirt_with_grass")
 end
+g.surface = NF
 
 -- Thornwatch: a palisade fort at the mouth of the ravine
 local function thornwatch()
-	box(20, G, 1, 44, G, 11, "default:dirt")
-	for z = 2, 11 do set(32, G, z, GRAVEL); set(33, G, z, GRAVEL) end
+	box(20, NG, 1, 44, NG, 11, "default:dirt")
+	for z = 2, 11 do set(32, NG, z, GRAVEL); set(33, NG, z, GRAVEL) end
 	-- the palisade: logs, three high, a point on every other one, with the
 	-- way in from outside on the south side (x 31 to 34), under a lintel
 	for x = 20, 44 do
 		if x < 31 or x > 34 then
-			box(x, F, 1, x, F + 2, 1, LOG)
-			if x % 2 == 0 then set(x, F + 3, 1, LOG) end
+			box(x, NF, 1, x, NF + 2, 1, LOG)
+			if x % 2 == 0 then set(x, NF + 3, 1, LOG) end
 		end
 	end
-	box(30, F + 3, 1, 30, F + 4, 1, LOG); box(35, F + 3, 1, 35, F + 4, 1, LOG)
-	box(30, F + 4, 1, 35, F + 4, 1, PLANK)
-	for x = 31, 34 do set(x, G, 0, GRAVEL); set(x, G, 1, GRAVEL) end
+	box(30, NF + 3, 1, 35, NF + 3, 1, PLANK)
+	for x = 31, 34 do set(x, NG, 0, GRAVEL); set(x, NG, 1, GRAVEL) end
 	for z = 1, 11 do
-		box(20, F, z, 20, F + 2, z, LOG); box(44, F, z, 44, F + 2, z, LOG)
-		if z % 2 == 0 then set(20, F + 3, z, LOG); set(44, F + 3, z, LOG) end
+		box(20, NF, z, 20, NF + 2, z, LOG); box(44, NF, z, 44, NF + 2, z, LOG)
+		if z % 2 == 0 then set(20, NF + 3, z, LOG); set(44, NF + 3, z, LOG) end
 	end
 	for x = 20, 44 do
 		if x < 30 or x > 35 then
-			box(x, F, 12, x, F + 2, 12, LOG)
-			if x % 2 == 0 then set(x, F + 3, 12, LOG) end
+			box(x, NF, 12, x, NF + 2, 12, LOG)
+			if x % 2 == 0 then set(x, NF + 3, 12, LOG) end
 		end
 	end
-	-- the gate tower over the way into the ravine, its portcullis down: the
+	-- the gate tower over the drop into the gorge, its portcullis down: the
 	-- adventure gate takes a party in, and nobody walks out but by the finish
-	box(29, F, 12, 29, F + 4, 12, LOG); box(36, F, 12, 36, F + 4, 12, LOG)
-	box(29, F + 4, 12, 36, F + 4, 12, PLANK)
-	box(30, F, 12, 35, F + 3, 12, "xpanes:bar_flat", 0)
-	for _, p in ipairs({{21, 2}, {43, 2}, {21, 11}, {43, 11}}) do set(p[1], F, p[2], "default:mese_post_light") end
-	set(32, F, 9, "orthoverse_adventure:gate", 0)
-	g.gate = {x = 32, y = F, z = 9}
-	set(28, F, 10, "orthoverse_adventure:board", 0)
-	sign(38, F + 1, 11, "+z", "THE GULLET\nTribes dig into the walls of the ravine, and an orc warlord rules them " ..
+	box(29, NF, 12, 29, NF + 3, 12, LOG); box(36, NF, 12, 36, NF + 3, 12, LOG)
+	box(29, NF + 3, 12, 36, NF + 3, 12, PLANK)
+	box(30, NF, 12, 35, NF + 2, 12, "xpanes:bar_flat", 0)
+	for _, p in ipairs({{21, 2}, {43, 2}, {21, 11}, {43, 11}}) do set(p[1], NF, p[2], "default:mese_post_light") end
+	set(32, NF, 9, "orthoverse_adventure:gate", 0)
+	g.gate = {x = 32, y = NF, z = 9}
+	set(28, NF, 10, "orthoverse_adventure:board", 0)
+	sign(38, NF + 1, 11, "+z", "THE GULLET\nTribes dig into the walls of the ravine, and an orc warlord rules them " ..
 		"from a temple at its head.\nRight-click the gate to go in. Ranks 1 to 5.")
 	-- the smithy: a forge, an anvil block and the recipes on a sign
-	box(22, F, 3, 26, F, 7, "air")
-	box(21, F, 3, 21, F + 2, 7, "default:brick")
-	box(22, F + 3, 2, 27, F + 3, 8, PLANK)
-	for _, p in ipairs({{27, 2}, {27, 8}}) do box(p[1], F, p[2], p[1], F + 2, p[2], LOG) end
-	set(22, F, 4, "default:furnace", 1)
-	set(22, F, 6, "default:steelblock")
-	sign(22, F + 1, 5, "-x", "THE SMITHY\nWeapons are made from steel or bronze ingots, mese crystals " ..
+	box(22, NF, 3, 26, NF, 7, "air")
+	box(21, NF, 3, 21, NF + 2, 7, "default:brick")
+	box(22, NF + 3, 2, 27, NF + 3, 8, PLANK)
+	for _, p in ipairs({{27, 2}, {27, 8}}) do box(p[1], NF, p[2], p[1], NF + 2, p[2], LOG) end
+	set(22, NF, 4, "default:furnace", 1)
+	set(22, NF, 6, "default:steelblock")
+	sign(22, NF + 1, 5, "-x", "THE SMITHY\nWeapons are made from steel or bronze ingots, mese crystals " ..
 		"or diamonds, and sticks: see the craft guide. A metal counts in full only from a rank: " ..
 		"bronze 3, mese 6, diamond 10.")
 	-- the notice board of what is known about the caves
-	sign(43, F + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and a hollow where lights float. " ..
+	sign(43, NF + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and a hollow where lights float. " ..
 		"East: kobolds. On the floor: a goblin camp. Up the west wall: an old crypt. Up the east wall: the orc hall. " ..
 		"The warlord's temple lies behind the rockfall, and the way in runs through the orc hall.")
 end
 
 -- The ravine: rock walls, a gravel floor, rough faces
 local function ravine()
-	box(2, G, 13, 23, 34, 78, ROCK)
-	box(41, G, 13, 61, 34, 78, ROCK)
-	box(24, G, 77, 40, 34, 78, ROCK)
-	box(2, 35, 13, 23, 35, 78, "default:dirt_with_grass")
-	box(41, 35, 13, 61, 35, 78, "default:dirt_with_grass")
-	box(24, 35, 77, 40, 35, 78, "default:dirt_with_grass")
+	air(24, F, 13, 40, NG, 76)                              -- open to the sky
 	for z = 13, 76 do
 		for x = 24, 40 do set(x, G, z, rnd(5) == 0 and "default:dirt" or GRAVEL) end
 	end
 	-- rough faces: some blocks of the walls stand out, some are mossy
 	for z = 13, 76 do
-		for y = F + 7, 34 do
+		for y = F + 7, NG - 6 do      -- (not near the top: nothing to climb out by)
 			if rnd(9) == 0 then set(24, y, z, ROCK) end
 			if rnd(9) == 0 then set(40, y, z, ROCK) end
 			if rnd(7) == 0 then set(23, y, z, MOSSY) end
@@ -216,6 +223,11 @@ local function ravine()
 	for _, p in ipairs({{26, 20}, {38, 27}, {25, 33}, {39, 48}, {27, 52}}) do
 		set(p[1], F, p[2], MOSSY)
 	end
+	-- the ladder down from the gate tower (on the gorge's south face)
+	box(32, F, 13, 32, NG, 13, "default:ladder_wood", SIGN_P2["-z"])
+	-- a fence round the rim, so nobody up on the land walks over the edge
+	for z = 13, 77 do set(23, NF, z, FENCE); set(41, NF, z, FENCE) end
+	for x = 23, 41 do set(x, NF, 77, FENCE) end
 	sign(24, F + 1, 15, "-x", "Clear the caves, or go straight for the warlord. The way to his temple runs " ..
 		"through the orc hall, up the ramp in the east wall.")
 	-- the rockfall at the head of the ravine

@@ -1082,6 +1082,8 @@ end
 -- adventure (closed, not yet saved). `turned`: half a turn round, so the
 -- entrance is at the north end instead of the south. Calls done(ok,
 -- message) when finished (the area is loaded first).
+local CLEAR_ABOVE = 40
+
 local function place_template(tname, at, by, done, turned)
 	local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
 	local data = read_file(TEMPLATES_DIR .. "/" .. tname .. ".we")
@@ -1104,14 +1106,17 @@ local function place_template(tname, at, by, done, turned)
 	if adventures[key] then
 		return done(false, "This land already has an adventure (" .. adventures[key].name .. "): /adventure delete first.")
 	end
-	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), p2, function(_, _, left)
+	-- Above the ground, everything is cleared to well over the template's
+	-- top (trees, hills), so nothing hangs over a low or sunken adventure
+	local top = vector.new(p2.x, math.max(p2.y, p1.y + (info.ground or 0) + CLEAR_ABOVE), p2.z)
+	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), top, function(_, _, left)
 		if left > 0 then return end
 		local ground = p1.y + (info.ground or 0)
 		local air = core.get_content_id("air")
-		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), p2)) do
+		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), top)) do
 			if not obj:is_player() then obj:remove() end
 		end
-		fill(vector.new(p1.x, ground, p1.z), p2, air)
+		fill(vector.new(p1.x, ground, p1.z), top, air)
 		local dig = {}
 		for _, box in ipairs(info.dig or {}) do
 			dig[#dig + 1] = {offset(p1, box.min), offset(p1, box.max)}

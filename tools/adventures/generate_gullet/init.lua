@@ -104,6 +104,13 @@ local function check(O, label)
 		if seen[key(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then back = true end
 	end end
 	say(label .. ": fort reachable from inside: " .. tostring(back))
+	-- nobody climbs out of the gorge onto the land
+	local out = false
+	for k in pairs(seen) do
+		local y = tonumber(k:match("^[^,]+,([^,]+),"))
+		if y and y - O.y >= g.surface then out = true break end
+	end
+	say(label .. ": can climb out of the gorge: " .. tostring(out))
 	-- every sign hangs on something solid
 	local DIR = {["+x"] = {x = 1, y = 0, z = 0}, ["-x"] = {x = -1, y = 0, z = 0}, ["+z"] = {x = 0, y = 0, z = 1}, ["-z"] = {x = 0, y = 0, z = -1}}
 	local loose = {}
