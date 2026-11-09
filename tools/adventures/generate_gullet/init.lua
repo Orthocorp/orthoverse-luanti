@@ -102,9 +102,9 @@ local function check(O, label)
 	-- the gorge)
 	local over = false
 	for _, r in ipairs(g.rim or {}) do
-		for x = r[1], r[3] do for z = r[2], r[4] do for y = g.surface, g.surface + 3 do
-			if seen3[key3(vector.add(O, {x = x, y = y, z = z}))] then over = true end
-		end end end
+		for y = g.surface, g.surface + 3 do
+			if seen3[key3(vector.add(O, {x = r[1], y = y, z = r[2]}))] then over = true end
+		end
 	end
 	say(label .. ": the rim can be climbed from the land: " .. tostring(over))
 	-- and the portcullis is down: from inside, the fort cannot be reached
@@ -140,6 +140,7 @@ core.after(2, function()
 		local m = {}
 		for k in pairs(missing) do m[#m + 1] = k end
 		say("built; missing nodes: " .. (#m > 0 and table.concat(m, ", ") or "none"))
+		core.safe_file_write(core.get_worldpath() .. "/plan.txt", g.plan())
 		core.after(3, function()
 			local data, n = worldedit.serialize(A, vector.add(A, vector.subtract(size, 1)))
 			core.safe_file_write(core.get_worldpath() .. "/gullet.we", data)

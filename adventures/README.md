@@ -102,12 +102,12 @@ Run `/adventure save`, then `/adventure open`. Test with a second character: you
 Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head. A combat adventure for ranks 1 to 5, a party of one to four. It is 64 blocks east by 80 north. Only Thornwatch stands on the ground, no more than four blocks high; the rest is a gorge cut 27 blocks down into the land, open to the sky, with a stone kerb and fence round its rim (two blocks high, so nobody jumps it), and caves in its walls. Placing it clears the land above its footprint (trees, hills) and replaces the rock below it down to 31 blocks under the ground.
 
 - **Thornwatch** (outside the dungeon, at the south end, or the north when placed with `north`): a palisade fort with a way in from outside, the gate, the board, the arrival point, a smithy with the weapon recipes on a sign, and a notice of what lies in each cave. Its gate tower over the drop into the gorge has its portcullis down, with a ladder below it down to the gorge floor: the adventure gate takes a party in, and they come out by the finish, the time limit, dying or `/adventure leave`.
-- **The ravine** runs north between rock walls, with a cave in each wall and a camp on the floor, graded from the mouth:
-  - west: the mossling warren (3 mosslings, a common chest), then the wisp hollow (2 wisps, a common chest);
-  - east: the kobold den (4 kobolds, a common chest);
-  - on the floor: the goblin camp behind a fence (3 goblins, a weapon chest);
-  - up a stair in the west wall: the old crypt (3 skeletons, a weapon chest);
-  - up a ramp in the east wall: the orc hall (2 orcs and a hexer, a common chest).
-- **The temple**: a rockfall closes the head of the ravine. The way in runs through the orc hall's north passage; a dark passage from the back of the old crypt is the secret way. Inside, the orc warlord (a crowned great orc, 70 health) and two skeletons guard the altar with the finish on it, and the finish chest beside it.
+- **The gorge** winds north, narrow at the floor and stepping back a block every four as it rises (too high to climb), its floor rising a little towards the head, with scrub, boulders and a few stunted trees. No cave opens straight onto it: a tunnel leads off from each mouth, bending (and some climbing), with a lamp at each bend. In the style of the Caves of Chaos, though simpler:
+  - west, by the ladder: the mossling warren (3 mosslings, a common chest), and through the back of it the wisp hollow (2 wisps, a common chest);
+  - east, by the ladder: the kobold den (4 kobolds, a common chest);
+  - east, further in: the goblins' cave, with their tents and fire (3 goblins, a weapon chest);
+  - west, up a tunnel that climbs: the old crypt (3 skeletons, a weapon chest);
+  - east, near the head: the orc hall (2 orcs and a hexer, a common chest).
+- **The temple** lies in the rock beyond the head of the gorge. The way in runs through the orc hall's north passage; a dark passage from the back of the old crypt is the secret way. Inside, the orc warlord (a crowned great orc, 70 health) and two skeletons guard the altar with the finish on it, and the finish chest beside it.
 
 Every spawner brings its monsters once per run, when a player comes within its waking distance. Loot chests give each player their own share, up to bronze (the adventure's top rank is 5).

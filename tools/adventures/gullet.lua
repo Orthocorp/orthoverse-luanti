@@ -15,13 +15,13 @@
 --     arrival point. Its gate tower stands over the drop, portcullis down,
 --     with a ladder below it to the gorge floor. A kerb and fence, two
 --     blocks high, run round the rim.
---   The ravine (the gorge) runs north between rock walls. Caves in the walls, graded:
---     west: the mossling warren, then the wisp hollow;
---     east: the kobold den;
---     the floor: the goblin camp, behind a fence;
---     up a stair in the west wall: the old crypt (skeletons);
---     up a ramp in the east wall: the orc hall (orcs and a hexer).
---   A rockfall closes the head of the ravine. Behind it, the warlord's temple:
+--   The ravine (the gorge) winds north, narrow at the floor and stepping
+--     back as it rises. Tunnels lead off it, bending, to the caves, graded:
+--     west: the mossling warren, and through it the wisp hollow;
+--     east: the kobold den, then the goblins' cave;
+--     west, up a tunnel that climbs: the old crypt (skeletons);
+--     east, near the head: the orc hall (orcs and a hexer).
+--   Beyond the head of the gorge, in the rock, the warlord's temple:
 --   the way in runs through the orc hall; a dark passage from the back of the
 --   old crypt is the secret way. The warlord guards the finish, with two
 --   skeletons; the finish chest is beside it.
@@ -200,118 +200,185 @@ local function thornwatch()
 		"or diamonds, and sticks: see the craft guide. A metal counts in full only from a rank: " ..
 		"bronze 3, mese 6, diamond 10.")
 	-- the notice board of what is known about the caves
-	sign(43, NF + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and a hollow where lights float. " ..
-		"East: kobolds. On the floor: a goblin camp. Up the west wall: an old crypt. Up the east wall: the orc hall. " ..
-		"The warlord's temple lies behind the rockfall, and the way in runs through the orc hall.")
+	sign(43, NF + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and beyond it a hollow where lights float. " ..
+		"East: kobolds, and further in, goblins. Up a tunnel in the west wall: an old crypt. Near the head, east: the orc hall. " ..
+		"The warlord's temple lies in the rock beyond the head of the gorge, and the way in runs through the orc hall.")
 end
 
--- The ravine: rock walls, a gravel floor, rough faces
+-- The ravine: a gorge that winds north, narrow at the bottom and stepping
+-- back as it rises (a ledge every four blocks: too high to climb), its floor
+-- rising a little towards the head, with scrub, boulders, bones and a few
+-- stunted trees. The caves open off it through tunnels.
+local RAV_Z1, RAV_Z2 = 13, 56
+local function rav_c(z) return 32 + math.floor(3 * math.sin((z - RAV_Z1) / 8) + 0.5) end
+local function rav_w(z)
+	local w = 3 + math.floor(1.5 + 1.5 * math.sin((z - RAV_Z1) / 5 + 1) + 0.5)
+	if z > RAV_Z2 - 4 then w = math.max(2, w - (z - (RAV_Z2 - 4))) end
+	return w
+end
+local function rav_floor(z) return G + (z < 32 and 0 or (z < 44 and 1 or 2)) end
+-- Below y = 24 (where the caves are) the gorge keeps within x 25 to 39, so
+-- there are two blocks of rock at least between it and any cave
+local LOW_X1, LOW_X2 = 25, 39
+local function rav_west(z) return math.max(LOW_X1, rav_c(z) - rav_w(z)) end
+local function rav_east(z) return math.min(LOW_X2, rav_c(z) + rav_w(z)) end
+g.rav_floor = rav_floor
+
 local function ravine()
-	air(24, F, 13, 40, NG, 76)                              -- open to the sky
-	for z = 13, 76 do
-		for x = 24, 40 do set(x, G, z, rnd(5) == 0 and "default:dirt" or GRAVEL) end
-	end
-	-- rough faces: some blocks of the walls stand out, some are mossy
-	for z = 13, 76 do
-		for y = F + 7, NG - 6 do      -- (not near the top: nothing to climb out by)
-			if rnd(9) == 0 then set(24, y, z, ROCK) end
-			if rnd(9) == 0 then set(40, y, z, ROCK) end
-			if rnd(7) == 0 then set(23, y, z, MOSSY) end
-			if rnd(7) == 0 then set(41, y, z, MOSSY) end
+	for z = RAV_Z1, RAV_Z2 do
+		local c, w, fy = rav_c(z), rav_w(z), rav_floor(z)
+		for y = fy + 1, NG do
+			local s = math.floor((y - fy - 1) / 4)
+			local x1, x2 = c - w - s, c + w + s
+			if y <= 24 then x1, x2 = math.max(x1, LOW_X1), math.min(x2, LOW_X2) end
+			for x = x1, x2 do set(x, y, z, "air") end
+			-- streaks in the faces: moss, cobble, earth near the top
+			for _, x in ipairs({x1 - 1, x2 + 1}) do
+				if x >= 0 and x < SX and get(x, y, z) == ROCK then
+					local r = rnd(10)
+					if y >= NG - 3 then set(x, y, z, "default:dirt")
+					elseif r == 0 then set(x, y, z, MOSSY)
+					elseif r == 1 then set(x, y, z, COBBLE)
+					elseif r == 2 then set(x, y, z, "default:gravel") end
+				end
+			end
+		end
+		for x = rav_west(z), rav_east(z) do
+			local r = rnd(6)
+			set(x, fy, z, r == 0 and "default:dirt_with_grass" or (r == 1 and "default:dirt" or GRAVEL))
 		end
 	end
-	-- boulders on the floor
-	for _, p in ipairs({{26, 20}, {38, 27}, {25, 33}, {39, 48}, {27, 52}}) do
-		set(p[1], F, p[2], MOSSY)
+	-- where the floor rises, a step up all the way across (a block, walkable)
+	-- scrub, bones, boulders, a few stunted trees in the middle of the floor
+	for z = RAV_Z1 + 4, RAV_Z2 - 2 do
+		local fy = rav_floor(z)
+		local x1, x2 = rav_west(z), rav_east(z)
+		for x = x1, x2 do
+			if get(x, fy + 1, z) == "air" then
+				local r = rnd(40)
+				if r == 0 then set(x, fy + 1, z, "default:dry_shrub")
+				elseif r == 1 then set(x, fy + 1, z, "default:junglegrass")
+				elseif r == 2 and x > x1 and x < x2 then set(x, fy + 1, z, MOSSY)   -- a boulder
+				end
+			end
+		end
 	end
-	-- the ladder down from the gate tower (on the gorge's south face)
+	for _, p in ipairs({{30, 22}, {35, 41}, {31, 50}}) do
+		local x, z = p[1], p[2]
+		local fy = rav_floor(z)
+		box(x, fy + 1, z, x, fy + 3, z, LOG)
+		for dx = -1, 1 do for dz = -1, 1 do
+			if get(x + dx, fy + 4, z + dz) == "air" then set(x + dx, fy + 4, z + dz, "default:leaves") end
+		end end
+		set(x, fy + 5, z, "default:leaves")
+	end
+	-- the ladder down from the gate tower, on the gorge's south face
 	box(32, F, 13, 32, NG, 13, "default:ladder_wood", SIGN_P2["-z"])
+	sign(34, F + 1, 13, "-z", "The caves open off the gorge. Clear them, or go straight for the warlord: " ..
+		"the way to his temple runs through the orc hall.")
 	-- round the rim, a stone kerb with a fence on it: two blocks high, so
 	-- nobody up on the land walks or jumps over the edge
-	local function rail(x, z) set(x, NF, z, MOSSY); set(x, NF + 1, z, FENCE) end
-	for z = 13, 77 do rail(23, z); rail(41, z) end
-	for x = 24, 40 do rail(x, 77) end
-	g.rim = {{23, 13, 23, 77}, {41, 13, 41, 77}, {24, 77, 40, 77}}
-	sign(24, F + 1, 15, "-x", "Clear the caves, or go straight for the warlord. The way to his temple runs " ..
-		"through the orc hall, up the ramp in the east wall.")
-	-- the rockfall at the head of the ravine
-	box(24, G, 58, 40, 24, 63, ROCK)
-	for x = 24, 40 do
-		for y = F, 24 do if rnd(3) == 0 then set(x, y, 57, COBBLE) end end
-		set(x, F, 56, rnd(2) == 0 and GRAVEL or "air")
+	g.rim = {}
+	local function open(x, z) return x >= 0 and x < SX and z >= 0 and z < SZ and get(x, NG, z) == "air" end
+	for z = 0, SZ - 1 do for x = 0, SX - 1 do
+		if not open(x, z) and not (z <= 12 and x >= 20 and x <= 44) then
+			local edge = false
+			for dx = -1, 1 do for dz = -1, 1 do if open(x + dx, z + dz) then edge = true end end end
+			if edge then
+				set(x, NF, z, MOSSY); set(x, NF + 1, z, FENCE)
+				g.rim[#g.rim + 1] = {x, z}
+			end
+		end
+	end end
+end
+
+-- A tunnel: 2 wide, 3 high, along `path` ({x, f, z}: f is the floor block's
+-- height), each leg straight along x or z, sloping a block at a time; a lamp
+-- at each bend
+local function tunnel(path)
+	for i = 1, #path - 1 do
+		local a, b = path[i], path[i + 1]
+		local dx, dz = b[1] - a[1], b[3] - a[3]
+		assert(dx == 0 or dz == 0, "tunnel legs go along x or z")
+		local n = math.max(math.abs(dx), math.abs(dz))
+		for k = 0, n do
+			local x = a[1] + (n > 0 and math.floor(dx * k / n) or 0)
+			local z = a[3] + (n > 0 and math.floor(dz * k / n) or 0)
+			local f = a[2] + (n > 0 and math.floor((b[2] - a[2]) * k / n + 0.5) or 0)
+			local ox, oz = (dx == 0) and 1 or 0, (dx == 0) and 0 or 1
+			for w = 0, 1 do
+				local tx, tz = x + ox * w, z + oz * w
+				if get(tx, f, tz) == "air" then set(tx, f, tz, ROCK) end
+				for y = f + 1, f + 3 do set(tx, y, tz, "air") end
+			end
+		end
+		if i > 1 then set(a[1], a[2] + 4, a[3], LAMP) end
 	end
 end
 
--- West: the mossling warren, low and green
+-- West: the mossling warren, low and green; its tunnel opens near the
+-- gorge's mouth and turns north into it
 local function warren()
 	cave(12, 17, 22, 27, G, 3, MOSSY, 5)
-	air(23, F, 21, 23, F + 2, 22)
-	set(23, G, 21, MOSSY); set(23, G, 22, MOSSY)
+	tunnel({{rav_west(13), G, 13}, {18, G, 13}, {18, G, 17}})
 	for _, p in ipairs({{13, 25}, {20, 18}, {16, 26}, {12, 19}}) do set(p[1], F, p[2], "default:junglegrass") end
 	spawner(16, G, 22, "mossling", 3, 8)
 	chest(13, F, 18, "common", 1)
 end
 
--- West: the wisp hollow
+-- West, beyond the warren: the wisp hollow, reached only through the warren
 local function hollow()
 	cave(15, 30, 22, 36, G, 4, ROCK, 0)
-	air(23, F, 33, 23, F + 2, 34)
-	set(23, G, 33, ROCK); set(23, G, 34, ROCK)
-	set(16, F, 31, "default:mese_post_light")
+	tunnel({{16, G, 27}, {16, G, 30}})
+	set(21, F, 35, "default:mese_post_light")
 	spawner(18, G, 33, "wisp", 2, 10)
 	chest(16, F, 35, "common", 1)
 end
 
--- East: the kobold den, bones and a fire
+-- East: the kobold den, bones and a fire; its tunnel opens just inside the
+-- gorge and turns north
 local function den()
 	cave(42, 19, 53, 29, G, 3, FLOOR, 4)
-	air(41, F, 23, 41, F + 2, 24)
-	set(41, G, 23, FLOOR); set(41, G, 24, FLOOR)
-	for _, p in ipairs({{44, 20}, {51, 27}, {47, 28}}) do set(p[1], F, p[2], "bones:bones") end
-	set(48, G, 21, "default:coalblock"); set(48, F, 21, "fire:permanent_flame")
+	tunnel({{rav_east(16) - 1, G, 16}, {45, G, 16}, {45, G, 19}})
+	for _, p in ipairs({{44, 21}, {51, 27}, {47, 28}}) do set(p[1], F, p[2], "bones:bones") end
+	set(49, G, 21, "default:coalblock"); set(49, F, 21, "fire:permanent_flame")
 	spawner(49, G, 25, "kobold", 4, 8)
 	chest(52, F, 28, "common", 3)
 end
 
--- The floor: the goblin camp behind a fence, with tents
-local function camp()
-	for x = 26, 38 do set(x, F, 36, FENCE); set(x, F, 46, FENCE) end
-	for z = 36, 46 do set(26, F, z, FENCE); set(38, F, z, FENCE) end
-	for x = 31, 33 do set(x, F, 36, "air") end          -- the way in, from the south
-	for x = 31, 33 do set(x, F, 46, "air") end          -- and out, to the north
+-- East, further in: the goblins' cave, with their tents and fire; its
+-- tunnel climbs a little and bends south into it
+local GOB = G + 1
+local function goblins()
+	cave(50, 32, 59, 41, GOB, 4, "default:dirt", 4)
+	local f = rav_floor(33)
+	tunnel({{rav_east(33) - 1, f, 33}, {46, f, 33}, {46, GOB, 37}, {50, GOB, 37}})
 	local function tent(x1, z1, colour)
-		box(x1, F, z1, x1 + 2, F, z1 + 2, colour)
-		box(x1, F + 1, z1, x1 + 2, F + 1, z1 + 2, colour)
-		set(x1 + 1, F + 2, z1 + 1, colour)
-		air(x1 + 1, F, z1, x1 + 1, F + 1, z1)            -- its door
+		box(x1, GOB + 1, z1, x1 + 2, GOB + 2, z1 + 2, colour)
+		set(x1 + 1, GOB + 3, z1 + 1, colour)
+		air(x1 + 1, GOB + 1, z1, x1 + 1, GOB + 2, z1)            -- its door
 	end
-	tent(27, 38, "wool:red")
-	tent(35, 41, "wool:brown")
-	tent(27, 42, "wool:red")
-	set(32, G, 41, "default:coalblock"); set(32, F, 41, "fire:permanent_flame")
-	spawner(33, G, 39, "goblin", 3, 10)
-	chest(36, F, 38, "weapon", 2)
+	tent(51, 34, "wool:red")
+	tent(55, 34, "wool:brown")
+	set(54, GOB, 38, "default:coalblock"); set(54, GOB + 1, 38, "fire:permanent_flame")
+	spawner(52, GOB, 39, "goblin", 3, 10)
+	chest(58, GOB + 1, 40, "weapon", 3)
 end
 
--- Up the west wall: the stair to the old crypt, and the crypt
+-- Up the west wall: a stair cut into the face, a tunnel, the old crypt
 local CRYPT = G + 6                                       -- the crypt's floor
 local function crypt()
-	-- the stair, cut into the face going north, one step a block
-	for i = 0, 5 do
-		local z = 37 + i
-		box(21, G, z, 23, G + 1 + i, z, FLOOR)
-		air(21, G + 2 + i, z, 23, G + 5 + i, z)
-	end
-	air(21, CRYPT + 1, 43, 23, CRYPT + 3, 45)
-	box(21, CRYPT, 43, 23, CRYPT, 45, FLOOR)
+	-- a tunnel from the west face, climbing north inside the rock
+	local fy = rav_floor(38)
+	tunnel({{rav_west(38), fy, 38}, {22, fy, 38}, {22, CRYPT, 43}, {20, CRYPT, 43}})
 	cave(8, 43, 20, 54, CRYPT, 4, FLOOR, 4)
 	-- the tombs
 	for _, z in ipairs({45, 48, 51}) do
 		box(9, CRYPT + 1, z, 11, CRYPT + 1, z + 1, "default:stonebrick")
-		box(17, CRYPT + 1, z, 19, CRYPT + 1, z + 1, "default:stonebrick")
+		box(15, CRYPT + 1, z, 17, CRYPT + 1, z + 1, "default:stonebrick")
 	end
-	sign(20, CRYPT + 2, 46, "+x", "THE OLD CRYPT\nThe tribes keep away. The dead do not stay down.")
-	spawner(14, CRYPT, 48, "skeleton", 3, 8)
+	sign(20, CRYPT + 2, 45, "+x", "THE OLD CRYPT\nThe tribes keep away. The dead do not stay down.")
+	spawner(13, CRYPT, 48, "skeleton", 3, 8)
 	chest(9, CRYPT + 1, 53, "weapon", 1)
 	-- the secret way: a dark passage from the back of the crypt to the temple
 	air(10, CRYPT + 1, 55, 11, CRYPT + 2, 66)
@@ -320,32 +387,26 @@ local function crypt()
 	box(12, CRYPT, 65, 23, CRYPT, 66, FLOOR)
 end
 
--- Up the east wall: the ramp to the orc hall, and the hall
-local HALL = G + 2
+-- East, near the head: the orc hall, through a tunnel that climbs and turns
+local HALL = G + 3
 local function hall()
-	box(41, G, 50, 42, G + 1, 52, FLOOR)
-	box(41, G, 50, 41, G, 52, FLOOR)
-	air(41, F, 50, 41, F + 2, 52)                        -- first step up
-	set(41, F, 50, FLOOR); set(41, F, 51, FLOOR); set(41, F, 52, FLOOR)
-	air(41, F + 1, 50, 42, F + 4, 52)
+	local f = rav_floor(41)
+	tunnel({{rav_east(41) - 1, f, 41}, {47, f, 41}, {47, HALL, 44}})
 	cave(43, 44, 58, 60, HALL, 5, FLOOR, 4)
-	box(42, HALL, 50, 42, HALL, 52, FLOOR)
-	air(42, HALL + 1, 50, 42, HALL + 4, 52)
 	-- pillars and a long table
 	for _, p in ipairs({{46, 47}, {55, 47}, {46, 57}, {55, 57}}) do box(p[1], HALL + 1, p[2], p[1], HALL + 5, p[2], COBBLE) end
 	box(49, HALL + 1, 50, 52, HALL + 1, 54, PLANK)
-	sign(43, HALL + 2, 49, "-x", "THE ORC HALL\nThe warlord's way lies at the back, through the north passage.")
+	sign(45, HALL + 2, 44, "-z", "THE ORC HALL\nThe warlord's way lies at the back, through the north passage.")
 	spawner(50, HALL, 47, "orc", 2, 10)
 	spawner(56, HALL, 58, "hexer", 1, 12)
 	chest(57, HALL + 1, 45, "common", 3)
-	-- the passage north to the temple, climbing two steps
+	-- the passage north to the temple, climbing
 	air(43, HALL + 1, 61, 44, HALL + 3, 66)
 	box(43, HALL, 61, 44, HALL, 63, FLOOR)
-	box(43, HALL + 1, 64, 44, HALL + 1, 64, FLOOR)
-	box(43, HALL + 2, 65, 44, HALL + 2, 66, FLOOR)
-	air(43, HALL + 3, 64, 44, HALL + 5, 66)
-	air(41, HALL + 3, 65, 42, HALL + 5, 66)
-	box(41, HALL + 2, 65, 42, HALL + 2, 66, FLOOR)
+	box(43, HALL + 1, 64, 44, HALL + 1, 66, FLOOR)
+	air(43, HALL + 2, 64, 44, HALL + 5, 66)
+	air(41, HALL + 2, 65, 42, HALL + 5, 66)
+	box(41, HALL + 1, 65, 42, HALL + 1, 66, FLOOR)
 end
 
 -- The warlord's temple at the head of the ravine
@@ -382,6 +443,25 @@ end
 
 ------------------------------------------------------------------------------
 
+-- A plan of the gorge and caves below y = 24, north at the top: "." the
+-- gorge, "o" caves and tunnels, "#" rock (for checking by eye)
+function g.plan()
+	local rows = {}
+	for z = SZ - 1, 0, -1 do
+		local row = {}
+		for x = 0, SX - 1 do
+			local ch = "#"
+			if get(x, 24, z) == "air" and z >= RAV_Z1 and z <= RAV_Z2 then ch = "."
+			else
+				for y = F, 24 do if get(x, y, z) == "air" then ch = "o" break end end
+			end
+			row[#row + 1] = ch
+		end
+		rows[#rows + 1] = table.concat(row)
+	end
+	return table.concat(rows, "\n")
+end
+
 function g.build(origin)
 	grid, p2grid, metas = {}, {}, {}
 	g.spawners, g.chests, g.signs = {}, {}, {}
@@ -392,7 +472,7 @@ function g.build(origin)
 	warren()
 	hollow()
 	den()
-	camp()
+	goblins()
 	crypt()
 	hall()
 	temple()
