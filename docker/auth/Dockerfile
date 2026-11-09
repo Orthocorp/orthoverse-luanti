@@ -1,7 +1,7 @@
 # The auth service: wallet sign-in, player names, and who owns which land.
 # The same image runs the daily chain indexer (chain.js, the chain service).
 # Build context: the repository root.
-FROM node:24.22.0-bookworm-slim
+FROM node:24.22.1-bookworm-slim
 
 WORKDIR /app
 COPY web/auth/package.json web/auth/package-lock.json ./

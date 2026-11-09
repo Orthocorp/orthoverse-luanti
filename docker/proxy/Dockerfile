@@ -1,6 +1,6 @@
 # The web proxy: browser players' WebSocket to the game server's UDP.
 # Build context: the repository root.
-FROM node:24.22.0-bookworm-slim
+FROM node:24.22.1-bookworm-slim
 
 WORKDIR /app
 COPY web/proxy/package.json web/proxy/package-lock.json ./

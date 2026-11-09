@@ -419,7 +419,7 @@ local function leave_things_inside(player)
 	local meta = player:get_meta()
 	local raw = meta:get_string(KEPT)
 	if raw == "" then return end
-	local kept = core.deserialize(raw) or {}
+	local kept = core.deserialize(raw, true) or {}
 	local won = meta:get_string(WON) ~= ""
 	local inv = player:get_inventory()
 	kept.found = kept.found or {}
@@ -441,7 +441,7 @@ local function give_back(player)
 	local meta = player:get_meta()
 	local raw = meta:get_string(KEPT)
 	if raw == "" then return end
-	local kept = core.deserialize(raw) or {}
+	local kept = core.deserialize(raw, true) or {}
 	local inv = player:get_inventory()
 	for _, list in ipairs(LISTS) do
 		for i, st in pairs(kept[list] or {}) do
@@ -726,6 +726,21 @@ core.register_globalstep(function(dtime)
 		end
 	end
 end)
+
+-- In a run, a dropped item falls at the player's feet rather than being
+-- thrown: nothing found inside can be tossed over a wall (the Mill's yard)
+-- or out of a gorge to someone waiting outside. Things dropped inside are
+-- cleared when the run ends.
+local item_drop = core.item_drop
+function core.item_drop(itemstack, dropper, pos)
+	if dropper and dropper.is_player and dropper:is_player() and run_of(dropper:get_player_name()) then
+		local p = vector.offset(dropper:get_pos(), 0, 0.5, 0)
+		local obj = core.add_item(p, itemstack)
+		if obj then obj:set_velocity({x = 0, y = 0, z = 0}) end
+		return ItemStack("")
+	end
+	return item_drop(itemstack, dropper, pos)
+end
 
 -- No creative mode inside an adventure that is open or in use, holder included
 local creative_allowed = orthoverse.creative.allowed

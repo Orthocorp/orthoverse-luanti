@@ -19,6 +19,9 @@ services:
         # The look of the world: a texture pack from texturepacks/, or none
         OV_TEXTURES: ${OV_TEXTURES:-soothing32}
     image: orthoverse/luanti
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     user: "${OV_UID:?set OV_UID in .env}:${OV_GID:?set OV_GID in .env}"
     volumes:
       - ${OV_WORLD:?set OV_WORLD in .env}:/world
@@ -43,6 +46,9 @@ services:
       context: .
       dockerfile: docker/proxy/Dockerfile
     image: orthoverse/proxy
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     environment:
       OV_PROXY_HOST: 0.0.0.0
       OV_PROXY_PORT: "8737"
@@ -63,6 +69,9 @@ services:
       context: .
       dockerfile: docker/auth/Dockerfile
     image: orthoverse/auth
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     user: "${OV_UID}:${OV_GID}"
     environment:
       OV_AUTH_SECRET: ${OV_AUTH_SECRET:?set OV_AUTH_SECRET in .env (openssl rand -hex 32)}
@@ -95,6 +104,9 @@ services:
       context: .
       dockerfile: docker/auth/Dockerfile
     image: orthoverse/auth
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     command: ["node", "chain.js"]
     user: "${OV_UID}:${OV_GID}"
     environment:
@@ -115,6 +127,11 @@ services:
       context: .
       dockerfile: docker/web/Dockerfile
     image: orthoverse/web
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    # nginx starts as root to bind port 80 and open its logs, then drops to its user
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE, DAC_OVERRIDE]
     ports:
       - "127.0.0.1:${OV_WEB_PORT:-8485}:80"
     volumes:
@@ -131,6 +148,9 @@ services:
       context: .
       dockerfile: docker/map/Dockerfile
     image: orthoverse/map
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     user: "${OV_UID}:${OV_GID}"
     volumes:
       - ${OV_WORLD}:/world:ro
@@ -145,6 +165,9 @@ services:
       context: .
       dockerfile: docker/map/Dockerfile
     image: orthoverse/map
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     command: ["watch"]
     user: "${OV_UID}:${OV_GID}"
     volumes:
@@ -163,6 +186,9 @@ services:
       context: .
       dockerfile: docker/backup/Dockerfile
     image: orthoverse/backup
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     user: "${OV_UID}:${OV_GID}"
     environment:
       OV_BACKUP_AT: ${OV_BACKUP_AT:-01:30}
@@ -186,6 +212,9 @@ services:
   restore:
     profiles: [tools]
     image: orthoverse/backup
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     build:
       context: .
       dockerfile: docker/backup/Dockerfile
@@ -205,6 +234,9 @@ services:
       context: .
       dockerfile: docker/client/Dockerfile
     image: orthoverse/client
+    # No privilege gained after start, and no kernel capabilities but those named
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     user: "${OV_UID}:${OV_GID}"
     volumes:
       - ${OV_DATA}/play:/out

@@ -129,3 +129,61 @@ policy, because its engine builds code at run time.
 - **Inline scripts.** Each page has an inline script, so the policy allows
   them; it limits what injected script could reach, but does not stop it
   running. Moving the scripts into files would allow a stricter policy.
+
+## Second sweep, 10 November 2026
+
+Everything since the first sweep (adventures, kits, the three new ready-made
+adventures, the ship's and props' blocks, robots, the map's land list), and
+the whole code base again for the classic holes: code run from input
+(`eval`, `new Function`, `vm`, `child_process`, Lua `load`/`loadstring`/
+`dofile` on anything not ours, `os.execute`, `io.popen`), injection (SQL,
+shell, HTML, formspec), file paths from input, type confusion in request
+bodies, prototype pollution, and old dependencies.
+
+### Found nothing of the kind that hacked the old server
+
+- No code anywhere runs input as code. The web services have no `eval`,
+  `new Function`, `vm` or shell calls (the tests start the service, nothing
+  else spawns processes). The mods have no `load`, `loadstring`,
+  `os.execute` or `io.popen`; `dofile` only loads our own files. The one
+  `exec` in Python compiles Emscripten's own port files at build time.
+- SQL: every statement is fixed text with `?` parameters.
+- Request bodies: every field is turned into a string or a number, and
+  checked (lengths, a name pattern, a finite number within the world)
+  before use; a body of `null`, a number or an array is refused, not
+  crashed on.
+- Formspecs: every text a player chose (adventure names and lines, records)
+  is escaped; positions sent back from a form are checked (the node is
+  what it should be, and the player may change it).
+- Web pages write player text as text (`textContent`, `append`), never as
+  HTML.
+- File paths: only fixed folders plus names checked against a pattern or
+  made from numbers.
+
+### Fixed
+
+- **Dependencies and base images.** nginx 1.27.5 to 1.30.6 (five CVEs this
+  October; the alias and SSL ones fall in our version range, though our
+  configuration avoids their conditions); Node 24.22.0 to 24.22.1 (an
+  October security release: HTTP, DNS, TLS fixes); Python 3.12.7 to
+  3.12.16; Pillow 11.0.0 to 13.0.0 (out-of-bounds writes in PSD and DDS
+  decoding, and an EPS code-execution flaw). `npm audit`: nothing in
+  either service. Luanti 5.18.0 is past every 2026 advisory (the sandbox
+  escapes were fixed in 5.15.2).
+- **Containers.** Every service now runs with `no-new-privileges` and no
+  kernel capabilities but those it needs (the game server SYS_NICE for
+  its memory binding; nginx the five it needs to start as root and drop
+  to its own user). Tested: nginx serves with only those.
+- **Things thrown out of a run.** Inside an adventure a dropped item now
+  falls at the player's feet: before, a player could throw gold (or kit)
+  over the Mill's yard wall to a friend outside without finishing.
+- **Defence in depth.** Saved inventories are read with Luanti's safe
+  deserialize (no functions); the auth service looks routes up as its own
+  keys only.
+
+### Left as they are
+
+- The browser game's engine (luanti-wasm, pinned) runs in each player's
+  browser, not on the server.
+- As before: a modified client can cheat within what the server allows.
+

@@ -125,7 +125,7 @@ end
 
 local function load_lists(player, which)
 	local inv = player:get_inventory()
-	local saved = core.deserialize(player:get_meta():get_string(KEY .. which)) or {}
+	local saved = core.deserialize(player:get_meta():get_string(KEY .. which), true) or {}
 	for _, list in ipairs(LISTS) do
 		local size = inv:get_size(list)
 		local items = {}

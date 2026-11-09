@@ -1040,7 +1040,8 @@ const server = http.createServer(async (req, res) => {
 		if (!res.headersSent) send(res, 500, { error: 'The request could not be handled.' });
 		return;
 	}
-	const route = routes[`${req.method} ${url.pathname}`];
+	const routeKey = `${req.method} ${url.pathname}`;
+	const route = Object.hasOwn(routes, routeKey) ? routes[routeKey] : null;
 	if (!route) return send(res, 404, { error: 'Not found' });
 	try {
 		await route(req, res, url);

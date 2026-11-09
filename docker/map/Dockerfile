@@ -1,7 +1,7 @@
 # Draws the web map (tiles and the land list) from the world, read-only.
 # Build context: the repository root.
-FROM python:3.12.7-slim-bookworm AS base
-RUN pip install --no-cache-dir numpy==2.1.3 zstandard==0.23.0 pillow==11.0.0
+FROM python:3.12.16-slim-bookworm AS base
+RUN pip install --no-cache-dir numpy==2.1.3 zstandard==0.23.0 pillow==13.0.0
 
 # The average colour of every texture in the game's mods, so that what players
 # build with shows in its own colour (only the result goes into the image)

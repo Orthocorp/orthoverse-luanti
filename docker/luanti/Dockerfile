@@ -3,8 +3,8 @@
 
 # ---------------------------------------------------------------------------
 # The crests, one small PNG each, for the land display (orthoverse_landhud)
-FROM python:3.12.7-slim-bookworm AS crests
-RUN pip install --no-cache-dir pillow==11.0.0
+FROM python:3.12.16-slim-bookworm AS crests
+RUN pip install --no-cache-dir pillow==13.0.0
 COPY tools/split_crests.py /tmp/
 COPY web/heraldry /tmp/heraldry
 RUN python /tmp/split_crests.py /tmp/heraldry /tmp/crests
