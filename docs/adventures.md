@@ -11,8 +11,11 @@ Milestone 1 (adventure mode, the gate, the finish, Mesecons, one party at a time
 - Touching the **Adventure finish** (right-click or punch) completes it. Everyone in the run has two minutes to look around, then is brought back to the entrance.
 - A run also ends at the time limit (30 to 120 minutes, set by the builder, 60 at first), or when everyone has left it: by walking out of the area, dying, or being away from the game for more than five minutes.
 - Each adventure is for a range of character ranks (1 to 5 at first; the gate shows it). Only players within it may go in; the builder and the admin always may.
-- Dying in a run ends it for that player, who comes back to life at the entrance having lost nothing (their inventory is kept, not left in bones), but may not go back in for 10 minutes; each further death there within 4 hours doubles it, to an hour at most, and it all clears the next day.
-- Anyone who goes in without a weapon is given a steel short sword at the gate.
+- **The adventurer's kit.** At the gate the player's own inventory (and crafting grid) is put aside, and they are given the adventure's kit: a steel short sword and a healing draught, unless a ready-made adventure's JSON names its own (`"kit": ["item 1", ...]`). Whatever else they need they find inside.
+- Coming out by any way (the finish, the time limit, `/adventure leave`, walking out, dying, or being away too long), what they carried inside stays inside and their own inventory is given back. Things dropped inside are cleared at the end of the run.
+- **Treasure.** What loot chests give is marked as treasure (its tooltip says so). A party that reaches the finish takes its treasure out with it, unmarked, as ordinary items; a run that fails takes none.
+- Dying in a run ends it for that player, who comes back to life at the entrance with their own things (they were with the gatekeeper, so nothing goes into bones), but may not go back in for 10 minutes; each further death there within 4 hours doubles it, to an hour at most, and it all clears the next day.
+- A player who was away when their run ended gets their things back on joining again.
 - After every run the dungeon is put back exactly as it was saved ("restocking", a few seconds) before the next party can go in.
 - While an adventure is open, nobody but the run's players may be inside the dungeon area: anyone else is put back at the entrance. Nobody has creative mode inside it, the holder included.
 - Completions are recorded for signed-in characters (wallet or password). Runs by the builder, the admin and guests are not recorded, and the game says so at the finish. The first completion of each version is announced to everyone in the game.
@@ -58,7 +61,7 @@ A **pile of pebbles** (from the Creative tab) gives a pebble when punched: somet
 
 ## Not built yet (from the decisions)
 
-Our party module (the share of experience already counts everyone in a run), the downed and ghost rules, checkpoints, hired companions, private copies, shuffles on reset, level-gated doors, the builder's test mode, adventures across several lands, completions on the token card, rank on the website, armour. The adventurer's kit (a separate inventory) was dropped: weapons are ordinary items, made or found, and a metal counts in full only from a rank, so gear cannot be handed out unfairly; loot chests fill from our own tables, never from a builder's creative inventory.
+Our party module (the share of experience already counts everyone in a run), the downed and ghost rules, checkpoints, hired companions, private copies, shuffles on reset, level-gated doors, the builder's test mode, adventures across several lands, completions on the token card, rank on the website, armour. Loot chests fill from our own tables, never from a builder's creative inventory, and a metal counts in full only from a rank, so gear cannot be handed out unfairly.
 
 ## Combat experiment (milestone 2, patch 1021)
 

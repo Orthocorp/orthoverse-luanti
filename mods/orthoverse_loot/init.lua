@@ -190,6 +190,20 @@ local function close_share(name)
 	if inv then inv:set_list("main", {}) end
 end
 
+-- Loot is treasure: marked, so it comes out of the adventure with a party
+-- that finishes (orthoverse_adventure takes everything else off them)
+local function treasure(item)
+	local stack = ItemStack(item)
+	local def = core.registered_items[stack:get_name()]
+	local m = stack:get_meta()
+	m:set_string("orthoverse_loot:found", "1")
+	if def then
+		m:set_string("description", (def.description or stack:get_name()) .. "\n" ..
+			core.colorize("#e0c060", S("Treasure: yours to keep if you finish")))
+	end
+	return stack:to_string()
+end
+
 local function open_chest(pos, player)
 	local name = player:get_player_name()
 	local ad = orthoverse.adventure
@@ -205,7 +219,8 @@ local function open_chest(pos, player)
 		local kind = core.get_meta(pos):get_string("kind")
 		if kind == "" then kind = "common" end
 		if kind == "finish" and finish_taken(player, key) then kind = "common" end
-		shares[id] = fill(kind, top_rank(def))
+		shares[id] = {}
+		for i, it in ipairs(fill(kind, top_rank(def))) do shares[id][i] = treasure(it) end
 		core.sound_play("default_chest_open", {pos = pos, gain = 0.4, max_hear_distance = 10}, true)
 	end
 	local inv = share_inv(name)
@@ -266,26 +281,6 @@ core.register_on_leaveplayer(function(player) close_share(player:get_player_name
 
 ------------------------------------------------------------------------------
 -- A weapon for anyone who goes in without one
-
-local function has_weapon(player)
-	for _, st in ipairs(player:get_inventory():get_list("main") or {}) do
-		if core.get_item_group(st:get_name(), "orthoverse_weapon") > 0 then return true end
-	end
-	return false
-end
-
-core.register_on_mods_loaded(function()
-	local ad = orthoverse.adventure
-	if not (ad and ad.on_enter) then return end
-	table.insert(ad.on_enter, function(player)
-		if has_weapon(player) then return end
-		local left = player:get_inventory():add_item("main", "orthoverse_combat:short_sword_steel")
-		if left:is_empty() then
-			core.chat_send_player(player:get_player_name(),
-				S("You go in empty-handed, so the gatekeeper gives you a steel short sword."))
-		end
-	end)
-end)
 
 ------------------------------------------------------------------------------
 -- Recipes for the weapons: the metal (an ingot, a mese crystal or a diamond)

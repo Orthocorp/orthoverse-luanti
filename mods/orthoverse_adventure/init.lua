@@ -380,6 +380,170 @@ local function lock_out(player, key)
 	return secs
 end
 
+local function run_of(name)
+	for key, run in pairs(runs) do
+		if run.members[name] then return key, run end
+	end
+end
+
+-- The adventurer's kit. Going in, a player's own inventory (main and craft)
+-- is put aside and they get the adventure's kit; what they need beyond it
+-- they find inside. Coming out, by any way (the finish, time up, leaving,
+-- dying, walking out, or after being away), what they carried inside is left
+-- there and their own inventory is given back, with one exception: a party
+-- that finishes takes out the treasure it found in loot chests (items marked
+-- orthoverse_loot:found). Dying loses nothing of their own: it was put aside.
+-- A player away when their run ends gets their things back on joining.
+local KEPT = "orthoverse_adventure:kept"
+local WON = "orthoverse_adventure:won"
+local FOUND = "orthoverse_loot:found"
+local KIT_DEFAULT = {"orthoverse_combat:short_sword_steel", "orthoverse_loot:draught"}
+local LISTS = {"main", "craft"}
+
+local function has_kept(player)
+	return player:get_meta():get_string(KEPT) ~= ""
+end
+
+-- Treasure keeps its mark inside; outside it is an ordinary item again
+local function unmark(stack)
+	local m = stack:get_meta()
+	m:set_string(FOUND, "")
+	m:set_string("description", "")
+	return stack
+end
+
+-- Empty the adventure inventory. For a player whose party finished, the
+-- treasure goes with their own things, to be given back with them.
+local function leave_things_inside(player)
+	local meta = player:get_meta()
+	local raw = meta:get_string(KEPT)
+	if raw == "" then return end
+	local kept = core.deserialize(raw) or {}
+	local won = meta:get_string(WON) ~= ""
+	local inv = player:get_inventory()
+	kept.found = kept.found or {}
+	for _, list in ipairs(LISTS) do
+		for _, st in ipairs(inv:get_list(list) or {}) do
+			if won and not st:is_empty() and st:get_meta():get_string(FOUND) ~= "" then
+				kept.found[#kept.found + 1] = unmark(ItemStack(st)):to_string()
+			end
+		end
+		inv:set_list(list, {})
+	end
+	meta:set_string(WON, "")
+	meta:set_string(KEPT, core.serialize(kept))
+end
+
+-- Give back what was put aside (into an empty inventory: see above), and
+-- any treasure brought out
+local function give_back(player)
+	local meta = player:get_meta()
+	local raw = meta:get_string(KEPT)
+	if raw == "" then return end
+	local kept = core.deserialize(raw) or {}
+	local inv = player:get_inventory()
+	for _, list in ipairs(LISTS) do
+		for i, st in pairs(kept[list] or {}) do
+			local stack = ItemStack(st)
+			if inv:get_stack(list, i):is_empty() then
+				inv:set_stack(list, i, stack)
+			else
+				local left = inv:add_item("main", stack)
+				if not left:is_empty() then core.add_item(player:get_pos(), left) end
+			end
+		end
+	end
+	local brought = 0
+	for _, st in ipairs(kept.found or {}) do
+		local left = inv:add_item("main", ItemStack(st))
+		if not left:is_empty() then core.add_item(player:get_pos(), left) end
+		brought = brought + 1
+	end
+	meta:set_string(KEPT, "")
+	if brought > 0 then
+		core.chat_send_player(player:get_player_name(), "You bring out the treasure you found.")
+	end
+end
+
+local function come_out(player)
+	leave_things_inside(player)
+	give_back(player)
+end
+
+local function put_aside(player, def)
+	if has_kept(player) then come_out(player) end   -- anything left from before
+	local inv = player:get_inventory()
+	local out = {}
+	for _, list in ipairs(LISTS) do
+		local items = {}
+		for i, st in ipairs(inv:get_list(list) or {}) do items[i] = st:to_string() end
+		out[list] = items
+		inv:set_list(list, {})
+	end
+	local meta = player:get_meta()
+	meta:set_string(WON, "")
+	meta:set_string(KEPT, core.serialize(out))
+	local given = {}
+	for _, it in ipairs(type(def.kit) == "table" and def.kit or KIT_DEFAULT) do
+		local stack = ItemStack(it)
+		if core.registered_items[stack:get_name()] and not stack:is_empty() then
+			inv:add_item("main", stack)
+			given[#given + 1] = stack:get_count() > 1 and (stack:get_count() .. " " .. core.registered_items[stack:get_name()].description:match("^[^\n]*"))
+				or core.registered_items[stack:get_name()].description:match("^[^\n]*")
+		end
+	end
+	core.chat_send_player(player:get_player_name(), "The gatekeeper keeps your things until you come out" ..
+		(#given > 0 and (", and gives you the adventure's kit: " .. table.concat(given, ", ")) or "") ..
+		". Find what else you need inside. Treasure from its chests comes out with you if you finish.")
+end
+
+local respawn_at = {}   -- name -> where to come back to life
+
+local function on_death_in_run(player)
+	local name = player:get_player_name()
+	for key, run in pairs(runs) do
+		if run.members[name] then
+			run.members[name] = nil
+			local def = adventures[key]
+			-- Before bones can take it: the adventure's things stay inside
+			leave_things_inside(player)
+			respawn_at[name] = def.arrival and vec(def.arrival)
+			if may_manage(name, key) then
+				core.chat_send_player(name, "You fell in " .. def.name .. ". Your run is over (no lockout for its builder).")
+			else
+				local secs = lock_out(player, key)
+				core.chat_send_player(name, ("You fell in %s. Your run is over, and you may go in again in %d minutes. " ..
+					"Your own things are safe with the gatekeeper."):format(def.name, math.floor(secs / 60)))
+			end
+		end
+	end
+end
+-- Before every other mod's (bones) on dying
+table.insert(core.registered_on_dieplayers, 1, on_death_in_run)
+
+core.register_on_respawnplayer(function(player)
+	local name = player:get_player_name()
+	if not run_of(name) then come_out(player) end
+	local at = respawn_at[name]
+	respawn_at[name] = nil
+	if at then
+		player:set_pos(at)
+		return true
+	end
+end)
+
+-- Back after being away: still in the run (within the grace time), or out of
+-- it, with their things back
+core.register_on_joinplayer(function(player)
+	if player:get_hp() > 0 and not run_of(player:get_player_name()) then come_out(player) end
+end)
+
+-- Out of a run (the player is here): their own things back
+local function out_of_run(name)
+	local player = core.get_player_by_name(name)
+	if player and player:get_hp() > 0 then come_out(player) end
+end
+
 local function put_at_arrival(name, def, why)
 	local player = core.get_player_by_name(name)
 	if not player then return end
@@ -398,6 +562,16 @@ local function end_run(key, why)
 			put_at_arrival(name, def, why)
 		elseif player and why then
 			core.chat_send_player(name, why)
+		end
+		out_of_run(name)
+	end
+	-- Things dropped inside stay inside
+	local p1, p2 = area_of(def)
+	if def.footprint then p1, p2 = vec(def.footprint.min), vec(def.footprint.max) end
+	if p1 then
+		for _, obj in ipairs(core.get_objects_in_area(p1, p2)) do
+			local ent = obj:get_luaentity()
+			if ent and ent.name == "__builtin:item" then obj:remove() end
 		end
 	end
 	restore(key, function() core.log("action", "[orthoverse_adventure] " .. key .. " restocked") end)
@@ -448,6 +622,7 @@ local function start_or_join(name, key)
 	end
 	core.chat_send_player(name, "To give up: /adventure leave")
 	player:set_pos(vec(def.start))
+	put_aside(player, def)
 	for _, f in ipairs(orthoverse.adventure.on_enter) do f(player, key, def, run) end
 	return true
 end
@@ -458,6 +633,11 @@ local function finish(name, key)
 	if not run or not run.members[name] or run.finished then return end
 	run.finished = now()
 	local secs = run.finished - run.started
+	-- The party takes its treasure out with it
+	for n in pairs(run.members) do
+		local p = core.get_player_by_name(n)
+		if p then p:get_meta():set_string(WON, "1") end
+	end
 	local first, names = record_completion(key, def, run, secs)
 	local who = {}
 	for n in pairs(run.members) do who[#who + 1] = n end
@@ -503,6 +683,7 @@ core.register_globalstep(function(dtime)
 				if not inside(def, player:get_pos()) and t > run.started + 2 then
 					run.members[name] = nil
 					core.chat_send_player(name, "You have left " .. def.name .. ".")
+					out_of_run(name)
 				else
 					remaining = remaining + 1
 				end
@@ -538,83 +719,6 @@ core.register_globalstep(function(dtime)
 			end
 		end
 	end
-end)
-
--- Dying in a run: the run is over for that player, they are locked out of
--- the adventure for a while, and they lose nothing: their inventory is put
--- aside before Minetest Game's bones can take it (this runs first), and given
--- back when they come back to life, at the adventure's entrance.
-local KEPT = "orthoverse_adventure:kept"
-
-local function keep_inventory(player)
-	local inv = player:get_inventory()
-	local out = {}
-	for _, list in ipairs({"main", "craft"}) do
-		local items = {}
-		for i, st in ipairs(inv:get_list(list) or {}) do items[i] = st:to_string() end
-		out[list] = items
-		inv:set_list(list, {})
-	end
-	player:get_meta():set_string(KEPT, core.serialize(out))
-end
-
-local function give_back(player)
-	local meta = player:get_meta()
-	local raw = meta:get_string(KEPT)
-	if raw == "" then return end
-	local kept = core.deserialize(raw) or {}
-	local inv = player:get_inventory()
-	for list, items in pairs(kept) do
-		for i, st in pairs(items) do
-			local stack = ItemStack(st)
-			if inv:get_stack(list, i):is_empty() then
-				inv:set_stack(list, i, stack)
-			else
-				local left = inv:add_item("main", stack)
-				if not left:is_empty() then core.add_item(player:get_pos(), left) end
-			end
-		end
-	end
-	meta:set_string(KEPT, "")
-end
-
-local respawn_at = {}   -- name -> where to come back to life
-
-local function on_death_in_run(player)
-	local name = player:get_player_name()
-	for key, run in pairs(runs) do
-		if run.members[name] then
-			run.members[name] = nil
-			local def = adventures[key]
-			keep_inventory(player)
-			respawn_at[name] = def.arrival and vec(def.arrival)
-			if may_manage(name, key) then
-				core.chat_send_player(name, "You fell in " .. def.name .. ". Your run is over (no lockout for its builder).")
-			else
-				local secs = lock_out(player, key)
-				core.chat_send_player(name, ("You fell in %s. Your run is over, and you may go in again in %d minutes. " ..
-					"You have lost nothing."):format(def.name, math.floor(secs / 60)))
-			end
-		end
-	end
-end
--- Before every other mod's (bones) on dying
-table.insert(core.registered_on_dieplayers, 1, on_death_in_run)
-
-core.register_on_respawnplayer(function(player)
-	local name = player:get_player_name()
-	give_back(player)
-	local at = respawn_at[name]
-	respawn_at[name] = nil
-	if at then
-		player:set_pos(at)
-		return true
-	end
-end)
-
--- Someone who left the game while dead gets their things back on joining
-core.register_on_joinplayer(function(player)
-	if player:get_hp() > 0 then give_back(player) end
 end)
 
 -- No creative mode inside an adventure that is open or in use, holder included
@@ -948,6 +1052,7 @@ local function place_template(tname, at, by, done)
 			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 			footprint = {min = vector.new(p1.x, ground, p1.z), max = p2},
+			kit = type(info.kit) == "table" and info.kit or nil,
 		}
 		save_def(key)
 		write_public()
@@ -1049,6 +1154,7 @@ core.register_chatcommand("adventure", {
 				if run.members[name] then
 					run.members[name] = nil
 					put_at_arrival(name, adventures[k], "You have left " .. adventures[k].name .. ".")
+					out_of_run(name)
 					return true
 				end
 			end

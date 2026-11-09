@@ -60,8 +60,8 @@ Added 8 Nov 2026: any weapon may leave an adventure, be traded, found or crafted
 Built on 9 Nov 2026 (patches 1033 to 1036, decided by Claude while Keir was away, as he asked):
 - Blows that connect always land; armour takes damage off instead (Keir: missing on top of positioning was too hard). A forgiving 20-degree aim. Sounds for each kind of blow.
 - Rank and experience as in combat-numbers.md (decisions 20 to 22 and the experience rules).
-- The adventurer's kit (decision 24) is dropped: weapons are ordinary items, made or found; loot chests fill from our tables, never from a builder's creative inventory, capped by the adventure's top rank; a metal counts in full only from a rank. That keeps gear fair without a second inventory.
-- Death in a run: the lockout (decision 26), and nothing is lost (inventory kept, not left in bones), back at the entrance.
+- The adventurer's kit (decision 24), reinstated by Keir (9 November): the player's inventory is swapped for the adventure's kit at the gate and swapped back on coming out; what they gather inside stays inside, except treasure from loot chests, which a party that finishes takes out. Loot chests fill from our tables, capped by the adventure's top rank; a metal counts in full only from a rank.
+- Death in a run: the lockout (decision 26), and nothing of the player's own is lost (it was put aside at the gate), back at the entrance.
 - Entry ranges (decision 23): set by /adventure ranks; each player is checked at the gate, so every member of a party fits.
 - The Gullet, scaled to one land and the monsters there are, with an orc warlord as its boss.
 
