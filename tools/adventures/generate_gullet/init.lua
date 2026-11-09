@@ -98,6 +98,20 @@ local function check(O, label)
 		if seen3[key3(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then gate_ok = true end
 	end end
 	say(label .. ": outside standable " .. tostring(standable(outside)) .. "; gate reachable from outside: " .. tostring(gate_ok))
+	-- and the portcullis is down: from inside, the fort cannot be reached
+	local back = false
+	for dx = -1, 1 do for dz = -1, 1 do
+		if seen[key(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then back = true end
+	end end
+	say(label .. ": fort reachable from inside: " .. tostring(back))
+	-- every sign hangs on something solid
+	local DIR = {["+x"] = {x = 1, y = 0, z = 0}, ["-x"] = {x = -1, y = 0, z = 0}, ["+z"] = {x = 0, y = 0, z = 1}, ["-z"] = {x = 0, y = 0, z = -1}}
+	local loose = {}
+	for _, sg in ipairs(g.signs) do
+		local on = vector.add(vector.add(O, sg), DIR[sg.dir])
+		if not walkable(on) then loose[#loose + 1] = sg.text .. " at " .. core.pos_to_string(sg) end
+	end
+	say(label .. ": signs not on a wall: " .. (#loose > 0 and table.concat(loose, "; ") or "none"))
 end
 
 core.after(2, function()

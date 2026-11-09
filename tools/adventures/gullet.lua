@@ -62,6 +62,7 @@ g.info = {
 -- Where things are, for tests: spawners (kind, count, wake), chests (kind)
 g.spawners = {}
 g.chests = {}
+g.signs = {}
 g.finish = {x = 32, y = 14, z = 74}
 
 ------------------------------------------------------------------------------
@@ -112,6 +113,7 @@ end
 local SIGN_P2 = {["+x"] = 2, ["-x"] = 3, ["+z"] = 4, ["-z"] = 5}
 local function sign(x, y, z, dir, text)
 	set(x, y, z, SIGN, SIGN_P2[dir])
+	g.signs[#g.signs + 1] = {x = x, y = y, z = z, dir = dir, text = text:match("^[^\n]*")}
 	metas[#metas + 1] = {x = x, y = y, z = z, fields = {text = text, infotext = '"' .. text .. '"'}, construct = true}
 end
 
@@ -163,14 +165,16 @@ local function thornwatch()
 			if x % 2 == 0 then set(x, F + 3, 12, LOG) end
 		end
 	end
-	-- the gate tower over the way into the ravine
+	-- the gate tower over the way into the ravine, its portcullis down: the
+	-- adventure gate takes a party in, and nobody walks out but by the finish
 	box(29, F, 12, 29, F + 4, 12, LOG); box(36, F, 12, 36, F + 4, 12, LOG)
 	box(29, F + 4, 12, 36, F + 4, 12, PLANK)
+	box(30, F, 12, 35, F + 3, 12, "xpanes:bar_flat", 0)
 	for _, p in ipairs({{21, 2}, {43, 2}, {21, 11}, {43, 11}}) do set(p[1], F, p[2], "default:mese_post_light") end
 	set(32, F, 9, "orthoverse_adventure:gate", 0)
 	g.gate = {x = 32, y = F, z = 9}
 	set(28, F, 10, "orthoverse_adventure:board", 0)
-	sign(34, F + 1, 11, "+z", "THE GULLET\nTribes dig into the walls of the ravine, and an orc warlord rules them " ..
+	sign(38, F + 1, 11, "+z", "THE GULLET\nTribes dig into the walls of the ravine, and an orc warlord rules them " ..
 		"from a temple at its head.\nRight-click the gate to go in. Ranks 1 to 5.")
 	-- the smithy: a forge, an anvil block and the recipes on a sign
 	box(22, F, 3, 26, F, 7, "air")
@@ -183,7 +187,7 @@ local function thornwatch()
 		"or diamonds, and sticks: see the craft guide. A metal counts in full only from a rank: " ..
 		"bronze 3, mese 6, diamond 10.")
 	-- the notice board of what is known about the caves
-	sign(42, F + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and a hollow where lights float. " ..
+	sign(43, F + 1, 6, "+x", "WHAT WE KNOW\nWest: a mossling warren, and a hollow where lights float. " ..
 		"East: kobolds. On the floor: a goblin camp. Up the west wall: an old crypt. Up the east wall: the orc hall. " ..
 		"The warlord's temple lies behind the rockfall, and the way in runs through the orc hall.")
 end
@@ -290,7 +294,7 @@ local function crypt()
 		box(9, CRYPT + 1, z, 11, CRYPT + 1, z + 1, "default:stonebrick")
 		box(17, CRYPT + 1, z, 19, CRYPT + 1, z + 1, "default:stonebrick")
 	end
-	sign(20, CRYPT + 2, 46, "-x", "THE OLD CRYPT\nThe tribes keep away. The dead do not stay down.")
+	sign(20, CRYPT + 2, 46, "+x", "THE OLD CRYPT\nThe tribes keep away. The dead do not stay down.")
 	spawner(14, CRYPT, 48, "skeleton", 3, 8)
 	chest(9, CRYPT + 1, 53, "weapon", 1)
 	-- the secret way: a dark passage from the back of the crypt to the temple
@@ -314,7 +318,7 @@ local function hall()
 	-- pillars and a long table
 	for _, p in ipairs({{46, 47}, {55, 47}, {46, 57}, {55, 57}}) do box(p[1], HALL + 1, p[2], p[1], HALL + 5, p[2], COBBLE) end
 	box(49, HALL + 1, 50, 52, HALL + 1, 54, PLANK)
-	sign(43, HALL + 2, 49, "+x", "THE ORC HALL\nThe warlord's way lies at the back, through the north passage.")
+	sign(43, HALL + 2, 49, "-x", "THE ORC HALL\nThe warlord's way lies at the back, through the north passage.")
 	spawner(50, HALL, 47, "orc", 2, 10)
 	spawner(56, HALL, 58, "hexer", 1, 12)
 	chest(57, HALL + 1, 45, "common", 3)
@@ -364,7 +368,7 @@ end
 
 function g.build(origin)
 	grid, p2grid, metas = {}, {}, {}
-	g.spawners, g.chests = {}, {}
+	g.spawners, g.chests, g.signs = {}, {}, {}
 	seed = 12345
 	ground()
 	thornwatch()

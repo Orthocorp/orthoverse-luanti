@@ -391,8 +391,9 @@ end
 -- they find inside. Coming out, by any way (the finish, time up, leaving,
 -- dying, walking out, or after being away), what they carried inside is left
 -- there and their own inventory is given back, with one exception: a party
--- that finishes takes out the treasure it found in loot chests (items marked
--- orthoverse_loot:found). Dying loses nothing of their own: it was put aside.
+-- that finishes takes out the gold and gems it found in loot chests (items
+-- marked orthoverse_loot:found), as much as their own inventory has room
+-- for; the rest stays behind. Dying loses nothing of their own: it was put aside.
 -- A player away when their run ends gets their things back on joining.
 local KEPT = "orthoverse_adventure:kept"
 local WON = "orthoverse_adventure:won"
@@ -453,15 +454,20 @@ local function give_back(player)
 			end
 		end
 	end
-	local brought = 0
+	-- Treasure goes where there is room; with a full inventory, the rest is
+	-- left behind
+	local brought, lost = 0, 0
 	for _, st in ipairs(kept.found or {}) do
-		local left = inv:add_item("main", ItemStack(st))
-		if not left:is_empty() then core.add_item(player:get_pos(), left) end
-		brought = brought + 1
+		local stack = ItemStack(st)
+		local left = inv:add_item("main", stack)
+		brought = brought + stack:get_count() - left:get_count()
+		lost = lost + left:get_count()
 	end
 	meta:set_string(KEPT, "")
-	if brought > 0 then
-		core.chat_send_player(player:get_player_name(), "You bring out the treasure you found.")
+	local name = player:get_player_name()
+	if brought > 0 then core.chat_send_player(name, "You bring out the gold and gems you found.") end
+	if lost > 0 then
+		core.chat_send_player(name, ("Your pack was full: %d piece%s of treasure stayed behind."):format(lost, lost == 1 and "" or "s"))
 	end
 end
 
@@ -494,7 +500,7 @@ local function put_aside(player, def)
 	end
 	core.chat_send_player(player:get_player_name(), "The gatekeeper keeps your things until you come out" ..
 		(#given > 0 and (", and gives you the adventure's kit: " .. table.concat(given, ", ")) or "") ..
-		". Find what else you need inside. Treasure from its chests comes out with you if you finish.")
+		". Find what else you need inside. Gold and gems from its chests come out with you if you finish.")
 end
 
 local respawn_at = {}   -- name -> where to come back to life
@@ -1367,12 +1373,27 @@ local function in_footprint(def, pos)
 	return pos.x >= f.min.x and pos.x <= f.max.x and pos.y >= f.min.y and pos.y <= f.max.y
 		and pos.z >= f.min.z and pos.z <= f.max.z
 end
+-- One exception: a party in a run may light its way, placing torches (found
+-- in loot chests) in the air and taking them down again. The dungeon is put
+-- back as saved after the run, torches and all.
+local TORCHES = {["default:torch"] = true, ["default:torch_wall"] = true, ["default:torch_ceiling"] = true}
+local function torch_ok(name, key, pos)
+	local run = runs[key]
+	if not (run and run.members[name]) then return false end
+	local here = core.get_node(pos).name
+	if TORCHES[here] then return true end   -- taking one down
+	local player = core.get_player_by_name(name)
+	local nd = core.registered_nodes[here]
+	return player ~= nil and player:get_wielded_item():get_name() == "default:torch"
+		and nd ~= nil and nd.buildable_to == true and (nd.liquidtype or "none") == "none"
+end
 local old_is_protected = core.is_protected
 function core.is_protected(pos, name)
 	if name and name ~= "" then
 		local key, def = adventure_of_land(pos)
 		if def and (inside(def, pos) or in_footprint(def, vector.round(pos))) and not may_manage(name, key) then
-			return true
+			-- (a torch is fine whoever holds the land)
+			return not torch_ok(name, key, vector.round(pos))
 		end
 	end
 	return old_is_protected(pos, name)

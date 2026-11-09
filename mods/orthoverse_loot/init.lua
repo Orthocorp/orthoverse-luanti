@@ -6,16 +6,21 @@
 --   creative mode cannot hand out free gear. What a chest may give is capped
 --   by the adventure's top rank (an adventure for ranks 1 to 5 gives at most
 --   bronze; mese from 6, diamond from 10). Three kinds:
---     common:  a healing draught or two, now and then a weapon
---     weapon:  a weapon, and a draught
---     finish:  the best metal the adventure allows, once a day for each
---              player (a common share after that)
--- * Healing draughts (8 health), found only in chests.
+--     common:  a healing draught or two; often gold, now and then torches,
+--              a weapon or a draught of swiftness
+--     weapon:  a weapon, and a draught; sometimes gold or torches
+--     finish:  the best metal the adventure allows, gold and a gem, once
+--              a day for each player (a common share after that)
+-- * Treasure: gold and gems (gold lumps and ingots, mese crystals,
+--   diamonds) are marked when found, and are all a party that finishes
+--   takes out of the adventure (orthoverse_adventure). Everything else
+--   found inside stays inside.
+-- * Healing draughts (8 health) and draughts of swiftness (faster for a
+--   minute), found only in chests.
 -- * Recipes for the weapons (orthoverse_combat), from ingots, mese
 --   crystals or diamonds and sticks: weapons are ordinary items, made or
 --   found, and a weapon's metal counts in full only from a rank
 --   (orthoverse_rank).
--- * A steel short sword for anyone who enters an adventure with no weapon.
 
 local S = core.get_translator and core.get_translator("orthoverse_loot") or function(s) return s end
 
@@ -25,8 +30,9 @@ orthoverse.loot = {}
 local KINDS = {"dagger", "short_sword", "broadsword", "spear", "mace", "morning_star", "war_hammer"}
 local METALS = {{id = "steel", rank = 1}, {id = "bronze", rank = 3}, {id = "mese", rank = 6}, {id = "diamond", rank = 10}}
 local CHEST_KINDS = {"common", "weapon", "finish"}
-local CHEST_LABEL = {common = "Common (draughts, now and then a weapon)", weapon = "Weapon (a weapon and a draught)",
-	finish = "Finish (the best metal allowed, once a day each)"}
+local CHEST_LABEL = {common = "Common (draughts, gold; now and then torches, a weapon)",
+	weapon = "Weapon (a weapon and a draught; sometimes gold)",
+	finish = "Finish (the best metal allowed, gold and a gem, once a day each)"}
 local DEFAULT_TOP_RANK = 5
 
 ------------------------------------------------------------------------------
@@ -47,8 +53,32 @@ core.register_craftitem("orthoverse_loot:draught", {
 	end,
 })
 
+-- The draught of swiftness: faster on foot for a minute
+local SWIFT_SECS, SWIFT_MULT = 60, 1.5
+core.register_craftitem("orthoverse_loot:swiftness", {
+	description = S("Draught of swiftness") .. "\n" .. S("Drink (use) to run faster for a minute"),
+	inventory_image = "orthoverse_loot_draught.png^[colorize:#40a8ff:150",
+	stack_max = 10,
+	on_use = function(itemstack, user)
+		if not user or not user:is_player() then return itemstack end
+		local C = orthoverse.combat
+		if not (C and C.boost) then return itemstack end
+		C.boost(user, SWIFT_MULT, SWIFT_SECS)
+		core.chat_send_player(user:get_player_name(), S("You feel light on your feet (one minute)."))
+		core.sound_play("default_water_footstep", {pos = user:get_pos(), gain = 0.6, pitch = 1.8, max_hear_distance = 8}, true)
+		itemstack:take_item()
+		return itemstack
+	end,
+})
+
 ------------------------------------------------------------------------------
 -- What a chest gives
+
+-- Gold and gems: the only things that come out of an adventure, and only
+-- with a party that reaches its finish
+local TREASURE = {["default:gold_lump"] = true, ["default:gold_ingot"] = true,
+	["default:mese_crystal"] = true, ["default:diamond"] = true}
+orthoverse.loot.treasure = TREASURE
 
 -- Metals an adventure up to `top` rank may give
 local function metals_for(top)
@@ -73,18 +103,31 @@ local function some_metal(allowed)
 	end
 end
 
+local function chance(p) return math.random() < p end
+
 local function fill(kind, top)
 	local allowed = metals_for(top)
 	local out = {}
+	local function add(s) out[#out + 1] = s end
 	if kind == "finish" then
-		out[#out + 1] = weapon(allowed[#allowed])
-		out[#out + 1] = "orthoverse_loot:draught 2"
+		add(weapon(allowed[#allowed]))
+		add("orthoverse_loot:draught 2")
+		add("orthoverse_loot:swiftness")
+		add("default:gold_ingot " .. math.random(3, 5))
+		-- a gem: a diamond now and then, more often mese
+		add(chance(top >= 6 and 0.5 or 0.25) and "default:diamond" or ("default:mese_crystal " .. math.random(1, 2)))
 	elseif kind == "weapon" then
-		out[#out + 1] = weapon(some_metal(allowed))
-		out[#out + 1] = "orthoverse_loot:draught"
+		add(weapon(some_metal(allowed)))
+		add("orthoverse_loot:draught")
+		if chance(0.4) then add("default:gold_ingot " .. math.random(1, 2)) end
+		if chance(0.2) then add("default:torch " .. math.random(3, 6)) end
 	else
-		out[#out + 1] = "orthoverse_loot:draught " .. math.random(1, 2)
-		if math.random() < 0.35 then out[#out + 1] = weapon(some_metal(allowed)) end
+		add("orthoverse_loot:draught " .. math.random(1, 2))
+		if chance(0.5) then add("default:gold_lump " .. math.random(1, 3)) end
+		if chance(0.35) then add("default:torch " .. math.random(3, 6)) end
+		if chance(0.3) then add(weapon(some_metal(allowed))) end
+		if chance(0.12) then add("orthoverse_loot:swiftness") end
+		if chance(0.05) then add("default:mese_crystal") end
 	end
 	return out
 end
@@ -190,10 +233,12 @@ local function close_share(name)
 	if inv then inv:set_list("main", {}) end
 end
 
--- Loot is treasure: marked, so it comes out of the adventure with a party
--- that finishes (orthoverse_adventure takes everything else off them)
+-- Gold and gems are treasure: marked, so they come out of the adventure
+-- with a party that finishes (orthoverse_adventure leaves everything else
+-- inside). Other loot is as it is.
 local function treasure(item)
 	local stack = ItemStack(item)
+	if not TREASURE[stack:get_name()] then return stack:to_string() end
 	local def = core.registered_items[stack:get_name()]
 	local m = stack:get_meta()
 	m:set_string("orthoverse_loot:found", "1")

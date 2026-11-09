@@ -101,7 +101,7 @@ Run `/adventure save`, then `/adventure open`. Test with a second character: you
 
 Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head. A combat adventure for ranks 1 to 5, a party of one to four. It is 64 blocks east by 80 north and 40 high, all above the ground.
 
-- **Thornwatch** (outside the dungeon, at the south end): the gate, the board, the arrival point, a smithy with the weapon recipes on a sign, and a notice of what lies in each cave.
+- **Thornwatch** (outside the dungeon, at the south end, or the north when placed with `north`): a palisade fort with a way in from outside, the gate, the board, the arrival point, a smithy with the weapon recipes on a sign, and a notice of what lies in each cave. Its gate tower over the ravine has its portcullis down: the adventure gate takes a party in, and they come out by the finish, the time limit, dying or `/adventure leave`.
 - **The ravine** runs north between rock walls, with a cave in each wall and a camp on the floor, graded from the mouth:
   - west: the mossling warren (3 mosslings, a common chest), then the wisp hollow (2 wisps, a common chest);
   - east: the kobold den (4 kobolds, a common chest);

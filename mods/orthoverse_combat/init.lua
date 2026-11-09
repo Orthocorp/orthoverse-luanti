@@ -336,9 +336,53 @@ core.register_globalstep(function()
 	end
 end)
 
+------------------------------------------------------------------------------
+-- Footwork. With a weapon in hand, backing away is slower than walking
+-- (slower than any monster runs), and backing away while winding up a blow
+-- is a crawl, as slow as sneaking: so a fighter cannot keep stepping back
+-- out of reach and then dart in to strike. Walking forward or sideways is
+-- as ever. Draughts of swiftness (orthoverse_loot) speed it all up for a
+-- while: orthoverse.combat.boost(player, multiplier, seconds).
+-- (speed_walk only: the beds' `speed` override is left alone.)
+
+local BACK_ARMED = 0.6      -- of walking speed: 2.4 blocks a second
+local BACK_WINDING = 0.33   -- as slow as sneaking
+
+local boosts = {}           -- name -> {mult, till}
+local applied = {}          -- name -> the speed_walk last set
+
+function orthoverse.combat.boost(player, mult, secs)
+	boosts[player:get_player_name()] = {mult = mult, till = now() + secs}
+end
+
+core.register_globalstep(function()
+	local t = now()
+	for _, player in ipairs(core.get_connected_players()) do
+		local name = player:get_player_name()
+		local c = player:get_player_control()
+		local factor = 1
+		if by_item[player:get_wielded_item():get_name()] and c.down and not c.up then
+			factor = holding[name] and BACK_WINDING or BACK_ARMED
+		end
+		local b = boosts[name]
+		if b and t > b.till then
+			boosts[name] = nil
+			b = nil
+			core.chat_send_player(name, "Your swiftness wears off.")
+		end
+		local speed = factor * (b and b.mult or 1)
+		if applied[name] ~= speed then
+			applied[name] = speed
+			player:set_physics_override({speed_walk = speed})
+		end
+	end
+end)
+
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	holding[name] = nil
+	boosts[name] = nil
+	applied[name] = nil
 end)
 
 -- The weapon in the hand is its plain picture, as any item is. Weapons that
