@@ -153,6 +153,11 @@ local function ground()
 	box(0, NG, 0, SX - 1, NG, SZ - 1, "default:dirt_with_grass")
 end
 g.surface = NF
+g.outside = {x = 10, y = NF, z = 5}
+-- The temple must be out of reach with the orc hall's back passage and the
+-- secret way walled off
+g.gated = {{label = "the temple reachable without the two ways in", target = {x = 32, y = 13, z = 70},
+	blocked = {{{x = 43, y = 0, z = 61}, {x = 44, y = 30, z = 63}}, {{x = 10, y = 0, z = 55}, {x = 11, y = 30, z = 57}}}}}
 
 -- Thornwatch: a palisade fort at the mouth of the ravine
 local function thornwatch()

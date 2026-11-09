@@ -1,11 +1,15 @@
--- Generates adventures/gullet.we and .json, and checks that a player can walk
--- from the start to every spawner, chest and the finish (and that the
--- temple can be reached only through the orc hall or the secret way). See
--- tools/adventures/README.md.
-local g = dofile(core.get_game_info().path .. "/tools/adventures/gullet.lua")
+-- Generates a ready-made adventure, adventures/<name>.we and .json, from
+-- tools/adventures/<name>.lua (setting orthoverse_generate_adventure: gullet,
+-- fallen_star), and checks it: that a player can walk from the start to every
+-- spawner, chest and the finish, that its gated places can be reached only
+-- through their ways in, that nobody climbs out or in, and that every sign
+-- hangs on a wall. See tools/adventures/README.md.
+local NAME = core.settings:get("orthoverse_generate_adventure") or "gullet"
+assert(NAME:match("^[%w_]+$"), "orthoverse_generate_adventure: a plain name")
+local g = dofile(core.get_game_info().path .. "/tools/adventures/" .. NAME .. ".lua")
 local out = {}
 local function flush() core.safe_file_write(core.get_worldpath() .. "/result.txt", table.concat(out, "\n")) end
-local function say(s) out[#out + 1] = s; core.log("action", "[gullet] " .. s); flush() end
+local function say(s) out[#out + 1] = s; core.log("action", "[" .. NAME .. "] " .. s); flush() end
 
 local function forceload(O)
 	local size = g.info.size
@@ -72,7 +76,7 @@ local function check(O, label)
 	end
 	local bad = {}
 	for _, s in ipairs(g.spawners) do
-		if not near(vector.add(O, {x = s.x, y = s.y + 1, z = s.z}), 2) then bad[#bad + 1] = "spawner " .. s.kind end
+		if not s.aloft and not near(vector.add(O, {x = s.x, y = s.y + 1, z = s.z}), 2) then bad[#bad + 1] = "spawner " .. s.kind end
 	end
 	for _, c in ipairs(g.chests) do
 		if not near(vector.add(O, c), 1) then bad[#bad + 1] = "chest " .. c.kind .. " at " .. core.pos_to_string(c) end
@@ -80,18 +84,17 @@ local function check(O, label)
 	local fin = vector.add(O, g.finish)
 	say(("%s: %d places reachable; finish reachable %s; unreachable: %s"):format(label, n, tostring(near(fin, 1)),
 		#bad > 0 and table.concat(bad, ", ") or "none"))
-	-- with the orc hall's back passage and the secret way walled off, the
-	-- temple must be out of reach
-	local seen2 = reach(O, start, {{{x = 43, y = 0, z = 61}, {x = 44, y = 30, z = 63}}, {{x = 10, y = 0, z = 55}, {x = 11, y = 30, z = 57}}})
-	local key2 = function(p) return p.x .. "," .. p.y .. "," .. p.z end
-	local inside = false
-	for dx = -2, 2 do for dz = -3, 0 do
-		if seen2[key2(vector.add(fin, {x = dx, y = -1, z = dz - 1}))] or seen2[key2(vector.add(fin, {x = dx, y = 0, z = dz - 1}))] then inside = true end
-	end end
-	say(label .. ": temple reachable without the two ways in: " .. tostring(inside))
-	-- Thornwatch has a way in from outside: from open ground west of the fort
-	-- (the side the land is on), the gate can be reached
-	local outside = vector.add(O, {x = 10, y = g.gate.y, z = 5})
+	-- with their ways in walled off, gated places must be out of reach (and
+	-- reachable with them open)
+	for _, gt in ipairs(g.gated or {}) do
+		local target = vector.add(O, gt.target)
+		local seen2, key2 = reach(O, start, gt.blocked)
+		say(("%s: %s (with them: %s)"):format(label, gt.label, tostring(seen[key(target)] == true)) ..
+			": " .. tostring(seen2[key2(target)] == true))
+	end
+	-- the entrance has a way in from outside: from open ground, the gate can
+	-- be reached
+	local outside = vector.add(O, g.outside or {x = 2, y = g.gate.y, z = 2})
 	local seen3, key3 = reach(O, outside)
 	local gate_ok = false
 	for dx = -1, 1 do for dz = -1, 1 do
@@ -112,14 +115,14 @@ local function check(O, label)
 	for dx = -1, 1 do for dz = -1, 1 do
 		if seen[key(vector.add(O, {x = g.gate.x + dx, y = g.gate.y, z = g.gate.z + dz}))] then back = true end
 	end end
-	say(label .. ": fort reachable from inside: " .. tostring(back))
+	say(label .. ": entrance reachable from inside: " .. tostring(back))
 	-- nobody climbs out of the gorge onto the land
 	local out = false
 	for k in pairs(seen) do
 		local y = tonumber(k:match("^[^,]+,([^,]+),"))
 		if y and y - O.y >= g.surface then out = true break end
 	end
-	say(label .. ": can climb out of the gorge: " .. tostring(out))
+	say(label .. ": can climb out: " .. tostring(out))
 	-- every sign hangs on something solid
 	local DIR = {["+x"] = {x = 1, y = 0, z = 0}, ["-x"] = {x = -1, y = 0, z = 0}, ["+z"] = {x = 0, y = 0, z = 1}, ["-z"] = {x = 0, y = 0, z = -1}}
 	local loose = {}
@@ -143,10 +146,16 @@ core.after(2, function()
 		core.safe_file_write(core.get_worldpath() .. "/plan.txt", g.plan())
 		core.after(3, function()
 			local data, n = worldedit.serialize(A, vector.add(A, vector.subtract(size, 1)))
-			core.safe_file_write(core.get_worldpath() .. "/gullet.we", data)
+			core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".we", data)
 			local info = table.copy(g.info)
-			core.safe_file_write(core.get_worldpath() .. "/gullet.json", core.write_json(info))
+			core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".json", core.write_json(info))
 			say(("saved %d nodes, %d bytes"):format(n, #data))
+			-- For the checks, doors open (the players carry their cards)
+			for _, nm in ipairs(g.open_for_checks or {}) do
+				for _, p in ipairs(core.find_nodes_in_area(A, vector.add(A, vector.subtract(size, 1)), {nm})) do
+					core.remove_node(p)
+				end
+			end
 			check(A, "built")
 			flush()
 		end)

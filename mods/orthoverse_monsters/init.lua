@@ -209,7 +209,7 @@ orthoverse.monsters.kinds = kinds
 local function monster(id, def)
 	local name = "orthoverse_monsters:" .. id
 	local size = def.size or 1
-	local mesh = def.visual ~= "sprite"
+	local mesh = def.visual == nil or def.visual == "mesh"
 	local base = {
 		type = "monster", passive = false, attack_type = def.attack_type or "dogfight",
 		damage = def.damage, hp_min = def.hp, hp_max = def.hp, armor = 100,
@@ -220,8 +220,8 @@ local function monster(id, def)
 		punch_interval = def.interval or 1.5,
 		drops = {},
 		sounds = def.sounds or {},
-		visual = mesh and "mesh" or "sprite", mesh = mesh and "character.b3d" or nil,
-		textures = {{"orthoverse_monsters_" .. id .. ".png"}},
+		visual = mesh and "mesh" or def.visual, mesh = mesh and "character.b3d" or nil,
+		textures = {def.textures or {"orthoverse_monsters_" .. id .. ".png"}},
 		visual_size = {x = size, y = size},
 		collisionbox = def.collisionbox or {-0.3 * size, 0, -0.3 * size, 0.3 * size, 1.7 * size, 0.3 * size},
 		animation = mesh and ANIM or nil,
@@ -687,6 +687,146 @@ monster("wisp", {
 		local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
 		self.object:set_velocity({x = v.x, y = math.max(-2, math.min(2, (want - pos.y) * 2)), z = v.z})
 		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end,
+})
+
+------------------------------------------------------------------------------
+-- The Fallen Star's robots. Ranks 3 to 7.
+
+-- A scrap drone: a small floating machine that rams (as the wisp floats, but
+-- it strikes, it does not burst)
+monster("drone", {
+	desc = S("Scrap drone"), level = 3, xp = 60, visual = "sprite", size = 0.7, hp = 12, ac = 12, damage = 3,
+	windup = 0.4, interval = 1.3, glow = 6, collisionbox = {-0.3, -0.3, -0.3, 0.3, 0.3, 0.3}, walk = 1.6, run = 3.6,
+	reach = 1.8,
+	mobs = {fly = true, fly_in = {"air"}, keep_flying = true, fall_damage = false, jump = false, fear_height = 0,
+		stand_chance = 0},
+	sounds = {random = "orthoverse_monsters_wisp_hum", damage = "default_dig_metal", death = "default_dug_metal",
+		distance = 14},
+	after_activate = function(self)
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self._bob = math.random() * 6
+	end,
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return end
+		self._bob = (self._bob or 0) + dtime
+		local want
+		local target = self.attack and self.attack:get_pos()
+		if target then
+			want = target.y + 1.2
+		else
+			local g = ground_below(pos, 8)
+			want = (g or pos.y) + 1.4 + math.sin(self._bob * 2.3) * 0.2
+		end
+		local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
+		self.object:set_velocity({x = v.x, y = math.max(-2, math.min(2, (want - pos.y) * 2)), z = v.z})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end,
+})
+
+-- A security robot: a steel man with a stun baton
+monster("secbot", {
+	desc = S("Security robot"), level = 5, xp = 110, size = 1.05, hp = 24, ac = 14, damage = 5, windup = 0.55,
+	interval = 1.5, walk = 1.4, run = 3.2, weapon = "orthoverse_combat:mace_steel_carried", reach = 2.3,
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", attack = "orthoverse_monsters_bolt",
+		distance = 14},
+})
+
+-- The Warden: the ship's great guardian, the boss of The Fallen Star. Its
+-- blows are slow to come and crushing when they do.
+monster("warden", {
+	desc = S("The Warden"), level = 7, xp = 400, size = 1.5, hp = 100, ac = 15, damage = 9, windup = 1.0,
+	interval = 2.2, walk = 1.2, run = 2.7, weapon = "orthoverse_combat:war_hammer_steel_carried", reach = 3.0,
+	view_range = 20,
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", attack = "orthoverse_monsters_bolt",
+		distance = 28},
+})
+
+-- A sentry turret: fixed to a ledge, it turns to face a player it can see and
+-- fires a bolt every 2.5 s (the bolt flies straight and can be struck down)
+local TURRET = {view = 18, every = 2.5, speed = 12, damage = 4}
+
+core.register_entity("orthoverse_monsters:bolt", {
+	initial_properties = {
+		visual = "sprite", textures = {"orthoverse_monsters_bolt.png"}, visual_size = {x = 0.4, y = 0.4},
+		glow = 14, physical = true, collide_with_objects = false, pointable = true,
+		collisionbox = {-0.15, -0.15, -0.15, 0.15, 0.15, 0.15}, selectionbox = {-0.2, -0.2, -0.2, 0.2, 0.2, 0.2},
+		static_save = false,
+	},
+	_orthoverse_target = {ac = 1},
+	_burst = function(self) self.object:remove() end,
+	_on_blow = function(self, blow) if blow.result ~= "miss" then self.object:remove() end end,
+	on_activate = function(self) self._t = 0 end,
+	on_punch = function() return true end,
+	on_step = function(self, dtime, moveresult)
+		self._t = self._t + dtime
+		local pos = self.object:get_pos()
+		if not pos then return end
+		-- A bolt flies more than a body's width in a server step: test the
+		-- whole way it came since the last step against each player's body
+		local from = self._last or pos
+		self._last = pos
+		local seg = vector.subtract(pos, from)
+		local len2 = vector.dot(seg, seg)
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, 3)) do
+			if obj:is_player() and obj:get_hp() > 0 then
+				local p = obj:get_pos()
+				local mid = {x = p.x, y = p.y + 0.9, z = p.z}
+				local k = len2 > 0 and math.max(0, math.min(1, vector.dot(vector.subtract(mid, from), seg) / len2)) or 1
+				local c = vector.add(from, vector.multiply(seg, k))
+				if math.abs(c.x - p.x) < 0.45 and math.abs(c.z - p.z) < 0.45 and c.y > p.y - 0.1 and c.y < p.y + 1.9 then
+					obj:punch(self._owner and self._owner:get_pos() and self._owner or self.object, 1.0,
+						{full_punch_interval = 1.0, damage_groups = {fleshy = TURRET.damage}}, nil)
+					return self.object:remove()
+				end
+			end
+		end
+		if self._t > 3 or (moveresult and moveresult.collides) then return self.object:remove() end
+	end,
+})
+
+monster("turret", {
+	desc = S("Sentry turret"), level = 5, xp = 90, visual = "cube", size = 0.8, hp = 18, ac = 15, damage = 0,
+	textures = {"orthoverse_monsters_turret_top.png", "orthoverse_monsters_turret_top.png",
+		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_side.png",
+		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_front.png"},
+	collisionbox = {-0.4, -0.4, -0.4, 0.4, 0.4, 0.4}, walk = 0, run = 0, view_range = TURRET.view,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, attack_type = "dogfight"},
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", distance = 16},
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return false end
+		self.object:set_velocity({x = 0, y = math.min(0, (self.object:get_velocity() or {y = 0}).y), z = 0})
+		self._cool = (self._cool or TURRET.every) - dtime
+		self._look = (self._look or 0) - dtime
+		if self._look > 0 then return false end
+		self._look = 0.25
+		local best, bd
+		for _, player in ipairs(core.get_connected_players()) do
+			local pp = player:get_pos()
+			local d = vector.distance(pos, pp)
+			if d <= TURRET.view and player:get_hp() > 0 and (not bd or d < bd)
+					and core.line_of_sight(pos, vector.add(pp, {x = 0, y = 1.4, z = 0})) then
+				best, bd = player, d
+			end
+		end
+		if not best then return false end
+		self._fought = now()
+		local aim = vector.add(best:get_pos(), {x = 0, y = 1.1, z = 0})
+		local dir = vector.direction(pos, aim)
+		self.object:set_yaw(math.atan2(-dir.x, dir.z))
+		if self._cool <= 0 then
+			self._cool = TURRET.every
+			local from = vector.add(pos, vector.multiply(dir, 0.6))
+			local bolt = core.add_entity(from, "orthoverse_monsters:bolt")
+			if bolt then
+				bolt:set_velocity(vector.multiply(dir, TURRET.speed))
+				bolt:get_luaentity()._owner = self.object
+				core.sound_play("orthoverse_monsters_bolt", {pos = pos, gain = 0.7, max_hear_distance = 24}, true)
+			end
+		end
+		return false
 	end,
 })
 

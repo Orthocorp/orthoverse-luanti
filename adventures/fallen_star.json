@@ -1,0 +1,47 @@
+{
+	"arrival": {
+		"x": 32.5,
+		"y": 27,
+		"z": 2.5
+	},
+	"corner1": {
+		"x": 2,
+		"y": 0,
+		"z": 8
+	},
+	"corner2": {
+		"x": 61,
+		"y": 26,
+		"z": 62
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 63,
+				"y": 25,
+				"z": 63
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"ground": 26,
+	"limit": 60,
+	"line": "A ship from the futuristic realm came down in the hills. Its machines are still running.",
+	"name": "The Fallen Star",
+	"rank_max": 7,
+	"rank_min": 3,
+	"size": {
+		"x": 64,
+		"y": 31,
+		"z": 64
+	},
+	"start": {
+		"x": 32.5,
+		"y": 19,
+		"z": 28.5
+	}
+}

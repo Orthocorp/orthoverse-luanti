@@ -1412,6 +1412,8 @@ orthoverse.adventure.list = adventures
 -- For tests: what the gate's Enter button and the finish block do
 orthoverse.adventure.enter = start_or_join
 orthoverse.adventure.finish = finish
+-- A finish of another look (orthoverse_scifi's black box) does what this does
+orthoverse.adventure.at_finish = at_finish
 orthoverse.adventure.place = place_template
 orthoverse.adventure.in_run = function(name)
 	for key, run in pairs(runs) do

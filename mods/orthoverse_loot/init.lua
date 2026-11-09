@@ -302,6 +302,21 @@ core.register_node(CHEST, {
 	can_dig = function(pos, player) return player and may_set(player:get_player_name(), pos) end,
 })
 
+-- The same, as a steel locker (for a starship, say)
+do
+	local def = table.copy(core.registered_nodes[CHEST])
+	def.description = S("Loot locker") .. "\n" .. S("A loot chest in steel: each player in a run finds their own share")
+	def.tiles = {"orthoverse_loot_locker_side.png", "orthoverse_loot_locker_side.png", "orthoverse_loot_locker_side.png",
+		"orthoverse_loot_locker_side.png", "orthoverse_loot_locker_side.png", "orthoverse_loot_locker_front.png"}
+	def.groups = {cracky = 2}
+	def.sounds = rawget(_G, "default") and default.node_sound_metal_defaults() or nil
+	def.on_construct = function(pos)
+		core.get_meta(pos):set_string("kind", "common")
+		core.get_meta(pos):set_string("infotext", S("Loot locker"))
+	end
+	core.register_node("orthoverse_loot:locker", def)
+end
+
 core.register_on_player_receive_fields(function(player, formname, fields)
 	local name = player:get_player_name()
 	if formname == "orthoverse_loot:share" then
@@ -310,7 +325,8 @@ core.register_on_player_receive_fields(function(player, formname, fields)
 	end
 	if formname ~= "orthoverse_loot:setup" then return end
 	local pos = fields.pos and core.string_to_pos("(" .. fields.pos .. ")")
-	if not pos or core.get_node(pos).name ~= CHEST or not may_set(name, pos) then return true end
+	local n = pos and core.get_node(pos).name
+	if not pos or (n ~= CHEST and n ~= "orthoverse_loot:locker") or not may_set(name, pos) then return true end
 	if fields.save or fields.kind then
 		local i = tonumber(fields.kind)
 		if i and CHEST_KINDS[i] then

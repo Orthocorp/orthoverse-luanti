@@ -111,3 +111,20 @@ Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord 
 - **The temple** lies in the rock beyond the head of the gorge. The way in runs through the orc hall's north passage; a dark passage from the back of the old crypt is the secret way. Inside, the orc warlord (a crowned great orc, 70 health) and two skeletons guard the altar with the finish on it, and the finish chest beside it.
 
 Every spawner brings its monsters once per run, when a player comes within its waking distance. Loot chests give each player their own share, up to bronze (the adventure's top rank is 5).
+
+## The Fallen Star
+
+A ship from the futuristic realm came down in the hills, and its machines are still running. A combat adventure for ranks 3 to 7 (it overlaps The Gullet), a party of one to four. It is 64 blocks by 64. Only the salvagers' camp stands on the ground (no more than four blocks high); the ship lies buried, deck below deck, under a crater with a kerb and fence round its rim. Placing it clears the land above it and replaces the ground below it down to 26 blocks.
+
+- **The salvagers' camp** (outside the dungeon, at the south end, or the north with `north`): the gate, the board, the arrival point, tents and salvage, and a notice of what the salvagers have seen.
+- **The upper deck**, through the ship's torn hull off the crater floor:
+  - the cargo hold (the start): crates, 3 scrap drones, a common locker;
+  - the crew corridor (a security robot) with six cabins: two crew cabins and the captain's to the west, the medbay (a medical station: a full heal once per run, and a common locker), a crew cabin and the security office (2 security robots, a weapon locker) to the east;
+  - four card lockers, in the three crew cabins and the captain's: each run one of them, chosen at random, holds the **blue keycard** (one for each player who opens it);
+  - the captain's log, and behind a loose panel in the captain's cabin the old maintenance duct: it runs down a ladder into the armoury (the secret way).
+- **Engineering**, down a stair from the corridor's end: the **live floor**, its plates in patches of two sets that take turns to carry a charge (each live for 1.6 s of every 4, sparking just before; standing on one costs 3 health a jolt), 2 drones, and three relays, west, east and south. Throw all three and the blast door to the lower passage opens, and the floor goes dead.
+- **The lower passage** (2 security robots): the **armoury** behind the blue door (a security robot, a weapon locker, and the locker with the **red keycard**), and the red door to the reactor.
+- **The reactor room**: a catwalk round the walls and a stair down, three glowing reactor cores, two **sentry turrets** on ledges (a bolt every 2.5 s at anyone they can see; a bolt can be struck down), 2 drones, and **the Warden**, the ship's great guardian (100 health, slow crushing blows). The **black box** is the finish, on its plinth, with the finish locker beside it.
+
+Everything is put back after each run: doors locked, relays open, the floor live, the cards back in (other) lockers.
+
