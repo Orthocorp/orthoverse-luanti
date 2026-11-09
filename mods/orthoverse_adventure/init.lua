@@ -930,6 +930,8 @@ local function place_template(tname, at, by, done)
 		underpin(p1, p2, ground, dig)
 		local n = worldedit.deserialize(p1, data)
 		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
+		-- so a castle upgrade or a flip of the land keeps it
+		if orthoverse.note_built then orthoverse.note_built(p1, p2) end
 		-- WorldEdit sets nodes without starting their timers: pressure plates
 		-- and monster spawners need theirs
 		local q2 = vector.add(p1, {x = (info.size or {}).x or 96, y = (info.size or {}).y or 64, z = (info.size or {}).z or 96})
@@ -945,6 +947,7 @@ local function place_template(tname, at, by, done)
 			corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
 			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
+			footprint = {min = vector.new(p1.x, ground, p1.z), max = p2},
 		}
 		save_def(key)
 		write_public()
@@ -1159,6 +1162,27 @@ load_all()
 write_public()
 
 orthoverse.adventure.at = adventure_at
+
+-- Nobody but an adventure's builders (and the admin) digs or builds in it: its
+-- area, and for a ready-made one everything it placed (the gate and the
+-- village outside too). On a holder's land that is the rule already; on a
+-- croft, common land, anyone could otherwise dig a way round the dungeon.
+local function in_footprint(def, pos)
+	local f = def.footprint
+	if not (f and f.min and f.max) then return false end
+	return pos.x >= f.min.x and pos.x <= f.max.x and pos.y >= f.min.y and pos.y <= f.max.y
+		and pos.z >= f.min.z and pos.z <= f.max.z
+end
+local old_is_protected = core.is_protected
+function core.is_protected(pos, name)
+	if name and name ~= "" then
+		local key, def = adventure_of_land(pos)
+		if def and (inside(def, pos) or in_footprint(def, vector.round(pos))) and not may_manage(name, key) then
+			return true
+		end
+	end
+	return old_is_protected(pos, name)
+end
 -- Whether a player builds an adventure's land (or is the admin): their runs
 -- there count for nothing
 orthoverse.adventure.may_manage = may_manage

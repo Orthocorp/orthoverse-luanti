@@ -197,6 +197,21 @@ end
 core.register_on_placenode(note_node)
 core.register_on_dignode(note_node)
 
+-- Count an area as built by players, for blocks set without placing them (a
+-- ready-made adventure placed with WorldEdit), so a castle upgrade or a flip
+-- keeps it rather than making the ground there again
+function orthoverse.note_built(p1, p2)
+	local function steps(a, b)
+		local t = {}
+		for v = math.min(a, b), math.max(a, b), C.TILE do t[#t + 1] = v end
+		t[#t + 1] = math.max(a, b)
+		return t
+	end
+	for _, x in ipairs(steps(p1.x, p2.x)) do
+		for _, z in ipairs(steps(p1.z, p2.z)) do note_node({x = x, y = p1.y, z = z}) end
+	end
+end
+
 local pending = {}   -- new lands whose terrain is being made
 
 -- The castle level each land's terrain was last made with: the fixed lands
