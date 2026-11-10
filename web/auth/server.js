@@ -27,8 +27,9 @@
 'use strict';
 
 import http from 'node:http';
+import net from 'node:net';
 import { createHmac, createHash, randomBytes, timingSafeEqual, scrypt } from 'node:crypto';
-import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -512,11 +513,14 @@ function readSession(req) {
 	if (!s.e || s.e < Date.now()) return null;
 	if (s.a) {
 		const name = nameOfAddress.get(s.a) || null;
-		return { address: s.a, name, entry: name ? entryOf(name.toLowerCase()) : null, wallet: true };
+		const entry = name ? entryOf(name.toLowerCase()) : null;
+		if (entry && entry.locked) return null;   // locked by the admin (characters.sh)
+		return { address: s.a, name, entry, wallet: true };
 	}
 	if (s.n) {
 		const entry = entryOf(s.n);
 		if (!entry || !entry.pw || entry.pw.v !== s.v) return null;   // password changed since
+		if (entry.locked) return null;
 		return { address: entry.address ? entry.address.toLowerCase() : null, name: entry.name, entry, wallet: false };
 	}
 	return null;
@@ -577,6 +581,8 @@ function nameProblem(name) {
 	}
 	return null;
 }
+
+const LOCKED = 'This character is locked. Ask at orthoverse.land if you think that is a mistake.';
 
 // Failed sign-ins per name: after 10 within 15 minutes, that name rests for 15
 const failedLogins = new Map();   // lower-case name -> { n, until }
@@ -792,7 +798,9 @@ const routes = {
 		if (signer.toLowerCase() !== entry.address) {
 			return send(res, 400, { error: 'The signature is not from the wallet that asked to sign in.' });
 		}
-		log('signed in', signer, nameOfAddress.get(entry.address) || '(no name yet)');
+		const named = nameOfAddress.get(entry.address);
+		if (named && entryOf(named.toLowerCase()).locked) return send(res, 403, { error: LOCKED });
+		log('signed in', signer, named || '(no name yet)');
 		if (!watched.has(entry.address)) {
 			watched.add(entry.address);
 			try {
@@ -860,6 +868,7 @@ const routes = {
 			return send(res, 400, { error: 'That name and password do not match.' });
 		}
 		failedLogins.delete(key);
+		if (entry.locked) return send(res, 403, { error: LOCKED });
 		log('signed in with a password', entry.name);
 		send(res, 200, me(readSessionOf(entry)),
 			{ 'set-cookie': sessionCookie(req, passwordSession(entry), SESSION_DAYS * 86400) });
@@ -906,6 +915,7 @@ const routes = {
 			loginFailed(key);
 			return send(res, 400, { error: 'That name and recovery code do not match.' });
 		}
+		if (entry.locked) return send(res, 403, { error: LOCKED });
 		const problem = passwordProblem(body.password, entry.name);
 		if (problem) return send(res, 400, { error: problem });
 		failedLogins.delete(key);
@@ -1240,6 +1250,137 @@ const server = http.createServer(async (req, res) => {
 		if (!res.headersSent) send(res, 400, { error: 'The request could not be handled.' });
 	}
 });
+
+// ---------------------------------------------------------------------------
+// Managing characters from the server's terminal (characters.sh at the top of
+// the repository runs admin.js in this container, which asks here). It listens
+// on an abstract Unix socket, which only processes in this container can
+// reach: nothing on the network, the website or the game can.
+
+const ADMIN_SOCKET = '\0orthoverse-auth-admin';
+// Characters deleted here, for the game to remove too (its account, what the
+// character carries and where it stands): lower-case name -> { name, at }
+const DELETED_FILE = join(DATA_DIR, 'deleted.json');
+const deleted = readJson(DELETED_FILE, { format: 1, deleted: {} });
+
+// When each game account last joined (auth.sqlite: last_login, seconds)
+function lastLogins() {
+	const out = new Map();
+	if (!existsSync(AUTH_DB)) return out;
+	let db;
+	try {
+		db = new DatabaseSync(AUTH_DB, { readOnly: true });
+		for (const r of db.prepare('SELECT name, last_login FROM auth').all()) out.set(r.name, r.last_login);
+	} catch (e) {
+		log('auth.sqlite read failed:', e.message);
+	} finally {
+		try { db && db.close(); } catch (e) { /* closed */ }
+	}
+	return out;
+}
+const when = s => (s ? new Date(s * 1000).toISOString().slice(0, 16).replace('T', ' ') : null);
+
+function adminRow(p, logins) {
+	return {
+		name: p.name, wallet: p.address || null, password: !!p.pw, since: p.since || null,
+		lastPlayed: when(logins.get(p.name)), locked: p.locked ? (p.locked.why || true) : false, skin: !!p.skin,
+	};
+}
+
+const adminCommands = {
+	list({ text }) {
+		const logins = lastLogins();
+		const t = String(text || '').toLowerCase();
+		const rows = Object.values(registry.players)
+			.filter(p => p && p.name && (!t || p.name.toLowerCase().includes(t) || (p.address || '').toLowerCase().includes(t)))
+			.map(p => adminRow(p, logins))
+			.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+		let guests = 0;
+		for (const n of logins.keys()) if (GUEST_RE.test(n)) guests++;
+		return { characters: rows, guests };
+	},
+	show({ name }) {
+		const p = entryOf(String(name || '').toLowerCase());
+		if (!p) return { error: `No character called ${name}.` };
+		const row = adminRow(p, lastLogins());
+		return {
+			...row,
+			gameAccount: accountExistsExact(p.name),
+			lands: p.address ? landsOf(p.address.toLowerCase()).map(l => `${l.name} (${l.key || l.token})`) : [],
+			lastEntry: p.issued ? when(p.issued) : null,
+			visit: visits.visits[p.name.toLowerCase()] || null,
+			admin: !!(ADMIN && p.name === ADMIN),
+		};
+	},
+	lock({ name, why }) {
+		const p = entryOf(String(name || '').toLowerCase());
+		if (!p) return { error: `No character called ${name}.` };
+		p.locked = { at: new Date().toISOString(), why: String(why || '').slice(0, 200) || null };
+		saveRegistry();
+		log('admin: locked', p.name, p.locked.why || '');
+		return { done: `${p.name} is locked: signed out on the website, and put out of the game within 15 seconds.` };
+	},
+	unlock({ name }) {
+		const p = entryOf(String(name || '').toLowerCase());
+		if (!p) return { error: `No character called ${name}.` };
+		if (!p.locked) return { done: `${p.name} was not locked.` };
+		delete p.locked;
+		saveRegistry();
+		log('admin: unlocked', p.name);
+		return { done: `${p.name} is unlocked.` };
+	},
+	async recovery({ name }) {
+		const p = entryOf(String(name || '').toLowerCase());
+		if (!p) return { error: `No character called ${name}.` };
+		const code = makeRecoveryCode();
+		p.rc = await makeHash(normalCode(code));
+		saveRegistry();
+		log('admin: new recovery code for', p.name);
+		return { done: `A new recovery code for ${p.name} (the old one no longer works): ${code}\n` +
+			'With it the player sets a new password: Sign in, then "Forgot your password?".', code };
+	},
+	delete({ name }) {
+		const key = String(name || '').toLowerCase();
+		const p = entryOf(key);
+		if (!p) return { error: `No character called ${name}.` };
+		delete registry.players[key];
+		if (p.address) {
+			const a = p.address.toLowerCase();
+			if (nameOfAddress.get(a) === p.name) nameOfAddress.delete(a);
+		}
+		delete visits.visits[key];
+		writeJsonAtomic(VISITS_FILE, visits);
+		try { unlinkSync(join(SKINS_DIR, key + '.png')); } catch (e) { /* none */ }
+		deleted.deleted[key] = { name: p.name, at: Math.floor(Date.now() / 1000) };
+		writeJsonAtomic(DELETED_FILE, deleted);
+		saveRegistry();
+		log('admin: deleted', p.name, p.address || '');
+		return { done: `${p.name} is deleted. The game puts them out if they are playing, then removes their game account, ` +
+			'what they carry and where they stand, within a minute. The name is free again after that' +
+			(p.address ? '; the wallet can sign in again and choose a new name.' : '.') };
+	},
+};
+
+const adminServer = net.createServer(sock => {
+	let buf = '';
+	sock.setEncoding('utf8');
+	sock.on('data', async chunk => {
+		buf += chunk;
+		if (!buf.includes('\n')) return;
+		let out;
+		try {
+			const req = JSON.parse(buf.slice(0, buf.indexOf('\n')));
+			const cmd = Object.hasOwn(adminCommands, req.cmd) ? adminCommands[req.cmd] : null;
+			out = cmd ? await cmd(req) : { error: 'Unknown command.' };
+		} catch (e) {
+			out = { error: e.message };
+		}
+		sock.end(JSON.stringify(out) + '\n');
+	});
+	sock.on('error', () => {});
+});
+adminServer.on('error', e => log('admin socket:', e.message));
+adminServer.listen(ADMIN_SOCKET);
 
 server.listen(PORT, HOST, () => {
 	log(`Orthoverse auth on http://${HOST}:${PORT}: ${lands.length} lands, ` +

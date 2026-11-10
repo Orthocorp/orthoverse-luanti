@@ -2,7 +2,7 @@
 // a stand-in game account database. Run: npm test (from web/auth).
 
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -456,6 +456,45 @@ try {
 	for (let i = 0; i < 10; i++) await call('POST', '/auth/login', { name: 'Quin', password: 'nope nope' + i });
 	r = await call('POST', '/auth/login', { name: 'Quin', password: 'quin password' });
 	check(r.status === 429, 'login: after 10 wrong passwords the name rests, even for the right one');
+
+	// Managing characters from the terminal (characters.sh runs admin.js)
+	const admin = (...args) => {
+		let out;
+		try {
+			out = execFileSync(process.execPath, ['admin.js', ...args], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' });
+		} catch (e) { out = e.stdout; }
+		return JSON.parse(out);
+	};
+	let a = admin('list');
+	check(Array.isArray(a.characters) && a.characters.some(c => c.name === 'Alice_1' && c.wallet && c.password) &&
+		a.characters.some(c => c.name === 'Quin' && !c.wallet), 'admin: list shows the characters, wallets and passwords');
+	check(admin('list', 'ali').characters.every(c => /ali/i.test(c.name) || /ali/i.test(c.wallet || '')), 'admin: list filters');
+	a = admin('show', 'alice_1');
+	check(a.name === 'Alice_1' && a.lands.length === 2 && !a.pw && !a.rc && !a.srp, 'admin: show, without any password records');
+	check(/No character/.test(admin('show', 'nobody').error), 'admin: show an unknown name');
+	admin('lock', 'Alice_1', 'testing', 'locks');
+	cookie = '';
+	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'alice password' });
+	check(r.status === 403 && /locked/.test(r.body.error), 'admin: a locked character cannot sign in with its password');
+	r = await call('GET', '/auth/nonce?address=' + alice.address);
+	r = await call('POST', '/auth/verify', { nonce: r.body.nonce, signature: await alice.signMessage(r.body.message) });
+	check(r.status === 403, 'admin: nor with its wallet');
+	check(JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.alice_1.locked.why === 'testing locks',
+		'admin: the lock is in registry.json, for the game');
+	admin('unlock', 'Alice_1');
+	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'alice password' });
+	check(r.status === 200, 'admin: unlocked, it signs in again');
+	a = admin('recovery', 'Rex');
+	cookie = '';
+	r = await call('POST', '/auth/recover', { name: 'Rex', code: a.code, password: 'rex new password' });
+	check(r.status === 200, 'admin: a new recovery code sets a new password');
+	a = admin('delete', 'Rex');
+	check(/deleted/.test(a.done) && !admin('list').characters.some(c => c.name === 'Rex'), 'admin: delete');
+	const del = JSON.parse(readFileSync(join(dir, 'data', 'deleted.json'), 'utf8')).deleted;
+	check(del.rex && del.rex.name === 'Rex' && del.rex.at > 0, 'admin: deleted.json tells the game');
+	cookie = '';
+	r = await call('POST', '/auth/login', { name: 'Rex', password: 'rex new password' });
+	check(r.status === 400, 'admin: a deleted character cannot sign in');
 
 	// With a chain index: holders come from it, and only the lands it says a
 	// player's wallet holds are asked about. Alicemark has gone to Bob since

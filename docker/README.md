@@ -129,6 +129,13 @@ fast with J and noclip with H.
   are signed up, when land ownership was last read and any error reading it, and
   how the OpenSea refresh is doing. The page answers only on the server: through
   Cloudflare (`orthoverse.land/auth/status`) it is not there.
+- `./characters.sh` (in the repository folder, on the server) manages
+  characters: `list [text]`, `show <name>`, `lock <name> [reason]` and
+  `unlock <name>` (a locked character is signed out on the website and put out
+  of the game), `recovery <name>` (a new recovery code) and `delete <name>`
+  (asks first; the game then removes the character's account, what it carries
+  and where it stands, and the name is free again). It asks the running auth
+  service over a socket only its own container can reach.
 - `docker compose logs auth` shows sign-ins, new names and each ownership update:
   `owners updated: N lands held by W player wallets; M of 1943 held as the chain
   index says`. M should be nearly all of them (before the chain service's first
@@ -185,6 +192,4 @@ Adventures page reads `adventures.json` there through the auth service
 - A player who has lost both their password and their recovery code: if their
   character has a wallet, they sign in with it and set a new password on the
   Account page. Otherwise the admin gives them a new recovery code:
-  `docker compose stop auth`, then
-  `docker compose run --rm auth node recovery-code.js <name>`, then
-  `docker compose start auth` (check first that the request is genuine).
+  `./characters.sh recovery <name>` (check first that the request is genuine).

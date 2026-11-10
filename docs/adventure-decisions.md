@@ -5,7 +5,7 @@ Keir accepted every suggested answer to the 39 open questions (8 Nov 2026, 01:11
 ## Progress on the branch (8 Nov 2026)
 
 - 1001: chests and other inventories follow land protection; enable_pvp = false.
-- 1002 to 1004: password characters (auth service with scrypt hashes, recovery code, wallet linking, Turnstile optional; site sign-in panel and Account page; game: they join, and build on crofts after an hour of play). Admin tool web/auth/recovery-code.js.
+- 1002 to 1004: password characters (auth service with scrypt hashes, recovery code, wallet linking, Turnstile optional; site sign-in panel and Account page; game: they join, and build on crofts after an hour of play). Admin tool web/auth/recovery-code.js (since replaced by characters.sh).
 - 1005: no sideways scroll bar in the sign-in panel.
 - 1006: WorldEdit (admin only, worldedit privilege) and Mesecons (dungeon set, no controllers or gates; mesecon.mvps_protection_mode = normal).
 - 1007: mods/orthoverse_adventure: /adventure, gate, finish and board blocks, one party at a time with restore after each run, records per version, adventures.json for the website.

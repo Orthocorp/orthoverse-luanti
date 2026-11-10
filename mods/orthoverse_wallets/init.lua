@@ -38,9 +38,12 @@ local CROFT_AFTER = 3600  -- seconds of play before a character without a wallet
 -- The auth service's files
 
 local registry = {}     -- lower-case name -> {name, address (nil for a password character without a wallet)}
+local deleted = {}      -- lower-case name -> {name, at}: characters the admin deleted (characters.sh)
 local owners = nil      -- token -> owner address (or false), nil if unknown
 local owners_updated = nil
 local last_raw = {}
+
+local function is_guest_name(name) return name:find(GUEST_PATTERN) ~= nil end
 
 local function read_file(name)
 	local f = io.open(DIR .. "/" .. name, "r")
@@ -69,12 +72,28 @@ local function reload()
 						-- (the picture is skins/<name>.png)
 						skin = type(p.skin) == "table" and type(p.skin.h) == "string" and p.skin.h:match("^%x+$")
 							and #p.skin.h <= 32 and p.skin.h or nil,
+						-- locked by the admin (characters.sh): kept out
+						locked = p.locked ~= nil and p.locked ~= false,
+						since = p.since,
 					}
 				end
 			end
 			last_raw.registry = raw
 		else
 			core.log("warning", "[orthoverse_wallets] registry.json did not parse; keeping the old one")
+		end
+	end
+	raw = read_file("deleted.json")
+	if raw and raw ~= last_raw.deleted then
+		local data = core.parse_json(raw)
+		if type(data) == "table" and type(data.deleted) == "table" then
+			deleted = {}
+			for key, d in pairs(data.deleted) do
+				if type(d) == "table" and type(d.name) == "string" and tonumber(d.at) then
+					deleted[key] = {name = d.name, at = tonumber(d.at)}
+				end
+			end
+			last_raw.deleted = raw
 		end
 	end
 	raw = read_file("owners.json")
@@ -112,6 +131,36 @@ local function save_played(name)
 	end
 end
 
+-- The admin's decisions (characters.sh): a locked or deleted character is put
+-- out of the game; a deleted one's game account and player data (what it
+-- carries, where it stands, its rank) are removed once it is out, and what
+-- this mod kept about it. A name made again since is left alone.
+local function enforce()
+	for _, player in ipairs(core.get_connected_players()) do
+		local name = player:get_player_name()
+		if not is_guest_name(name) then
+			local p = registry[name:lower()]
+			if not (p and p.name == name) then
+				core.kick_player(name, "This character has been deleted.")
+			elseif p.locked then
+				core.kick_player(name, "This character is locked.")
+			end
+		end
+	end
+	for key, d in pairs(deleted) do
+		local name = d.name
+		if storage:get_string("deleted:" .. name) ~= tostring(d.at) and not core.get_player_by_name(name) then
+			if not registry[key] then
+				if core.get_auth_handler().get_auth(name) then core.remove_player_auth(name) end
+				core.remove_player(name)
+				for _, k in ipairs({"played:", "entered:", "visit:"}) do storage:set_string(k .. name, "") end
+				core.log("action", "[orthoverse_wallets] deleted character " .. name .. " removed from the game")
+			end
+			storage:set_string("deleted:" .. name, tostring(d.at))
+		end
+	end
+end
+
 local timer = 0
 core.register_globalstep(function(dtime)
 	for _, player in ipairs(core.get_connected_players()) do
@@ -123,6 +172,7 @@ core.register_globalstep(function(dtime)
 		timer = 0
 		for name in pairs(unsaved) do save_played(name) end
 		reload()
+		enforce()
 	end
 end)
 
@@ -204,6 +254,7 @@ core.register_on_prejoinplayer(function(name)
 			" sign in or make a character, or play as a guest."
 	end
 	local p = registry[name:lower()]
+	if p.locked then return "This character is locked." end
 	local again = "Enter the game from " .. PLAY_URL .. ": press Enter again there."
 	if not (p.srp and p.issued) or os.time() - p.issued > ENTRY_FOR then return again end
 	if storage:get_string("entered:" .. name) == tostring(p.issued) then return again end   -- already used
