@@ -354,7 +354,7 @@ local function monster(id, def)
 	ent._heavy = def.heavy
 	ent._windup_time = def.windup
 	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
-	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc}
+	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc, great = def.great}
 end
 
 monster("kobold", {
@@ -1490,7 +1490,7 @@ end
 
 monster("wyrm", {
 	desc = S("The Wyrm"), level = WYRM.level, xp = WYRM.xp, hp = WYRM.hp, ac = WYRM.ac, damage = WYRM.slam.damage,
-	mesh = "orthoverse_monsters_wyrm.b3d", size = 20 * WS, heavy = true, glow = 4,
+	mesh = "orthoverse_monsters_wyrm.b3d", size = 20 * WS, heavy = true, glow = 4, great = true,
 	textures = {"orthoverse_monsters_wyrm.png^orthoverse_monsters_wyrm_shading.png"},
 	animation = {speed_normal = 20, stand_start = 1, stand_end = 59, walk_start = 211, walk_end = 249},
 	collisionbox = {-1.25 * WS, 0, -1.25 * WS, 1.25 * WS, 4.6 * WS, 1.25 * WS},
@@ -1542,10 +1542,26 @@ local function may_set(name, pos)
 	return core.check_player_privs(name, {protection_bypass = true}) or not core.is_protected(pos, name)
 end
 
-local function spawner_formspec(pos)
+-- The great monsters (the wyrm) are for the admin's adventures: one is a
+-- whole adventure's climax, worth a day's experience, and heavy for the
+-- server. A builder may keep one a spawner already brings (a ready-made
+-- adventure's), but not choose one; and a spawner brings one at most.
+local function is_admin(name) return core.check_player_privs(name, {protection_bypass = true}) end
+
+-- The kinds `name` may choose, for the spawner at `pos`
+local function choosable(name, pos)
+	local cur = core.get_meta(pos):get_string("kind")
+	local out = {}
+	for _, k in ipairs(kinds) do
+		if not k.great or is_admin(name) or k.name == cur then out[#out + 1] = k end
+	end
+	return out
+end
+
+local function spawner_formspec(pos, name)
 	local meta = core.get_meta(pos)
 	local list, sel = {}, 1
-	for i, k in ipairs(kinds) do
+	for i, k in ipairs(choosable(name, pos)) do
 		list[#list + 1] = core.formspec_escape(k.desc)
 		if k.name == meta:get_string("kind") then sel = i end
 	end
@@ -1581,6 +1597,16 @@ end
 local function spawn_at(pos, kind, count, run_id, key)
 	if not core.registered_entities[kind] then return 0 end
 	count = math.min(count, NEAR_CAP - monsters_near(pos))
+	for _, k in ipairs(kinds) do
+		if k.name == kind and k.great then
+			-- one at most, and none while one is about
+			count = math.min(count, 1)
+			for _, obj in ipairs(core.get_objects_inside_radius(pos, NEAR_RADIUS * 2)) do
+				local e = obj:get_luaentity()
+				if e and e.name == kind then return 0 end
+			end
+		end
+	end
 	local spawned = 0
 	for _ = 1, count * 6 do
 		if spawned >= count then break end
@@ -1626,7 +1652,7 @@ core.register_node(SPAWNER, {
 	on_rightclick = function(pos, node, clicker)
 		local name = clicker and clicker:get_player_name() or ""
 		if not may_set(name, pos) then return end
-		local fs = spawner_formspec(pos)
+		local fs = spawner_formspec(pos, name)
 		core.show_formspec(name, "orthoverse_monsters:spawner_" .. core.pos_to_string(pos), fs)
 	end,
 	on_timer = function(pos)
@@ -1658,7 +1684,8 @@ core.register_on_player_receive_fields(function(player, formname, fields)
 	if not pos or core.get_node(pos).name ~= SPAWNER or not may_set(name, pos) then return true end
 	local meta = core.get_meta(pos)
 	local i = tonumber(fields.kind)
-	if i and kinds[i] then meta:set_string("kind", kinds[i].name) end
+	local can = choosable(name, pos)
+	if i and can[i] then meta:set_string("kind", can[i].name) end
 	if fields.count then meta:set_int("count", math.max(1, math.min(6, tonumber(fields.count) or 1))) end
 	if fields.wake then meta:set_int("wake", math.max(4, math.min(24, tonumber(fields.wake) or 10))) end
 	local kind = meta:get_string("kind")

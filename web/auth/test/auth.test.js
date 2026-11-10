@@ -111,6 +111,7 @@ const svcEnv = {
 	OV_REGISTER_PER_DAY: '3',
 	OV_ADVENTURES: join(dir, 'adventures.json'),
 	OV_ADMIN: 'Bossy',
+	OV_SKIN_EVERY_MS: '0',
 	NODE_NO_WARNINGS: '1',
 };
 const svc = spawn(process.execPath, ['server.js'], {

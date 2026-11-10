@@ -721,6 +721,8 @@ function highestLevel(address, name) {
 // picture's hash }) and the picture the game wears (skins/<name>.png, 64 x 32)
 
 const SKINS_DIR = join(DATA_DIR, 'skins');
+const SKIN_EVERY_MS = parseInt(env.OV_SKIN_EVERY_MS || '60000', 10);
+const skinSaved = new Map();   // lower-case name -> when its look last changed
 mkdirSync(SKINS_DIR, { recursive: true });
 const skinParts = new Map();
 for (const f of skin.allParts()) {
@@ -1020,6 +1022,15 @@ const routes = {
 		}
 		const png = paintSkin(design);
 		const hash = createHash('sha256').update(png).digest('hex').slice(0, 16);
+		// Once a minute at most: each new look is sent to every client in the
+		// game, and kept for every client that joins while the server runs
+		const key = sess.entry.name.toLowerCase();
+		const last = skinSaved.get(key) || 0;
+		if (sess.entry.skin && sess.entry.skin.h === hash) return send(res, 200, { design, hash });
+		if (Date.now() - last < SKIN_EVERY_MS) {
+			return send(res, 429, { error: `You can change your look once a minute: try again in ${Math.ceil((SKIN_EVERY_MS - (Date.now() - last)) / 1000)} seconds.` });
+		}
+		skinSaved.set(key, Date.now());
 		writeFileAtomic(join(SKINS_DIR, sess.entry.name.toLowerCase() + '.png'), png);
 		sess.entry.skin = { d: design, h: hash };
 		saveRegistry();
