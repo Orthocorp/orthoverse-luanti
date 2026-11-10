@@ -121,7 +121,7 @@ local function may_manage(name, key)
 	if not land or orthoverse.henges[key] then return false end
 	local w = orthoverse.wallets
 	local wallet = w.wallet_of(name)
-	return wallet ~= nil and wallet == w.owner_of(land) and (tonumber(land.level) or 0) % 8 >= UNLOCK_LEVEL
+	return wallet ~= nil and wallet == w.owner_of(land) and orthoverse.rights_level(land, key) % 8 >= UNLOCK_LEVEL
 end
 
 ------------------------------------------------------------------------------

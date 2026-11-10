@@ -18,7 +18,9 @@
 -- character made a minute ago cannot wreck a croft). Upgrading the
 -- castle makes the land its holder's alone; so does flipping it into the
 -- futuristic realm (level 8 is not a croft), until it is flipped back. A land's ground below and sky above
--- go with it. Guests can explore but not build. Nobody builds on henges, the
+-- go with it. (A land can be held with another level's rights than its
+-- token's, orthoverse.rights_level: Tir Na Nog, a croft held as if at level
+-- 7, for its adventure.) Guests can explore but not build. Nobody builds on henges, the
 -- sea or the rim, except players with the protection_bypass privilege (the
 -- admin has every privilege).
 --
@@ -322,7 +324,7 @@ end)
 -- Whether `name` may change the world at `pos`, and if not, why not
 -- Crofts (castle level 0 exactly) are common land
 local function is_croft(land, key)
-	return land ~= nil and not HENGES[key] and tonumber(land.level) == 0
+	return land ~= nil and not HENGES[key] and orthoverse.rights_level(land, key) == 0
 end
 
 local function may_build(name, pos)
@@ -473,7 +475,7 @@ local function highest_level(name)
 	local best
 	for key, land in pairs(LANDS) do
 		if not HENGES[key] and owner_of(land) == wallet then
-			local level = (tonumber(land.level) or 0) % 8
+			local level = orthoverse.rights_level(land, key) % 8
 			if not best or level > best then best = level end
 		end
 	end

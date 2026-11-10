@@ -488,6 +488,20 @@ local function loop()
 end
 core.after(5, loop)
 
+-- Lands whose holder has the rights of another castle level than their
+-- token's, without an upgrade on the chain: Tir Na Nog, a croft, is held as
+-- if at level 7 (not common land; its holder builds there alone, is creative
+-- there and may travel), for its adventure. Only rights: its terrain, card
+-- and title stay those of its token's level.
+local RIGHTS_AS = {["0:-29"] = 7}
+
+-- The castle level (0-15) whose rights a land's holder has
+function orthoverse.rights_level(land, key)
+	local as = key and RIGHTS_AS[key]
+	if as then return as + ((tonumber(land and land.level) or 0) >= 8 and 8 or 0) end
+	return tonumber(land and land.level) or 0
+end
+
 -- Land at a Luanti position (or nil for sea / border).
 function orthoverse.land_at(pos)
 	local lx, lz = C.land_of(pos.x, pos.z)

@@ -53,7 +53,7 @@ function orthoverse.creative.allowed(name, pos)
 	local w = orthoverse.wallets
 	if w.is_guest(name) then return false end
 	local land, key = orthoverse.land_at(pos)
-	if not land or orthoverse.henges[key] or (tonumber(land.level) or 0) % 8 < CREATIVE_LEVEL then return false end
+	if not land or orthoverse.henges[key] or orthoverse.rights_level(land, key) % 8 < CREATIVE_LEVEL then return false end
 	local wallet = w.wallet_of(name)
 	return wallet ~= nil and wallet == w.owner_of(land)
 end
@@ -62,8 +62,8 @@ end
 -- there. The contract's levels 8-15 are 0-7 with the futuristic style flag set
 function orthoverse.creative.level_at(name, pos)
 	if not orthoverse.creative.allowed(name, pos) then return nil end
-	local land = orthoverse.land_at(pos)
-	return (land and tonumber(land.level) or 0) % 8
+	local land, key = orthoverse.land_at(pos)
+	return orthoverse.rights_level(land, key) % 8
 end
 
 -- The privileges a level gives (a set)
