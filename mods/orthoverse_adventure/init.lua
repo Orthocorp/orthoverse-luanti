@@ -1221,6 +1221,34 @@ local function ranks_of(def)
 	return ("ranks %d to %d"):format(def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT)
 end
 
+-- Is an arrival point safe to put a player at? Solid ground under the feet,
+-- room to stand (nothing solid, no water to drown in), and nothing that
+-- hurts (lava, fire) within two blocks. Returns true, or false and why. (A
+-- holder could otherwise set it in the air, or dig a pit or pour lava under
+-- it, and send strangers there from the Adventures page.) Checked when the
+-- arrival point is set, when the adventure is opened, and before anyone is
+-- sent there; if it is not safe then, the player is not moved at all.
+local function safe_arrival(at)
+	local feet = vector.new(math.floor(at.x + 0.5), math.floor(at.y + 0.5), math.floor(at.z + 0.5))
+	local function def_at(p)
+		local n = core.get_node(p).name
+		return core.registered_nodes[n], n
+	end
+	local below, bn = def_at(vector.offset(feet, 0, -1, 0))
+	if bn == "ignore" then return false, "it is not loaded" end
+	if not (below and below.walkable) then return false, "there is no solid ground under it" end
+	for dy = 0, 1 do
+		local d, n = def_at(vector.offset(feet, 0, dy, 0))
+		if n == "ignore" then return false, "it is not loaded" end
+		if not d or d.walkable or (d.drowning or 0) > 0 then return false, "there is no room to stand there" end
+	end
+	for dz = -2, 2 do for dy = -1, 2 do for dx = -2, 2 do
+		local d = def_at(vector.offset(feet, dx, dy, dz))
+		if d and (d.damage_per_second or 0) > 0 then return false, "something that burns is next to it" end
+	end end end
+	return true
+end
+
 -- Take `name` to the entrance of the open adventure on land `key`. Used by
 -- /adventure go and by the website (a player who chose an adventure on the
 -- Adventures page arrives there on joining: orthoverse_wallets).
@@ -1237,6 +1265,18 @@ local function travel(name, key)
 		if not p or p:get_hp() <= 0 then return end
 		for _, run in pairs(runs) do
 			if run.members[name] then return end   -- went through a gate meanwhile
+		end
+		local ok, why = safe_arrival(at)
+		if not ok then
+			core.log("warning", ("[orthoverse_adventure] the arrival point of %s (%s) is not safe (%s): %s was not sent there")
+				:format(def.name, key, why, name))
+			core.chat_send_player(name, "The entrance to " .. def.name .. " is not safe to arrive at just now (" .. why ..
+				"), so you have not been sent there.")
+			if def.creator then
+				core.chat_send_player(def.creator, "Players cannot arrive safely at the entrance to " .. def.name .. " (" ..
+					why .. "). Stand somewhere safe outside the dungeon and /adventure arrival.")
+			end
+			return
 		end
 		p:set_pos(at)
 		if def.start then
@@ -1457,6 +1497,8 @@ core.register_chatcommand("adventure", {
 			def.start = player:get_pos()
 		elseif cmd == "arrival" then
 			if inside(def, pos) then return false, "The arrival point must be outside the dungeon area." end
+			local ok, why = safe_arrival(player:get_pos())
+			if not ok then return false, "Players could not arrive safely here: " .. why .. ". Stand on solid ground." end
 			def.arrival = player:get_pos()
 		elseif cmd == "limit" then
 			local m = tonumber(rest)
@@ -1483,6 +1525,11 @@ core.register_chatcommand("adventure", {
 		elseif cmd == "open" then
 			if def.version == 0 then return false, "Save it first (/adventure save)." end
 			if not def.arrival then return false, "Set the arrival point first." end
+			local ok, why = safe_arrival(vec(def.arrival))
+			if not ok then
+				return false, "Players could not arrive safely at the arrival point: " .. why ..
+					". Fix it, or stand somewhere safe outside the dungeon and /adventure arrival."
+			end
 			def.open = true
 		elseif cmd == "close" then
 			if run_active then end_run(key, def.name .. " has been closed by its builder.") end

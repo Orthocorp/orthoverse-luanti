@@ -187,3 +187,18 @@ bodies, prototype pollution, and old dependencies.
   browser, not on the server.
 - As before: a modified client can cheat within what the server allows.
 
+## Arriving at adventures (patches 1056 to 1058)
+
+Players can now be sent to an adventure's entrance, by `/adventure go` or the
+Adventures page's Play button. Where they arrive is always the open
+adventure's own arrival point, from the game's data: the browser names only
+a land key, which the auth service checks against the open adventures, and
+the game checks again. The choice is tied to the signed-in character (the
+session, not the request, gives the name), used once, and kept 10 minutes.
+Arriving at any spot from the map still needs a level 7 land.
+
+The arrival point is set by the adventure's builder, so it could have been a
+trap (set in the air, or a pit or lava put under it later) for strangers
+sent from the website. It is now checked for solid ground, room to stand and
+nothing that burns nearby when it is set, when the adventure opens, and
+before anyone is sent; an unsafe one sends nobody.
