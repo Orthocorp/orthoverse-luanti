@@ -11,7 +11,7 @@ The server image copies this folder into the game, so after a `git pull` and `do
 
 1. Go to the land that should hold it. The land must have no adventure yet; use `/adventure delete` first if it has one.
 2. Stand on the ground at the **south-west corner** of where it should go. It extends east and north from there, and must fit on the land. The game says so if it doesn't.
-3. Type `/adventure place three-bells` (or `gullet`). On its own, `/adventure place` lists the adventures in this folder. Add `north` (`/adventure place gullet north`) to turn it round, so its entrance is at the north end.
+3. Type `/adventure place three-bells` (or `gullet`). Tir Na Nog is different: it covers the whole land, so stand anywhere on it. On its own, `/adventure place` lists the adventures in this folder. Add `north` (`/adventure place gullet north`) to turn it round, so its entrance is at the north end.
 
 The command does the following:
 - It clears everything above the ground over the whole footprint.
@@ -174,3 +174,23 @@ Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm s
 The new monsters: the **goblin cutthroat** (level 6, quick, in packs; one blow in three stings and slows you for two seconds), the **deep orc** (level 8, 48 health, armour class 16, a war hammer) and **the wyrm** (level 12). Its model, skin and sounds are Draconis's fire dragon by ElCeejo (MIT; `mods/orthoverse_monsters/LICENSE-wyrm.txt`); what it does is ours.
 
 Everything is put back after each run: the bridge sleeping again, the ring with the wyrm.
+
+## Tir Na Nog
+
+High over the land the castle of Tir Na Nog floats on the wind. The way up is from stone to stone: no monsters, only the long fall, and the wind that catches you. A climb for any rank (1 to 20), any party up to six, guests too; 40 minutes. Finishing is worth 300 experience, once a day. The kit is an apple: no weapons.
+
+It is made for the land Tir Na Nog. The whole adventure is one box in the air over the whole land, from 26 blocks above the ground (clear of the highest trees and hills) to the tip of the keep's spire, 136 blocks above the ground; the land under it is left as it is. `/adventure place tir_na_nog` anywhere on the land puts it there, and its gate on the top of the mountain on the second tile of the fourth row from the north (its summit is 20 blocks up, at about -24, 28, 2776). Nobody walks up that mountain: ride up it, or climb on a friend. Going there from the Adventures page (or `/adventure go`) puts a player at its foot, on the north side, told to find a way up.
+
+The gate takes the party to the start, a white stone at the bottom of the sky box, and the way up goes round the land, rising all the time:
+
+- **the Stepping Stones**, north along the east side: clouds two to four blocks apart, some a block higher;
+- **the Ghost Steps**, west along the north side: pale stones that fade away and come back, each a second after the one before, with a cloud every fourth to rest on. Keep moving with them;
+- **the Spires**, south along the west side: stones on tall thin spires;
+- **the Ice**, east along the south side: slippery, two blocks long so there is room to stop;
+- **the Wind Ladder**, up a lone spire; then the last stones north to the drawbridge.
+
+Each part ends on a small floating island with a checkpoint (a moonstone with a violet star). Nobody is hurt by a fall: the wind catches a falling player and sets them down on the last checkpoint they stood on (the start until then).
+
+**The castle**: cream walls and round towers with pink roofs, a tall keep. Through the gate, a **maze**, made anew for every run (its walls are four high, so nobody gets over them standing on a friend), and beyond it the **treasure hall**: the finish on a golden dais, the finish chest beside it.
+
+Everything is put back after each run.

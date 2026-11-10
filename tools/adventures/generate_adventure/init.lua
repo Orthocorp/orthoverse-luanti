@@ -3,7 +3,8 @@
 -- fallen_star), and checks it: that a player can walk from the start to every
 -- spawner, chest and the finish, that its gated places can be reached only
 -- through their ways in, that nobody climbs out or in, and that every sign
--- hangs on a wall. See tools/adventures/README.md.
+-- hangs on a wall (or, for one whose builder has its own checks, g.check:
+-- Tir Na Nog, a climb, those). See tools/adventures/README.md.
 local NAME = core.settings:get("orthoverse_generate_adventure") or "gullet"
 assert(NAME:match("^[%w_]+$"), "orthoverse_generate_adventure: a plain name")
 local g = dofile(core.get_game_info().path .. "/tools/adventures/" .. NAME .. ".lua")
@@ -202,7 +203,12 @@ core.after(2, function()
 					core.set_node(p, {name = to})
 				end
 			end
-			check(A, "built")
+			if g.check then
+				-- its own checks (Tir Na Nog: jumps, not walking)
+				g.check(A, {say = say, walkable = walkable, standable = standable})
+			else
+				check(A, "built")
+			end
 			flush()
 		end)
 	end)

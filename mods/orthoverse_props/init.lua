@@ -621,3 +621,78 @@ core.register_on_mods_loaded(function()
 		return step(self, dtime, ...)
 	end
 end)
+
+------------------------------------------------------------------------------
+-- Ghost steps (Tir Na Nog): stones in the air that fade away and come back,
+-- over and over, all in time with each other. Each is solid for SOLID
+-- seconds of every PERIOD; param2 (0 to 7) puts it half a second further on
+-- in the cycle, so a row of them can come and go one after another. (Their
+-- timers are kept when an adventure is saved and put back.)
+
+local PERIOD, SOLID = 4, 2.6
+local GHOST, GONE = "orthoverse_props:ghost_step", "orthoverse_props:ghost_step_gone"
+
+local function ghost_state(pos)
+	local phase = (core.get_node(pos).param2 or 0) % 8
+	local m = (core.get_us_time() / 1e6 + phase * 0.5) % PERIOD
+	if m < SOLID then return true, SOLID - m end
+	return false, PERIOD - m
+end
+
+local function someone_in(pos)
+	for _, obj in ipairs(core.get_objects_inside_radius(pos, 1.4)) do
+		if obj:is_player() then
+			local p = obj:get_pos()
+			if math.abs(p.x - pos.x) < 0.8 and math.abs(p.z - pos.z) < 0.8 and p.y > pos.y - 2.2 and p.y < pos.y + 0.45 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function ghost_timer(pos)
+	local solid, wait = ghost_state(pos)
+	local name = core.get_node(pos).name
+	if solid and name == GONE then
+		-- not round someone passing through it: a moment later
+		if someone_in(pos) then core.get_node_timer(pos):start(0.3) return false end
+		core.swap_node(pos, {name = GHOST, param2 = core.get_node(pos).param2})
+	elseif not solid and name == GHOST then
+		core.swap_node(pos, {name = GONE, param2 = core.get_node(pos).param2})
+	end
+	core.get_node_timer(pos):start(math.max(0.05, wait))
+	return false
+end
+
+core.register_node(GHOST, {
+	description = S("Ghost step (fades away and comes back; param2 0-7 sets when)"),
+	tiles = {"orthoverse_props_ghost_step.png"},
+	use_texture_alpha = "blend",
+	paramtype = "light",
+	light_source = 5,
+	sunlight_propagates = true,
+	groups = {cracky = 3, orthoverse_timer = 1},
+	is_ground_content = false,
+	sounds = stone,
+	on_construct = function(pos) core.get_node_timer(pos):start(0.1) end,
+	on_timer = ghost_timer,
+})
+
+core.register_node(GONE, {
+	description = S("Ghost step, faded"),
+	drawtype = "glasslike",
+	tiles = {"orthoverse_props_ghost_step_gone.png"},
+	use_texture_alpha = "blend",
+	paramtype = "light",
+	sunlight_propagates = true,
+	walkable = false,
+	pointable = false,
+	diggable = false,
+	buildable_to = false,
+	drop = GHOST,
+	groups = {not_in_creative_inventory = 1, orthoverse_timer = 1},
+	is_ground_content = false,
+	on_construct = function(pos) core.get_node_timer(pos):start(0.1) end,
+	on_timer = ghost_timer,
+})

@@ -28,7 +28,7 @@ local NEEDS = {0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
 local SHARE_RADIUS = 32
 local FOUGHT_WITHIN = 15        -- seconds: the monster must have attacked this recently
 local DAY_CAP = 1500            -- experience a day from one adventure's monsters
-local FINISH_XP = 200           -- for finishing an adventure, once a day each
+local FINISH_XP = 200           -- for finishing an adventure, once a day each (or its own finish_xp)
 local MATERIAL_RANK = {steel = 1, bronze = 3, mese = 6, diamond = 10}
 
 local function now() return core.get_us_time() / 1e6 end
@@ -286,7 +286,7 @@ local function on_finish(key, def, run, names)
 			if not t.fin[key] then
 				t.fin[key] = true
 				save()
-				add_xp(p, FINISH_XP, "finished " .. (def.name or "the adventure"))
+				add_xp(p, tonumber(def.finish_xp) or FINISH_XP, "finished " .. (def.name or "the adventure"))
 			end
 		end
 	end

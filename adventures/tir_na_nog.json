@@ -1,0 +1,489 @@
+{
+	"approach": {
+		"x": 24.5,
+		"y": -25,
+		"z": 48.5
+	},
+	"approach_line": "Its gate is on the top of the mountain in front of you: find a way up.",
+	"arrival": {
+		"x": 24.5,
+		"y": -5,
+		"z": 39.5
+	},
+	"catch_falls": true,
+	"clear": [
+		{
+			"max": {
+				"x": 95,
+				"y": 116,
+				"z": 95
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		},
+		{
+			"max": {
+				"x": 25,
+				"y": -2,
+				"z": 42
+			},
+			"min": {
+				"x": 23,
+				"y": -5,
+				"z": 38
+			}
+		}
+	],
+	"corner1": {
+		"x": 0,
+		"y": 0,
+		"z": 0
+	},
+	"corner2": {
+		"x": 95,
+		"y": 116,
+		"z": 95
+	},
+	"finish_xp": 300,
+	"footprint": {
+		"max": {
+			"x": 25,
+			"y": -2,
+			"z": 42
+		},
+		"min": {
+			"x": 23,
+			"y": -9,
+			"z": 38
+		}
+	},
+	"ground": -26,
+	"keep_ground": true,
+	"kit": [
+		"default:apple"
+	],
+	"limit": 40,
+	"line": "High over the land the castle of Tir Na Nog floats on the wind. The way up is from stone to stone: no monsters, only the long fall, and the wind that catches you.",
+	"maze": {
+		"max": {
+			"x": 68,
+			"y": 70,
+			"z": 61
+		},
+		"min": {
+			"x": 38,
+			"y": 66,
+			"z": 31
+		},
+		"wall": "default:silver_sandstone_brick"
+	},
+	"name": "Tir Na Nog",
+	"nodes": [
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 23,
+			"y": -6,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -9,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -8,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -7,
+			"z": 38
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 24,
+			"y": -6,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -9,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -8,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -7,
+			"z": 38
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 25,
+			"y": -6,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -9,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -8,
+			"z": 38
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -7,
+			"z": 38
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 23,
+			"y": -6,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -9,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -8,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -7,
+			"z": 39
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 24,
+			"y": -6,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -9,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -8,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -7,
+			"z": 39
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 25,
+			"y": -6,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -9,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -8,
+			"z": 39
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -7,
+			"z": 39
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 23,
+			"y": -6,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -9,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -8,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -7,
+			"z": 40
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 24,
+			"y": -6,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -9,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -8,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -7,
+			"z": 40
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 25,
+			"y": -6,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -9,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -8,
+			"z": 40
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -7,
+			"z": 40
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 23,
+			"y": -6,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -9,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -8,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -7,
+			"z": 41
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 24,
+			"y": -6,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -9,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -8,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -7,
+			"z": 41
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 25,
+			"y": -6,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -9,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -8,
+			"z": 41
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -7,
+			"z": 41
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 23,
+			"y": -6,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -9,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -8,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 23,
+			"y": -7,
+			"z": 42
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 24,
+			"y": -6,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -9,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -8,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 24,
+			"y": -7,
+			"z": 42
+		},
+		{
+			"name": "default:silver_sandstone_block",
+			"x": 25,
+			"y": -6,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -9,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -8,
+			"z": 42
+		},
+		{
+			"name": "default:stone",
+			"x": 25,
+			"y": -7,
+			"z": 42
+		},
+		{
+			"name": "orthoverse_adventure:gate",
+			"x": 24,
+			"y": -5,
+			"z": 41
+		},
+		{
+			"name": "default:silver_sandstone_brick",
+			"x": 23,
+			"y": -5,
+			"z": 42
+		},
+		{
+			"name": "default:meselamp",
+			"x": 23,
+			"y": -4,
+			"z": 42
+		},
+		{
+			"name": "default:silver_sandstone_brick",
+			"x": 25,
+			"y": -5,
+			"z": 42
+		},
+		{
+			"name": "default:meselamp",
+			"x": 25,
+			"y": -4,
+			"z": 42
+		}
+	],
+	"rank_max": 20,
+	"rank_min": 1,
+	"size": {
+		"x": 96,
+		"y": 117,
+		"z": 96
+	},
+	"start": {
+		"x": 88.5,
+		"y": 5,
+		"z": 22.5
+	},
+	"whole_land": true
+}

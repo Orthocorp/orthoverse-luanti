@@ -27,7 +27,7 @@ Every door should read `closed` at the start. Each puzzle step should then open 
 
 ## The Gullet, The Fallen Star, The Mill, St Morwen's and The Wyrm Below
 
-`gullet.lua`, `fallen_star.lua`, `mill.lua`, `st_morwens.lua` and `wyrm_below.lua` build them the same way, and `generate_adventure/` is their world mod: setting `orthoverse_generate_adventure` names which (`gullet`, the default, `fallen_star`, `mill`, `st_morwens` or `wyrm_below`). It builds it in the sky, writes `<name>.we` (or `<name>.ovt`, the compact form, for The Wyrm Below), `<name>.json` and `plan.txt` (a map below the ground), opens its card and blast doors (players carry the cards) and St Morwen's crypt gate and secret floor, raises The Wyrm Below's bridge, and checks with a walk through every place a player can stand:
+`gullet.lua`, `fallen_star.lua`, `mill.lua`, `st_morwens.lua` and `wyrm_below.lua` build them the same way, and `generate_adventure/` is their world mod: setting `orthoverse_generate_adventure` names which (`gullet`, the default, `fallen_star`, `mill`, `st_morwens` or `wyrm_below`). It builds it in the sky, writes `<name>.we` (or `<name>.ovt`, the compact form, for The Wyrm Below), `<name>.json` and `plan.txt` (a map below the ground), opens its card and blast doors (players carry the cards) and St Morwen's crypt gate and secret floor, raises The Wyrm Below's bridge, and checks with a walk through every place a player can stand (Tir Na Nog, a climb, has its own checks: below):
 - that the start leads to every spawner (but turrets on ledges), chest, locker and the finish;
 - that each gated place (the Gullet's temple; the Fallen Star's reactor, armoury and lower passage; the Mill's river; St Morwen's tomb; The Wyrm Below's far shore, with the bridge) cannot be reached with its ways in walled off;
 - that the gate can be reached from open ground outside, but not from inside;
@@ -57,3 +57,24 @@ python3 -m json.tool --tab --sort-keys /tmp/gu/world/wyrm_below.json > adventure
 ```
 
 The checks treat lava (anything that burns) as no place to stand. The wyrm's ring and bridge are in `mods/orthoverse_props`, the wyrm, the cutthroat and the deep orc in `mods/orthoverse_monsters`.
+
+## Tir Na Nog
+
+`tir_na_nog.lua` builds it the same way, with `orthoverse_generate_adventure = tir_na_nog` and room to forceload it (`max_forceloaded_blocks = 400`). It is a climb, not a walk, so it has its own checks (`g.check`): from the start, with jumps (one up within 3.2 blocks between the stones' middles, level within 4.1, down within 4.6) and the ladder, every checkpoint, the finish and the chest can be reached, through three mazes made the way a run makes them; and where a part is first out of reach, if it is. The ghost steps are all made solid for the checks. Expected: `unreachable: none` and `finish reachable true` for each maze, and `deepest stone below its checkpoint: 0` (the wind catches 6 below).
+
+```
+cp /tmp/gu/world/tir_na_nog.ovt adventures/
+python3 -m json.tool --tab --sort-keys /tmp/gu/world/tir_na_nog.json > adventures/tir_na_nog.json
+```
+
+Its `.json` uses what a sky adventure needs from `/adventure place`:
+- `whole_land`: placed over the whole land, from its south-west corner, its `ground` (here negative: the box's floor is above the ground) taken from the map's ground level, wherever the admin stands;
+- `keep_ground`: nothing is cleared or dug but the `clear` boxes, and only the template's own blocks are set (not its air), so the land stays as it is;
+- `nodes`: blocks outside the box, set one by one (the gate and its pad on the mountain top);
+- `footprint`: what is protected besides the box (the gate's pad);
+- `approach`, `approach_line`: where going there from the Adventures page puts a player, and what they are told, when the gate is hard to get to;
+- `catch_falls`: checkpoints (`orthoverse_adventure:checkpoint`), the wind that catches a fall, and no fall damage, in a run;
+- `maze`: the corners of a maze made anew at the start of each run (`orthoverse.adventure.make_maze`);
+- `finish_xp`: the finishing bonus (300; otherwise 200), once a day.
+
+The ghost steps are `orthoverse_props:ghost_step` (param2 0 to 7 sets when each comes and goes).

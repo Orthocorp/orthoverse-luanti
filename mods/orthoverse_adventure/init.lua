@@ -685,6 +685,146 @@ local function finish(name, key)
 	for _, f in ipairs(orthoverse.adventure.on_finish) do f(key, def, run, names or {}) end
 end
 
+------------------------------------------------------------------------------
+-- Sky adventures (def.catch_falls: Tir Na Nog's, a climb from stone to stone
+-- in the air). Nobody is hurt by a fall: a player who falls is caught by the
+-- wind and set down on the last checkpoint they stood on (the start until
+-- then). A checkpoint is a block (orthoverse_adventure:checkpoint).
+
+local CATCH_BELOW = 6      -- caught this far below the checkpoint
+local CATCH_SPEED = -14    -- or falling this fast (a fall of about ten blocks)
+
+local function checkpoint_of(run, name, def)
+	run.checkpoint = run.checkpoint or {}
+	return run.checkpoint[name] or vec(def.start)
+end
+
+local function catch(player, run, def)
+	local name = player:get_player_name()
+	local at = checkpoint_of(run, name, def)
+	local from = player:get_pos()
+	core.add_particlespawner({amount = 24, time = 0.3, pos = {min = vector.offset(from, -0.5, 0, -0.5),
+		max = vector.offset(from, 0.5, 1.8, 0.5)}, vel = {min = vector.new(-1, 2, -1), max = vector.new(1, 4, 1)},
+		exptime = {min = 0.6, max = 1.2}, size = {min = 2, max = 4}, texture = "orthoverse_adventure_wind.png", glow = 8})
+	-- (set down on it: landing ends the fall, and a fall does no harm here;
+	-- not again for a moment, while the player's own game catches up)
+	run.caught = run.caught or {}
+	run.caught[name] = core.get_us_time() + 1e6
+	player:set_pos(vector.offset(at, 0, 0.1, 0))
+	core.chat_send_player(name, "The wind catches you and sets you down again.")
+end
+
+-- A maze (def.maze: {min, max, wall}, its corners odd distances apart), made
+-- anew for each run: passages one block wide between walls (min.y is the
+-- floor, the walls stand on it to max.y), open on the middle of its east and
+-- west sides (the way in and out).
+local function make_maze(m)
+	local a, b = vec(m.min), vec(m.max)
+	if not (a and b) then return end
+	local w = core.get_content_id(m.wall or "default:stonebrick")
+	local air = core.get_content_id("air")
+	local cx, cz = math.floor((b.x - a.x) / 2), math.floor((b.z - a.z) / 2)   -- cells across
+	local open = {}   -- "x,z" (block offsets) -> true where there is no wall
+	local function k(x, z) return x .. "," .. z end
+	local seen = {}
+	local stack = {{0, 0}}
+	seen[k(0, 0)] = true
+	open[k(1, 1)] = true
+	local rnd = PcgRandom(core.get_us_time() % 2147483647)
+	while #stack > 0 do
+		local c = stack[#stack]
+		local next = {}
+		for _, d in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) do
+			local nx, nz = c[1] + d[1], c[2] + d[2]
+			if nx >= 0 and nz >= 0 and nx < cx and nz < cz and not seen[k(nx, nz)] then next[#next + 1] = {nx, nz, d} end
+		end
+		if #next == 0 then
+			stack[#stack] = nil
+		else
+			local n = next[rnd:next(1, #next)]
+			seen[k(n[1], n[2])] = true
+			open[k(c[1] * 2 + 1 + n[3][1], c[2] * 2 + 1 + n[3][2])] = true
+			open[k(n[1] * 2 + 1, n[2] * 2 + 1)] = true
+			stack[#stack + 1] = {n[1], n[2]}
+		end
+	end
+	-- the ways in and out, in the middle of the east and west sides
+	local mz = math.floor(cz / 2) * 2 + 1
+	open[k(0, mz)] = true
+	open[k(b.x - a.x, mz)] = true
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(a, b)
+	local va = VoxelArea(e1, e2)
+	local data = vm:get_data()
+	for x = 0, b.x - a.x do for z = 0, b.z - a.z do
+		local id = open[k(x, z)] and air or w
+		for y = a.y + 1, b.y do data[va:index(a.x + x, y, a.z + z)] = id end
+	end end
+	vm:set_data(data)
+	vm:write_to_map(true)
+end
+orthoverse.adventure.make_maze = make_maze
+
+core.register_node("orthoverse_adventure:checkpoint", {
+	description = "Checkpoint (a sky adventure's: who falls is set down on the last they stood on)",
+	tiles = {"orthoverse_adventure_checkpoint.png", "orthoverse_adventure_checkpoint_side.png"},
+	paramtype = "light",
+	light_source = 9,
+	groups = {cracky = 2},
+	sounds = rawget(_G, "default") and default.node_sound_glass_defaults() or nil,
+})
+
+-- Checkpoints and falls, every step, for the members of sky runs
+core.register_globalstep(function()
+	for key, run in pairs(runs) do
+		local def = adventures[key]
+		if def and def.catch_falls then
+			for name in pairs(run.members) do
+				local player = core.get_player_by_name(name)
+				if player and not (run.caught and (run.caught[name] or 0) > core.get_us_time()) then
+					local pos = player:get_pos()
+					local under = core.get_node(vector.new(math.floor(pos.x + 0.5), math.floor(pos.y - 0.1 + 0.5),
+						math.floor(pos.z + 0.5))).name
+					if under == "orthoverse_adventure:checkpoint" then
+						local at = vector.new(math.floor(pos.x + 0.5), math.floor(pos.y + 0.5), math.floor(pos.z + 0.5))
+						local was = checkpoint_of(run, name, def)
+						if not vector.equals(vector.round(was), at) then
+							run.checkpoint[name] = at
+							core.chat_send_player(name, "Checkpoint: a fall now brings you back here.")
+							core.sound_play("orthoverse_props_bell", {to_player = name, gain = 0.3, pitch = 1.6}, true)
+						end
+					end
+					local cp = checkpoint_of(run, name, def)
+					if pos.y < cp.y - CATCH_BELOW or player:get_velocity().y < CATCH_SPEED then
+						catch(player, run, def)
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- and no harm from falling, in a sky run
+core.register_on_player_hpchange(function(player, change, reason)
+	if change < 0 and reason and reason.type == "fall" then
+		local key = run_of(player:get_player_name())
+		local def = key and adventures[key]
+		if def and def.catch_falls then return 0 end
+	end
+	return change
+end, true)
+
+-- A new run of a sky adventure starts at its start, with a new maze
+table.insert(orthoverse.adventure.on_enter, function(player, key, def, run)
+	if not def.catch_falls then return end
+	run.checkpoint = run.checkpoint or {}
+	run.checkpoint[player:get_player_name()] = nil
+	if def.maze and not run.maze_made then
+		run.maze_made = true
+		make_maze(def.maze)
+	end
+end)
+
 -- Who is where, once a second
 local guard_timer = 0
 core.register_globalstep(function(dtime)
@@ -700,7 +840,12 @@ core.register_globalstep(function(dtime)
 			local player = core.get_player_by_name(name)
 			if player then
 				run.away[name] = nil
-				if not inside(def, player:get_pos()) and t > run.started + 2 then
+				local pos = player:get_pos()
+				if def.catch_falls and not inside(def, pos) and pos.y < checkpoint_of(run, name, def).y - 2 then
+					-- fell out of the sky's area: caught, not out of the run
+					catch(player, run, def)
+					remaining = remaining + 1
+				elseif not inside(def, pos) and t > run.started + 2 then
 					run.members[name] = nil
 					core.chat_send_player(name, "You have left " .. def.name .. ".")
 					out_of_run(name)
@@ -1111,7 +1256,7 @@ end
 -- A ready-made adventure in the compact form (<name>.ovt: capture's table,
 -- compressed): every node written at once, turned round if asked, then its
 -- metadata and node timers. Returns the number of nodes set, or nil.
-local function place_compact(p1, tpl, turned)
+local function place_compact(p1, tpl, turned, skip_air)
 	local sx, sy, sz = tpl.size.x + 1, tpl.size.y + 1, tpl.size.z + 1
 	local p2 = vector.add(p1, tpl.size)
 	local vm = VoxelManip()
@@ -1140,9 +1285,14 @@ local function place_compact(p1, tpl, turned)
 					p2v = v
 				end
 				local vi = va:index(p1.x + tx, p1.y + y, p1.z + tz)
-				data[vi] = cids[pi] or air
-				p2data[vi] = p2v
-				if cids[pi] ~= air then n = n + 1 end
+				if cids[pi] ~= air then
+					data[vi] = cids[pi]
+					p2data[vi] = p2v
+					n = n + 1
+				elseif not skip_air then
+					data[vi] = air
+					p2data[vi] = p2v
+				end
 			end
 		end
 	end
@@ -1209,9 +1359,19 @@ local function place_template(tname, at, by, done, turned)
 	if type(info) ~= "table" or type(info.size) ~= "table" or not (data or compact) then
 		return done(false, "There is no ready-made adventure called " .. tname .. ".")
 	end
+	if turned and info.whole_land then return done(false, (info.name or tname) .. " cannot be turned round.") end
 	if turned then info = half_turn_info(info) end
 	if data and not (worldedit and worldedit.deserialize) then return done(false, "Placing it needs WorldEdit.") end
 	local p1 = vector.subtract(vector.round(at), vector.new(0, info.ground or 0, 0))
+	if info.whole_land then
+		-- the whole land, from its south-west corner, its ground the map's
+		if not compact then return done(false, "A whole-land adventure must be in the compact form (.ovt).") end
+		local C = orthoverse.coords
+		local x0 = math.floor((p1.x + C.HALF) / C.LAND) * C.LAND - C.HALF
+		local z0 = math.floor((p1.z + C.HALF) / C.LAND) * C.LAND - C.HALF
+		local G = tonumber(core.get_mapgen_setting("mgflat_ground_level")) or 8
+		p1 = vector.new(x0, G - (info.ground or 0), z0)
+	end
 	local p2 = offset(p1, {x = info.size.x - 1, y = info.size.y - 1, z = info.size.z - 1})
 	local land, key = orthoverse.land_at(p1)
 	for _, c in ipairs({{p2.x, p1.z}, {p1.x, p2.z}, {p2.x, p2.z}}) do
@@ -1228,11 +1388,56 @@ local function place_template(tname, at, by, done, turned)
 	-- Above the ground, everything is cleared to well over the template's
 	-- top (trees, hills), so nothing hangs over a low or sunken adventure
 	local top = vector.new(p2.x, math.max(p2.y, p1.y + (info.ground or 0) + CLEAR_ABOVE), p2.z)
-	core.emerge_area(vector.subtract(p1, vector.new(0, 24, 0)), top, function(_, _, left)
+	local low = vector.subtract(p1, vector.new(0, 24, 0))
+	for _, nd in ipairs(info.nodes or {}) do low.y = math.min(low.y, p1.y + nd.y - 2) end
+	core.emerge_area(low, top, function(_, _, left)
 		if left > 0 then return end
 		local ground = p1.y + (info.ground or 0)
 		local surf, under = land_ground(land)
 		local air = core.get_content_id("air")
+		if info.keep_ground then
+			-- The land stays as it is (its hills and trees): only the boxes it
+			-- asks for are cleared, and only its own blocks are set
+			for _, box in ipairs(info.clear or {}) do
+				local a, b = offset(p1, box.min), offset(p1, box.max)
+				for _, obj in ipairs(core.get_objects_in_area(a, vector.add(b, 1))) do
+					if not obj:is_player() then obj:remove() end
+				end
+				fill(a, b, air)
+			end
+			local n = place_compact(p1, compact, false, true)
+			-- and what it has outside its box (Tir Na Nog's gate, down on the ground)
+			for _, nd in ipairs(info.nodes or {}) do
+				if core.registered_nodes[nd.name] then
+					core.set_node(offset(p1, nd), {name = nd.name, param2 = nd.param2 or 0})
+					n = n + 1
+				end
+			end
+			if orthoverse.note_built then orthoverse.note_built(p1, p2) end
+			for _, pos in ipairs(core.find_nodes_in_area(p1, p2, {"group:orthoverse_timer"})) do
+				if not core.get_node_timer(pos):is_started() then core.get_node_timer(pos):start(1) end
+			end
+			local fp = info.footprint or {min = info.corner1, max = info.corner2}
+			adventures[key] = {
+				name = (info.name or tname):sub(1, 60), line = (info.line or ""):sub(1, 200), version = 0, open = false,
+				limit = info.limit or LIMIT_DEFAULT, creator = by,
+				corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
+				start = offset(p1, info.start), arrival = offset(p1, info.arrival),
+				rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
+				footprint = {min = offset(p1, fp.min), max = offset(p1, fp.max)},
+				kit = type(info.kit) == "table" and info.kit or nil,
+				catch_falls = info.catch_falls and true or nil,
+				approach = info.approach and offset(p1, info.approach) or nil,
+				approach_line = info.approach_line and info.approach_line:sub(1, 200) or nil,
+				finish_xp = tonumber(info.finish_xp),
+				maze = info.maze and {min = offset(p1, info.maze.min), max = offset(p1, info.maze.max),
+					wall = info.maze.wall} or nil,
+			}
+			save_def(key)
+			write_public()
+			return done(true, ("%s placed on %s (%d blocks). It is closed: look round and change what you like, then " ..
+				"/adventure save and /adventure open."):format(adventures[key].name, land.name, n))
+		end
 		for _, obj in ipairs(core.get_objects_in_area(vector.new(p1.x, ground, p1.z), top)) do
 			if not obj:is_player() then obj:remove() end
 		end
@@ -1330,7 +1535,9 @@ local function travel(name, key)
 	for _, run in pairs(runs) do
 		if run.members[name] then return false, "Not during a run: /adventure leave first." end
 	end
-	local at = vec(def.arrival)
+	-- (or, for one whose gate is hard to get to, as Tir Na Nog's on the top of
+	-- a mountain, where the way up to it starts)
+	local at = vec(def.approach or def.arrival)
 	core.emerge_area(vector.subtract(at, 16), vector.add(at, 16), function(_, _, remaining)
 		if remaining > 0 then return end
 		local p = core.get_player_by_name(name)
@@ -1351,13 +1558,15 @@ local function travel(name, key)
 			return
 		end
 		p:set_pos(orthoverse.bodies and orthoverse.bodies.place(p, at) or at)
-		if def.start then
-			local d = vector.subtract(vec(def.start), at)
+		local face = def.approach and def.arrival or def.start
+		if face then
+			local d = vector.subtract(vec(face), at)
 			p:set_look_horizontal(math.atan2(-d.x, d.z))
 		end
 		local land = orthoverse.lands[key]
-		core.chat_send_player(name, ("Welcome to %s%s: %s. %s Right-click the gate to go in."):format(def.name,
-			land and (", on " .. land.name) or "", ranks_of(def), def.line or ""))
+		core.chat_send_player(name, ("Welcome to %s%s: %s. %s %s"):format(def.name,
+			land and (", on " .. land.name) or "", ranks_of(def), def.line or "",
+			def.approach_line or "Right-click the gate to go in."))
 	end)
 	core.log("action", ("[orthoverse_adventure] %s goes to %s (%s)"):format(name, def.name, key))
 	return true, "Going to " .. def.name .. "..."
