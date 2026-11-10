@@ -38,6 +38,7 @@ FUTURISTIC = [(0xa43795, 0xffff66), (0x4a87a2, 0xffef76), (0x6f52ab, 0xffdf86),
 
 
 GROUND = 8          # mgflat_ground_level: the flat land surface
+FLOATING = 10       # blocks with this much air under them are not drawn
 SOIL = np.array((120, 86, 52), dtype=np.float32)
 ROCK = np.array((112, 112, 116), dtype=np.float32)
 
@@ -98,6 +99,18 @@ def isometric_blocks(ids, colours, y0):
     Each block is a cube 4 pixels across: its top, and its south and east sides
     in two shades. Air stays air, so overhangs, arches and poles look as built."""
     solid = ids > 0
+    # Not what floats high over the land (Tir Na Nog's stones in the sky):
+    # a block well above the ground with a long fall of air under it. It would make the picture
+    # taller, and the land drawn at half the size.
+    gap = np.zeros(solid.shape[1:], dtype=np.int32)    # air under, so far
+    ground = np.zeros(solid.shape[1:], dtype=bool)     # has the column reached solid yet
+    for y in range(solid.shape[0]):
+        # (above the ground only: not a cave's roof)
+        floating = solid[y] & ground & (gap >= FLOATING) & (y0 + y > GROUND + FLOATING)
+        solid[y] &= ~floating
+        ground |= solid[y]
+        gap = np.where(solid[y], 0, gap + 1)
+    ids = np.where(solid, ids, 0)
     if not solid.any():
         return Image.new("RGBA", (SIZE * 4, SIZE * 2), (0, 0, 0, 0))
     ny = ids.shape[0]
