@@ -38,17 +38,16 @@
   th { color: var(--quiet); font-weight: normal; }
   td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
   .none { margin-top: 32px; }
-  /* The land's picture beside the text, square, as tall as the text beside it
-     (its size is set from the text's height by the script) */
+  /* The land's picture beside the text: square, the same size on every card */
   .adv .top { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 16px; }
   .adv .about { flex: 1; min-width: 0; }
-  .adv .token { flex: 0 0 auto; width: 180px; height: 180px; display: block; border: 3px solid var(--outline);
+  .adv .token { flex: 0 0 auto; width: min(264px, 40%); aspect-ratio: 1; display: block; border: 3px solid var(--outline);
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35); line-height: 0; background: var(--night-3); }
   .adv .token img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
   @media (max-width: 640px) {
     .adv .top { flex-direction: column; align-items: stretch; }
     .adv .go code { white-space: normal; word-break: break-word; }
-    .adv .token { width: 100% !important; height: auto !important; max-width: 320px; aspect-ratio: 1; }
+    .adv .token { width: 100%; height: auto; max-width: 320px; aspect-ratio: 1; }
     .adv { padding: 14px; min-width: 0; }
     .adv th, .adv td { padding: 6px 6px; }
   }
@@ -135,23 +134,6 @@
     const list = (data.adventures || []).filter(a => a.open || a.completions > 0)
       .sort((x, y) => (y.open - x.open) || (y.completions - x.completions));
     $('list').append(...list.map(card));
-    // Each land picture square, as tall as the text beside it (to the top of
-    // the table), but no wider than 40% of the card; on a phone it goes below
-    const fit = () => {
-      for (const top of document.querySelectorAll('.adv .top')) {
-        const about = top.querySelector('.about'), token = top.querySelector('.token');
-        if (!token) continue;
-        if (getComputedStyle(top).flexDirection === 'column') { token.style.width = token.style.height = ''; continue; }
-        const side = Math.max(140, Math.min(about.offsetHeight, top.clientWidth * 0.4));
-        token.style.width = token.style.height = side + 'px';
-      }
-    };
-    fit();
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => requestAnimationFrame(fit));
-      for (const about of document.querySelectorAll('.adv .about')) ro.observe(about);
-    } else window.addEventListener('resize', fit);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
     $('none').hidden = list.length > 0;
   })();
 </script>
