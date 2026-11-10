@@ -117,19 +117,10 @@
       <h2>Your lands</h2>
       <div class="lands" id="my-lands"></div>
       <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
-        crofts in the game, reveal your own land or give someone a land on the Blockchain tab, or give a castle
-        upgrade to any land below.</p>
+        crofts in the game, reveal your own land, give someone a land or give a castle upgrade to any land on
+        the Blockchain tab.</p>
       <p id="nowallet" class="quiet" hidden>Lands belong to Ethereum wallets. Link a wallet to your character (on
         the Blockchain tab) to see and build on the lands it holds, or to reveal your own.</p>
-    </section>
-
-    <section>
-      <h2>Any land</h2>
-      <p>Anyone may pay for a castle upgrade on any land, as a gift. Only a land's holder can flip it.</p>
-      <input id="search" class="field" type="search" placeholder="A land's name or coordinates, such as 12:-3"
-        autocomplete="off" aria-label="Find a land">
-      <ul id="results"></ul>
-      <div class="lands" id="found"></div>
     </section>
   </div>
 
@@ -165,6 +156,15 @@
       <p>Your address's land has been revealed on the chain, and is being placed in the world. This usually
         takes a minute or two; it will appear on the Lands tab.</p>
       <div id="placing-status" class="status" aria-live="polite"></div>
+    </section>
+
+    <section>
+      <h2>Any land</h2>
+      <p>Anyone may pay for a castle upgrade on any land, as a gift. Only a land's holder can flip it.</p>
+      <input id="search" class="field" type="search" placeholder="A land's name or coordinates, such as 12:-3"
+        autocomplete="off" aria-label="Find a land">
+      <ul id="results"></ul>
+      <div class="lands" id="found"></div>
     </section>
 
     <section>
@@ -548,7 +548,7 @@
     if (window.ethereum && window.ethereum.on) window.ethereum.on('chainChanged', () => show());
     OV.on(m => { me = m; show(); });
     // The tabs: Character, Lands, Blockchain (#character, #lands, #blockchain;
-    // a land's coordinates, #12:-3, open Lands with that land)
+    // a land's coordinates, #12:-3, open Blockchain with that land under Any land)
     const TABS = ['character', 'lands', 'blockchain'];
     const showTab = (name, focus) => {
       for (const t of TABS) {
@@ -580,7 +580,7 @@
     $('contract-etherscan').href = 'https://etherscan.io/address/' + contract;
     const fromHash = () => {
       const hash = decodeURIComponent(location.hash.slice(1));
-      if (/^-?\d+:-?\d+$/.test(hash)) { showTab('lands'); pick(hash); }
+      if (/^-?\d+:-?\d+$/.test(hash)) { showTab('blockchain'); pick(hash); }
       else if (TABS.includes(hash)) showTab(hash);
       else showTab('character');
     };
