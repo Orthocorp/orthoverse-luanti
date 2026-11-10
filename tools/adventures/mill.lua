@@ -6,17 +6,18 @@
 --   g.info                 -- what goes in adventures/mill.json
 --
 -- Coordinates are relative to the origin: x east, z north, y up. The land's
--- ground is y = 26 (players stand at y = 27): nothing rises more than four
--- blocks above it.
+-- ground is y = 26 (players stand at y = 27).
 --
 --   Withy Ford (on the ground, outside the dungeon), south: a hamlet green
 --     with the gate, the board, a well, two cottages and the villagers'
 --     rumours.
 --   The mill yard, walled (two blocks high: nobody climbs in or out), is the
---     dungeon's ground floor: the millpond, the mill race and its broken
---     waterwheel (a windlass beside it), dead trees, wisps.
---   The mill: no roof, sacks, the millstone, mosslings; the miller's rooms
---     (his diary, a chest, a windlass); a stair down to
+--     dungeon's ground floor: the millpond, the mill race and the still
+--     waterwheel in its pit (a windlass beside it), dead trees, wisps.
+--   The mill, half-timbered: on the stone ground floor the mill works,
+--     sacks, the millstone, mosslings; up an outside stair to the balcony,
+--     the miller's rooms (his diary, a chest, a windlass); and from the
+--     ground floor a stair down to
 --   the cellar: the bone pit, where skeletons rise (two of them kobolds in
 --     painted skull masks), a chest, the third windlass, a sluice gate in
 --     the west wall, and behind a secret shelf (a loose brick opens it)
@@ -34,7 +35,7 @@
 
 local g = {}
 
-local SX, SY, SZ = 64, 31, 64
+local SX, SY, SZ = 64, 47, 64
 local NG, NF = 26, 27
 local CEL = 20                 -- the cellar's floor
 local LOW = 9                  -- the river's, the hall's floor
@@ -61,7 +62,7 @@ g.info = {
 	ground = NG,
 	dig = {{min = {x = 0, y = 0, z = 0}, max = {x = SX - 1, y = NG - 1, z = SZ - 1}}},
 	corner1 = {x = 2, y = 0, z = 16},
-	corner2 = {x = 61, y = NF + 7, z = 62},
+	corner2 = {x = 61, y = SY - 1, z = 62},
 	start = {x = 32.5, y = NF, z = 21.5},
 	arrival = {x = 32.5, y = NF, z = 5.5},
 }
@@ -196,15 +197,27 @@ local function yard()
 		end
 	end end
 	for x = 14, 22 do for z = 24, 25 do set(x, NG - 1, z, "default:dirt"); set(x, NG, z, WATER) end end
-	-- the waterwheel, half broken, in the race beside the mill's west wall
-	for y = NG - 2, NF + 3 do for z = 20, 30 do
-		local d = math.sqrt((y - (NG + 1)) ^ 2 + (z - 24.5) ^ 2)
-		local broken = y > NG + 1 and z > 25
-		if not broken and ((d >= 3.2 and d <= 4.2) or (d < 3.2 and (y == NG + 1 or math.floor(z) == 24))) then
-			set(22, y, z, PLANK)
+	-- the waterwheel, still now, in its stone-edged pit at the end of the race,
+	-- beside the mill's west wall: a rim of dark planks two thick, spokes, and
+	-- its axle into the wall
+	for z = 18, 31 do for x = 18, 23 do
+		if x == 18 or z == 18 or z == 31 then set(x, NG, z, BRICK)
+		else set(x, NG - 2, z, "default:dirt"); set(x, NG - 1, z, WATER); set(x, NG, z, WATER) end
+	end end
+	for x = 14, 18 do for z = 24, 25 do set(x, NG - 1, z, "default:dirt"); set(x, NG, z, WATER) end end
+	for y = NG - 4, NF + 4 do for z = 19, 30 do
+		local dy, dz = y - (NG + 1), z - 24.5
+		local d = math.sqrt(dy ^ 2 + dz ^ 2)
+		if d >= 4.5 and d <= 5.5 then
+			-- the rim, with a paddle standing out every so often
+			set(21, y, z, "default:junglewood"); set(22, y, z, "default:junglewood")
+			if (math.floor(math.deg(math.atan2(dy, dz)) + 360) % 45) < 12 then set(20, y, z, "stairs:slab_junglewood") end
+		elseif d < 4.5 and (dy == 0 or math.abs(dz) < 0.6 or math.abs(math.abs(dy) - math.abs(dz)) < 0.6) then
+			set(22, y, z, "default:fence_junglewood")      -- spokes
 		end
 	end end
-	set(23, NF, 27, "orthoverse_props:windlass", 3)
+	set(22, NG + 1, 24, "default:tree", 12); set(23, NG + 1, 24, "default:tree", 12)
+	set(23, NF, 31, "orthoverse_props:windlass", 2)
 	-- dead trees, overgrowth
 	for _, p in ipairs({{50, 26}, {46, 48}, {14, 50}, {54, 56}}) do
 		box(p[1], NF, p[2], p[1], NF + 2, p[2], LOG)
@@ -221,30 +234,121 @@ local function yard()
 end
 
 -- The mill: a roofless stone shell
+-- The mill, after the old half-timbered mills: a stone ground floor (the
+-- mill works), a jettied upper floor of dark beams and white plaster (the
+-- miller's rooms, up an outside stair to a balcony), a steep tiled roof with
+-- a cross gable over the balcony, and a chimney. Ground floor x 24..40,
+-- z 18..30; upper floor and roof one block wider all round.
+local BEAM = "default:junglewood"
+local PLASTER = "default:silver_sandstone"
+local TILE = "stairs:stair_brick"
+local PANE = "xpanes:pane_flat"
+local UF = NF + 4              -- the upper floor's floor block (players stand at UF + 1)
+local TOP = NF + 8             -- the top plate, where the roof begins
+
+-- A half-timbered wall panel cell: beams at the edges and every third block,
+-- plaster between
+local function timber(x, y, z, along, lo, hi)
+	if y == UF or y == TOP or along == lo or along == hi or (along - lo) % 3 == 0 then
+		set(x, y, z, BEAM)
+	else
+		set(x, y, z, PLASTER)
+	end
+end
+
 local function mill()
-	box(24, NF, 18, 40, NF + 3, 30, BRICK)
+	-- the paved apron about the mill
+	for z = 17, 32 do for x = 21, 45 do
+		if get(x, NG, z) == "default:dirt_with_grass" then set(x, NG, z, rnd(4) == 0 and COBBLE or "default:stone_block") end
+	end end
+	-- the ground floor: stone, quoins of stone brick at the corners
+	for z = 18, 30 do for x = 24, 40 do for y = NF, NF + 3 do
+		if x == 24 or x == 40 or z == 18 or z == 30 then
+			local corner = (x == 24 or x == 40) and (z == 18 or z == 30)
+			set(x, y, z, corner and BRICK or (rnd(5) == 0 and MOSSY or (rnd(3) == 0 and BRICK or COBBLE)))
+		end
+	end end end
 	air(25, NF, 19, 39, NF + 3, 29)
 	box(25, NG, 19, 39, NG, 29, PLANK)
-	air(31, NF, 18, 32, NF + 1, 18)                      -- the doorway, to the yard
-	for _, x in ipairs({28, 36}) do air(x, NF + 1, 18, x, NF + 2, 18) end   -- windows
-	for _, z in ipairs({22, 27}) do air(40, NF + 1, z, 40, NF + 2, z) end
-	-- beams where the roof was
-	for _, x in ipairs({29, 34}) do box(x, NF + 3, 19, x, NF + 3, 29, PLANK) end
-	-- the millstone, sacks, a broken stair to the floor that is gone
-	box(30, NF, 23, 31, NF, 24, "stairs:slab_stone")
-	for _, p in ipairs({{26, 20}, {27, 20}, {26, 21}, {33, 28}, {34, 28}}) do set(p[1], NF, p[2], STRAW) end
-	set(26, NF + 1, 20, STRAW)
-	for k = 0, 2 do set(37 - k, NF + k, 28, PLANK) end
+	air(31, NF, 18, 32, NF + 2, 18)                      -- the doorway, to the yard
+	box(30, NF, 18, 30, NF + 3, 18, BEAM); box(33, NF, 18, 33, NF + 3, 18, BEAM); box(31, NF + 3, 18, 32, NF + 3, 18, BEAM)
+	for _, x in ipairs({27, 36}) do set(x, NF + 2, 18, "xpanes:bar_flat", 0) end
+	for _, z in ipairs({22, 27}) do set(40, NF + 2, z, "xpanes:bar_flat", 1) end
+	-- the upper floor: its floor, jettied out a block all round, beams showing
+	box(23, UF, 17, 41, UF, 31, BEAM)
+	box(25, UF, 19, 39, UF, 29, PLANK)
+	for x = 26, 38, 4 do box(x, UF, 19, x, UF, 29, BEAM) end
+	-- its walls, half-timbered
+	for y = UF + 1, TOP do
+		for x = 23, 41 do timber(x, y, 17, x, 23, 41); timber(x, y, 31, x, 23, 41) end
+		for z = 17, 31 do timber(23, y, z, z, 17, 31); timber(41, y, z, z, 17, 31) end
+	end
+	air(24, UF + 1, 18, 40, TOP, 30)
+	-- windows
+	for _, x in ipairs({25, 28, 34, 37}) do
+		box(x, UF + 2, 17, x + 1, UF + 2, 17, PANE, 0); box(x, UF + 2, 31, x + 1, UF + 2, 31, PANE, 0)
+	end
+	for _, z in ipairs({19, 25, 28}) do box(23, UF + 2, z, 23, UF + 2, z + 1, PANE, 1) end
+	box(41, UF + 2, 28, 41, UF + 2, 29, PANE, 1)
+	-- the roof: steep, tiled, its ridge running north and south; gable ends
+	-- half-timbered too
+	local function main_roof(x) return x <= 32 and TOP + (x - 22) or TOP + (42 - x) end
+	for x = 22, 42 do
+		local y = main_roof(x)
+		for z = 16, 32 do
+			if x == 32 then set(x, y, z, "default:brick") else set(x, y, z, TILE, x < 32 and 1 or 3) end
+		end
+		if x >= 23 and x <= 41 then
+			for yy = TOP + 1, y - 1 do timber(x, yy, 17, x, 23, 41); timber(x, yy, 31, x, 23, 41) end
+		end
+	end
+	box(31, TOP + 4, 17, 33, TOP + 5, 17, PANE, 0)       -- a gable window
+	-- the cross gable over the balcony, its ridge running east and west
+	local function cross_roof(z) return TOP + (4 - math.abs(z - 24)) end
+	for x = 34, 43 do for z = 20, 28 do
+		local y = cross_roof(z)
+		if y > main_roof(x) or x >= 41 then
+			if x == 42 and main_roof(x) < y then set(x, main_roof(x), z, "air") end
+			if z == 24 then set(x, y, z, "default:brick") else set(x, y, z, TILE, z < 24 and 0 or 2) end
+			if x == 41 then for yy = TOP + 1, y - 1 do timber(41, yy, z, z, 20, 28) end end
+		end
+	end end
+	-- the chimney, by the hearth in the north-east corner
+	box(36, UF + 1, 29, 37, TOP + 9, 30, BRICK)
+	box(36, UF + 1, 29, 37, UF + 2, 29, "air")
+	box(36, UF, 29, 37, UF, 29, "default:coalblock")
+	-- the balcony, east, on posts, and the stair down to the yard
+	box(42, UF, 19, 44, UF, 23, BEAM)
+	for _, p in ipairs({{44, 19}, {44, 23}, {42, 19}}) do box(p[1], NF, p[2], p[1], UF - 1, p[2], "default:fence_junglewood") end
+	for x = 42, 44 do set(x, UF + 1, 19, "default:fence_junglewood") end
+	for z = 19, 22 do set(44, UF + 1, z, "default:fence_junglewood") end
+	set(42, UF + 1, 23, "default:fence_junglewood"); set(44, UF + 1, 23, "default:fence_junglewood")
+	air(41, UF + 1, 21, 41, UF + 2, 22)                  -- the door to the miller's rooms
+	for k = 0, 3 do box(43, UF - 1 - k, 24 + k, 44, UF - 1 - k, 24 + k, "stairs:stair_junglewood", 2) end
+	for _, p in ipairs({{42, 20}, {43, 20}, {42, 21}, {43, 22}}) do set(p[1], NF, p[2], STRAW) end
+	set(43, NF + 1, 20, STRAW)
+	-- inside, below: the mill works, mosslings among the sacks, and the stair
+	-- down to the cellar in the north-west corner
+	box(30, NF, 23, 31, NF, 24, "default:stone_block")
+	box(30, NF + 1, 23, 31, NF + 1, 24, "stairs:slab_stone")
+	box(30, NF + 2, 23, 30, NF + 3, 23, BEAM)             -- the shaft up to the gears
+	for _, p in ipairs({{26, 20}, {27, 20}, {26, 21}, {35, 28}, {36, 28}, {38, 20}, {38, 21}}) do set(p[1], NF, p[2], STRAW) end
+	set(26, NF + 1, 20, STRAW); set(38, NF + 1, 20, STRAW)
+	box(25, NF + 3, 19, 39, NF + 3, 19, BEAM); box(25, NF + 3, 29, 39, NF + 3, 29, BEAM)
+	for _, p in ipairs({{29, 19, "-z"}, {35, 19, "-z"}, {29, 29, "+z"}, {35, 29, "+z"}, {39, 24, "+x"}}) do
+		set(p[1], NF + 2, p[2], "default:torch_wall", SIGN_P2[p[3]])
+	end
 	spawner(28, NG, 26, "mossling", 2, 6)
-	-- the miller's rooms, behind a plank wall
-	box(35, NF, 19, 35, NF + 2, 26, PLANK)
-	air(35, NF, 21, 35, NF + 1, 21)
-	box(37, NF, 19, 39, NF, 20, "wool:red")
-	set(39, NF, 24, PLANK); set(39, NF, 25, PLANK)
-	sign(39, NF + 1, 23, "+x", "THE MILLER'S DIARY\nThey want the cellar and the river under it. I said no. " ..
+	-- upstairs: the miller's rooms
+	box(25, UF + 1, 19, 27, UF + 1, 20, "wool:red")
+	set(24, UF + 1, 24, PLANK); set(24, UF + 1, 25, PLANK)
+	sign(24, UF + 2, 24, "-x", "THE MILLER'S DIARY\nThey want the cellar and the river under it. I said no. " ..
 		"Tonight there were lights again, and a man in a red coat at the door, and")
-	chest(36, NF, 25, "common", 3)
-	set(40, NF + 1, 20, "orthoverse_props:windlass", 1)
+	chest(38, UF + 1, 18, "common", 2)
+	set(41, UF + 2, 26, "orthoverse_props:windlass", 1)
+	for _, p in ipairs({{32, 18, "-z"}, {32, 30, "+z"}, {40, 25, "+x"}}) do
+		set(p[1], UF + 3, p[2], "default:torch_wall", SIGN_P2[p[3]])
+	end
 	-- the stair down to the cellar, in the north-west corner
 	for k = 1, 6 do
 		box(25, NG - k, 28 - k, 26, NG - k, 28 - k, PLANK)
