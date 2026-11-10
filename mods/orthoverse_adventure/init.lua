@@ -562,7 +562,10 @@ end
 local function put_at_arrival(name, def, why)
 	local player = core.get_player_by_name(name)
 	if not player then return end
-	if def.arrival then player:set_pos(vec(def.arrival)) end
+	if def.arrival then
+		local at = vec(def.arrival)
+		player:set_pos(orthoverse.bodies and orthoverse.bodies.place(player, at) or at)
+	end
 	if why then core.chat_send_player(name, why) end
 end
 
@@ -636,7 +639,9 @@ local function start_or_join(name, key)
 			"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
 	end
 	core.chat_send_player(name, "To give up: /adventure leave")
-	player:set_pos(vec(def.start))
+	-- (not inside a companion already there: orthoverse_bodies)
+	local b = orthoverse.bodies
+	player:set_pos(b and b.place(player, vec(def.start)) or vec(def.start))
 	put_aside(player, def)
 	for _, f in ipairs(orthoverse.adventure.on_enter) do f(player, key, def, run) end
 	return true
@@ -1345,7 +1350,7 @@ local function travel(name, key)
 			end
 			return
 		end
-		p:set_pos(at)
+		p:set_pos(orthoverse.bodies and orthoverse.bodies.place(p, at) or at)
 		if def.start then
 			local d = vector.subtract(vec(def.start), at)
 			p:set_look_horizontal(math.atan2(-d.x, d.z))

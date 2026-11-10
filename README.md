@@ -77,6 +77,7 @@ mods/orthoverse_admin/       /pregen and /orthomap, plus startup pre-generation
 mods/orthoverse_adventure/   adventures: /adventure, the gate, runs, records, ranks, the death lockout
 mods/orthoverse_combat/      hold-and-release fighting, the weapons, the training dummy
 mods/orthoverse_wield/       what players hold, seen by others; the arm raised and swung in a fight
+mods/orthoverse_bodies/      players and the bigger animals are solid; players put inside each other are parted
 mods/orthoverse_monsters/    the adventure monsters and the monster spawner (on Mobs Redo, mods/mobs)
 mods/orthoverse_rank/        character rank and experience
 mods/orthoverse_loot/        loot chests, healing draughts, weapon recipes

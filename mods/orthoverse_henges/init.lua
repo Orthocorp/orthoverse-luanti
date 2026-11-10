@@ -115,7 +115,7 @@ local function go_through(player, lx, lz, gate_name, g)
 	local dest = vector.new(x, G + 1, z)
 	-- Load the arrival area first, so the player lands on solid ground
 	core.load_area(vector.offset(dest, -16, -4, -16), vector.offset(dest, 16, 8, 16))
-	player:set_pos(dest)
+	player:set_pos(orthoverse.bodies and orthoverse.bodies.place(player, dest) or dest)
 	player:set_look_horizontal(YAW[gate_name])
 	local name = player:get_player_name()
 	arrived[name] = core.get_us_time() + COOLDOWN_US
