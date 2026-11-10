@@ -63,6 +63,8 @@ local function reload()
 						address = type(p.address) == "string" and p.address:lower() or nil,
 						-- the game account's password record (see below)
 						srp = type(p.srp) == "string" and p.srp:match("^#1#[%w+/]+=*#[%w+/]+=*$") and p.srp or nil,
+						-- when the website made that password, for one entry
+						issued = tonumber(p.issued),
 					}
 				end
 			end
@@ -178,31 +180,47 @@ end
 ------------------------------------------------------------------------------
 -- Joining
 
+-- Each entry into the game has its own password (the website makes one when
+-- the player presses Enter, and keeps its record in registry.json): the
+-- account is set to it here, before the engine checks it, and it is let in
+-- once, within ENTRY_FOR seconds. A password that leaks, or one changed with
+-- the game's own menu, is no use afterwards. The account is also made here
+-- for a new character: otherwise the first client to join under a new name
+-- would set its password, and anyone who saw the name first could take it.
+local ENTRY_FOR = 600
+local entering = {}   -- name -> the entry (its issued time) now joining
+
 core.register_on_prejoinplayer(function(name)
 	if is_guest(name) then
 		return
 	end
-	if not is_registered(name) then
-		reload()   -- a name chosen a moment ago
-	end
+	reload()   -- a name chosen, or a password made, a moment ago (read only if changed)
 	if not is_registered(name) then
 		return "This name is not known here. At " .. PLAY_URL ..
 			" sign in or make a character, or play as a guest."
 	end
-	-- A character's game account is made here, with the password the website
-	-- gives the player, before the engine looks the name up. Otherwise the
-	-- first client to join under a new name would set its password, and
-	-- anyone who saw the name first could take the character.
+	local p = registry[name:lower()]
+	local again = "Enter the game from " .. PLAY_URL .. ": press Enter again there."
+	if not (p.srp and p.issued) or os.time() - p.issued > ENTRY_FOR then return again end
+	if storage:get_string("entered:" .. name) == tostring(p.issued) then return again end   -- already used
 	local auth = core.get_auth_handler()
-	if auth.get_auth(name) then
-		return
-	end
-	local srp = registry[name:lower()].srp
-	if srp and auth.create_auth(name, srp) then
+	local have = auth.get_auth(name)
+	if not have then
+		if not auth.create_auth(name, p.srp) then return "This character is still being set up. Try again in a minute." end
 		core.log("action", "[orthoverse_wallets] game account made for " .. name)
-		return
+	elseif have.password ~= p.srp then
+		auth.set_password(name, p.srp)
 	end
-	return "This character is still being set up. Try again in a minute."
+	entering[name] = p.issued
+end)
+
+-- Let in: that entry's password is used up
+core.register_on_joinplayer(function(player)
+	local name = player:get_player_name()
+	if entering[name] then
+		storage:set_string("entered:" .. name, tostring(entering[name]))
+		entering[name] = nil
+	end
 end)
 
 ------------------------------------------------------------------------------

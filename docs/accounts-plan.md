@@ -8,7 +8,7 @@ This reverses part of the 6 Nov decision ("old name and password accounts remove
 
 ## How players sign in today
 
-- Wallet players: Sign-In with Ethereum on the website; the name is chosen once and bound to the wallet in registry.json; the game password is derived by the auth service (HMAC of the name with OV_AUTH_SECRET), so the player never sees or types one. The game lets in only names in the registry, and guests.
+- Wallet players: Sign-In with Ethereum on the website; the name is chosen once and bound to the wallet in registry.json; the auth service makes a fresh game password for each entry into the game (since patch 1062; it was derived from the name before), so the player never sees or types one. The game lets in only names in the registry, and guests.
 - Guests: the play page makes up Guest-XXXXXX and a random password, kept in that browser only. Lose the browser data and the guest is gone. Guests explore, cannot build.
 
 ## The idea: one character, two ways in
@@ -23,7 +23,7 @@ Either way in leads to the same character. A player can start with a password to
 ### Keep the auth service as the only door
 
 - The player types their name and password on the website (the play page or the Account page), never into Luanti itself. The auth service checks the password (stored as a slow, salted hash, such as scrypt, which Node has built in) and gives the browser the same session cookie a wallet sign-in gives.
-- The game password stays derived by the auth service, exactly as for wallet players. So the play page gets the game password from the auth service after either kind of sign-in, and the game itself needs almost no change: it already lets in registered names.
+- The game password comes from the auth service, exactly as for wallet players (a fresh one for each entry since patch 1062). So the play page gets the game password from the auth service after either kind of sign-in, and the game itself needs almost no change: it already lets in registered names.
 - This avoids the trap of two passwords (the one the player chose and the one the game knows). Luanti only ever sees the derived one.
 - For a later desktop Luanti client (if the game's port is opened and the server listed publicly), the Account page could show the character's game password so it can be typed into desktop Luanti. To decide then.
 

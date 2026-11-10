@@ -205,7 +205,9 @@
         'Only wallet players and guests can join now. Sign in with your wallet, or play as a guest.', null]],
       [/Invalid password/i, () => kind === 'guest'
         ? ['This guest could not log in', 'The guest saved in this browser no longer matches the game. Start again as a new guest.', newGuest]
-        : ['Could not log in', 'The game did not accept this player. Sign out and sign in with your wallet again.', null]],
+        : ['Could not log in', 'The game did not accept this player. Reload the page and press Enter again.', null]],
+      [/press Enter again|Enter the game from/i, () => ['Could not log in',
+        'Each entry into the game is let in once. Reload the page and press Enter again.', null]],
       [/Name is taken|Another account called/i, () => kind === 'guest'
         ? ['That guest name is taken', 'Start again as a new guest.', newGuest]
         : ['That name is taken', 'Sign out, sign in again and choose another name.', null]],
@@ -370,9 +372,11 @@
     let name, password, exists;
     try {
       if (kind === 'wallet') {
-        me = await api('GET', '/auth/me');   // fresh password and account state
+        me = await api('GET', '/auth/me');   // still signed in?
         if (!me.signedIn || !me.name) { OV.set(me); return; }
-        name = me.name; password = me.password; exists = me.exists;
+        // A fresh game password for this one entry (the game takes it once)
+        const entry = await api('POST', '/auth/play', {});
+        name = entry.name; password = entry.password; exists = entry.exists;
         if (quest && quest.open) {
           try { await api('POST', '/auth/visit', { adventure: quest.key }); } catch (e) { /* arrive where they left off */ }
         } else if (visit && me.canVisit) await api('POST', '/auth/visit', visit);

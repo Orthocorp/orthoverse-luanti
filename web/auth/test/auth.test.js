@@ -112,6 +112,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
 		OV_REGISTER_PER_DAY: '3',
 		OV_ADVENTURES: join(dir, 'adventures.json'),
+		OV_ADMIN: 'Bossy',
 		NODE_NO_WARNINGS: '1',
 	},
 	stdio: ['ignore', 'pipe', 'pipe'],
@@ -184,8 +185,16 @@ try {
 		check(r.status === 400, `name refused: ${why} (${r.body.error})`);
 	}
 	r = await call('POST', '/auth/name', { name: 'Alice_1' });
+	check(r.status === 200 && r.body.name === 'Alice_1' && r.body.password === undefined && r.body.exists === false,
+		'name chosen; no game password given out with it; no game account yet');
+	{
+		const before = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.alice_1;
+		check(/^#1#/.test(before.srp || '') && before.issued === undefined, 'a new character: a record of a password nobody knows, not for entry');
+	}
+	// Entering the game: a fresh password for that one entry
+	r = await call('POST', '/auth/play', {});
 	check(r.status === 200 && r.body.name === 'Alice_1' && /^[0-9a-f]{32}$/.test(r.body.password) && r.body.exists === false,
-		'name chosen; a game password is given; no game account yet');
+		'play: a fresh game password');
 	const password = r.body.password;
 	r = await call('POST', '/auth/name', { name: 'Other' });
 	check(r.status === 400, 'a wallet cannot choose a second name');
@@ -199,10 +208,20 @@ try {
 		const salt = Buffer.from(srp.split('#')[2] || '', 'base64');
 		check(/^#1#[A-Za-z0-9+/]+=*#[A-Za-z0-9+/]+=*$/.test(srp) && salt.length === 16 &&
 			srpVerifier('Alice_1', password, salt) === srp, "registry.json has the game account's password record");
+		const issued = reg.players.alice_1.issued;
+		check(Number.isInteger(issued) && Math.abs(issued - Date.now() / 1000) < 60, 'and when it was made, for the game to let it in once');
 	}
 
 	r = await call('GET', '/auth/me');
-	check(r.body.name === 'Alice_1' && r.body.password === password, 'the session remembers the player; same password each time');
+	check(r.body.name === 'Alice_1' && r.body.password === undefined, 'the session remembers the player; me gives no password');
+	r = await call('POST', '/auth/play', {});
+	check(r.status === 200 && r.body.password !== password, 'play again: another password, the last one is dead');
+	{
+		const srp2 = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.alice_1.srp;
+		const salt2 = Buffer.from(srp2.split('#')[2], 'base64');
+		check(srpVerifier('Alice_1', r.body.password, salt2) === srp2 && srpVerifier('Alice_1', password, salt2) !== srp2,
+			'registry.json: only the new password\'s record');
+	}
 
 	// Arriving where you click on the map: the admin and level 7 holders
 	r = await call('GET', '/auth/me');
@@ -302,18 +321,22 @@ try {
 	check(r.status === 400 && /taken/.test(r.body.error), 'register: a wallet character\'s name is taken');
 	r = await call('POST', '/auth/register', { name: 'Pat', password: 'pat', turnstile: 'good' });
 	check(r.status === 400, 'register: the password cannot be the name (and is too short)');
+	r = await call('POST', '/auth/register', { name: 'BOSSY', password: 'correct horse', turnstile: 'good' });
+	check(r.status === 400 && /kept for the admin/.test(r.body.error), "register: the admin's name (any capitals) is kept for the admin");
 	r = await call('POST', '/auth/register', { name: 'Pat', password: 'correct horse', turnstile: 'bad' });
 	check(r.status === 400 && /robot/.test(r.body.error), 'register: a failed Turnstile check is refused');
 	r = await call('POST', '/auth/register', { name: 'Pat', password: 'correct horse', turnstile: 'good' });
-	check(r.status === 200 && r.body.name === 'Pat' && /^[0-9a-f]{32}$/.test(r.body.password) &&
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === undefined &&
 		r.body.hasPassword && !r.body.hasWallet && r.body.address === null && r.body.lands.length === 0,
-		'register: a character with a name and password, no wallet; a game password is given');
+		'register: a character with a name and password, no wallet');
 	check(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(r.body.recoveryCode || ''), 'register: a recovery code is shown once');
 	const patCode = r.body.recoveryCode;
-	const patGame = r.body.password;
 	check(/HttpOnly/.test(r.setCookie), 'register: signed in at once');
 	r = await call('GET', '/auth/me');
-	check(r.body.name === 'Pat' && r.body.password === patGame && r.body.signedInWith === 'password', 'me: the password character');
+	check(r.body.name === 'Pat' && r.body.signedInWith === 'password', 'me: the password character');
+	r = await call('POST', '/auth/play', {});
+	const patGame = r.body.password;
+	check(r.status === 200 && /^[0-9a-f]{32}$/.test(patGame || ''), 'play: a password character gets a game password too');
 	const regP = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.pat;
 	check(regP && regP.name === 'Pat' && !regP.address && regP.pw && regP.rc &&
 		!JSON.stringify(regP).includes('correct horse') && !JSON.stringify(regP).includes(patCode.replace(/-/g, '')),
@@ -329,7 +352,7 @@ try {
 	r = await call('POST', '/auth/login', { name: '__proto__', password: 'x' });
 	check(r.status === 400 && /do not match/.test(r.body.error), 'login: a name like __proto__ is just an unknown name');
 	r = await call('POST', '/auth/login', { name: 'PAT', password: 'correct horse' });
-	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === patGame, 'login: name in any capitals and the password');
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.signedInWith === 'password', 'login: name in any capitals and the password');
 	r = await call('POST', '/auth/login', { name: 'Alice_1', password: 'anything at all' });
 	check(r.status === 400 && /wallet/.test(r.body.error), 'login: a wallet character without a password is told to use the wallet');
 
@@ -374,7 +397,7 @@ try {
 	cookie = '';
 	r = await call('GET', '/auth/nonce?address=' + erin.address);
 	r = await call('POST', '/auth/verify', { nonce: r.body.nonce, signature: await erin.signMessage(r.body.message) });
-	check(r.status === 200 && r.body.name === 'Pat' && r.body.password === patGame && r.body.signedInWith === 'wallet',
+	check(r.status === 200 && r.body.name === 'Pat' && r.body.signedInWith === 'wallet',
 		'link: signing in with the wallet now gives the same character');
 
 	// A wallet character adds a password (no current one needed: the wallet proves it)

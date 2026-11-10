@@ -122,8 +122,9 @@ fast with J and noclip with H.
 ### Wallet sign-in and ownership
 
 - `OV_AUTH_SECRET` in `.env` must be set once (`openssl rand -hex 32`) and then
-  kept: wallet players' game passwords are derived from it, so changing it locks
-  them out of their players.
+  kept: it signs everyone's sign-ins, so changing it signs everyone out (they
+  sign in again; game passwords are made fresh for each entry, so nothing else
+  is lost).
 - `curl -s http://127.0.0.1:8485/auth/status` shows how many players are signed
   up, when land ownership was last read, and any error reading it.
 - `docker compose logs auth` shows sign-ins, new names and each ownership update:
@@ -168,7 +169,8 @@ Adventures page reads `adventures.json` there through the auth service
   character) with a name and password, and are shown a recovery code once.
   A wallet can be linked to it later on the Account page, and wallet players can
   add a password there. They are in `registry.json` too, with only scrypt hashes
-  of the password and recovery code; the game password is derived as for wallets.
+  of the password and recovery code; the game password is made fresh for each
+  entry, as for wallets.
 - Characters without a wallet mine and build on crofts after their first hour of
   play (counted by the game); with a wallet, at once.
 - At most three new characters per address per day; ten wrong passwords for a

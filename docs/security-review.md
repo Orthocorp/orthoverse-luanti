@@ -40,11 +40,10 @@ Tested with the native client against the real server: the right password
 joins, a wrong one on the very first join is refused and does not make the
 account.
 
-**After deploying, run** `docker compose exec auth node check-accounts.js`. It
-lists characters whose game account has a password the website did not give:
-either the player changed it in the game, or someone took the character
-before the fix. For one that was taken, `/setpassword <name> <password>` with
-the password the website shows its player gives it back.
+(Since patch 1062 the game sets each character's account to the website's
+password as it joins, so a character taken before the fix is given back the
+next time its player enters from the website; the check-accounts tool that
+listed them is gone.)
 
 ### High: loot chests could be emptied twice
 
@@ -118,8 +117,8 @@ policy, because its engine builds code at run time.
   passwords for it on the website. The recovery code still works. The game's
   own login is separate and unaffected.
 - **Wallet sessions cannot be ended early** except by signing out on that
-  browser; they last 30 days. Changing OV_AUTH_SECRET ends every session (and
-  changes every game password, so do it only with a plan).
+  browser; they last 30 days. Changing OV_AUTH_SECRET ends every session (it
+  signs everyone out).
 - **Guests** (Guest-xxxxxx) are made by whoever joins first under the name,
   as before. They hold nothing worth taking.
 - **The robot check** is off unless OV_TURNSTILE_SECRET is set. Set it in
@@ -202,3 +201,25 @@ trap (set in the air, or a pit or lava put under it later) for strangers
 sent from the website. It is now checked for solid ground, room to stand and
 nothing that burns nearby when it is set, when the adventure opens, and
 before anyone is sent; an unsafe one sends nobody.
+
+## Game passwords made fresh for each entry (patch 1062)
+
+The game server checks a name and password of its own. Until now each
+character's game password was derived from the server's secret and the name,
+the same for good, and handed to the signed-in player's page. Changing or
+recovering the website password did not change it, so anyone who had ever
+learned it (from a shared computer, or the browser's developer tools while
+signed in) kept the character in the game; and the game's own "Change
+password" let them lock its owner out, with no way back but the admin's
+/setpassword.
+
+Now the auth service makes a fresh random password each time a signed-in
+player presses Enter (POST /auth/play) and keeps only its record, with the
+time. As the player joins, the game sets the account to that record and lets
+it in once, within ten minutes; then it is used up. A password that leaks, or
+one changed in the game's menu, is no use afterwards. /auth/me no longer
+gives any password.
+
+The admin's name (OV_ADMIN) gets every privilege in the game, so nobody else
+may take it on the website. To make it there the first time, run the auth
+service once with OV_ADMIN_OPEN=1.

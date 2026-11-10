@@ -4,9 +4,9 @@
 // sign-in message (Sign-In with Ethereum, EIP-4361), the wallet signs it, and
 // this service checks the signature and gives the browser a session cookie.
 // The first time, the player chooses a player name, which is bound to the
-// wallet for good. The game password for that name is derived here from a
-// secret (OV_AUTH_SECRET), so only this service can give it out: the player
-// never sees or types one.
+// wallet for good. Each time the player enters the game, this service makes
+// a fresh game password for that one entry (POST /auth/play), so only a
+// signed-in player can get one, and the player never sees or types it.
 //
 // The game server reads two files this service writes (OV_DATA_DIR, mounted
 // into the luanti container at /world/orthoverse_auth):
@@ -111,10 +111,15 @@ function readJson(path, fallback) {
 	}
 }
 
-// The game password for a wallet player's name. Only this service knows the
-// secret, so only it can hand out the password, and only to that wallet.
-function gamePassword(name) {
-	return hmac('orthoverse-player\n' + name.toLowerCase()).toString('hex').slice(0, 32);
+// Game passwords: the game server checks a name and password of its own (the
+// engine knows nothing of this site's sign-in). Each time a signed-in player
+// enters the game (POST /auth/play), the character gets a fresh random game
+// password, for that one entry: this service keeps only its record (srp) and
+// when it was made (issued), and the game sets the account to it as the player
+// joins, refuses it once used or ten minutes old, and nobody ever needs to know
+// or keep it. A password that leaks is useless after the next entry.
+function newGamePassword() {
+	return randomBytes(16).toString('hex');
 }
 
 // ---------------------------------------------------------------------------
@@ -148,10 +153,12 @@ function entryOf(key) {
 }
 
 // Each character carries its game account's password record (srp), so the game
-// creates the account with the right password before anyone else can join
-// under the name (see srp.js). Characters made before this get one now.
+// makes the account with the right password before anyone else can join under
+// the name (see srp.js). A new character's record is of a password nobody
+// knows, until its first entry. Characters made before this get one now.
 function withSrp(entry) {
-	entry.srp = srpVerifier(entry.name, gamePassword(entry.name));
+	entry.srp = srpVerifier(entry.name, newGamePassword());
+	delete entry.issued;
 	return entry;
 }
 {
@@ -505,6 +512,11 @@ function passwordProblem(password, name) {
 function nameProblem(name) {
 	if (!NAME_RE.test(name)) return 'Names are 3 to 19 letters, digits, - and _, with no spaces.';
 	if (GUEST_RE.test(name)) return 'Names starting with "Guest" are kept for guests.';
+	// The admin's name gets every privilege in the game: nobody else may take
+	// it (OV_ADMIN_OPEN=1 for the auth service lets the admin make it, once)
+	if (env.OV_ADMIN && name.toLowerCase() === String(env.OV_ADMIN).toLowerCase() && env.OV_ADMIN_OPEN !== '1') {
+		return 'That name is kept for the admin.';
+	}
 	if (entryOf(name.toLowerCase()) || accountExists(name)) {
 		return 'That name is taken (perhaps with different capitals). Choose another.';
 	}
@@ -649,7 +661,6 @@ function me(who) {
 		signedIn: true,
 		address: address ? getAddress(address) : null,
 		name,
-		password: name ? gamePassword(name) : null,
 		exists: name ? accountExistsExact(name) : false,
 		lands: address ? landsOf(address) : [],
 		canVisit: name ? mayVisit(address, name) : false,
@@ -881,6 +892,21 @@ const routes = {
 		saveRegistry();
 		log('name', name, 'for', address);
 		send(res, 200, me(address));
+	},
+
+	// Entering the game: a fresh game password for this character, for this
+	// one entry (see newGamePassword)
+	'POST /auth/play': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
+		const entry = sess.entry;
+		const password = newGamePassword();
+		entry.srp = srpVerifier(entry.name, password);
+		entry.issued = Math.floor(Date.now() / 1000);
+		saveRegistry();
+		send(res, 200, { name: entry.name, password, exists: accountExistsExact(entry.name) });
 	},
 
 	'POST /auth/logout': async (req, res) => {

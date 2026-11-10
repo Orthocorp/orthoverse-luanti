@@ -57,9 +57,9 @@ The play page offers two ways in.
   to sign a Sign-In with Ethereum message (EIP-4361) for this site; this costs
   nothing. The auth service (`web/auth/`) checks the signature and keeps the
   browser signed in for 30 days. The first time, the player chooses a name, which
-  stays bound to that wallet. The game password for the name is derived from a
-  secret only the auth service holds (`OV_AUTH_SECRET`), so players never see or
-  type a password, and only the wallet can obtain it.
+  stays bound to that wallet. Each time a player enters the game, the auth
+  service makes a fresh game password for that one entry, which the page hands
+  to the game; players never see or type it, and the game lets each in once.
 - **Play as a guest.** The page makes up a name like `Guest-7F3A9C` and a random
   password, kept in that browser so the guest comes back as the same player.
 
