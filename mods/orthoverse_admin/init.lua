@@ -218,8 +218,11 @@ core.register_on_joinplayer(function(player)
 	end
 	local privs = core.get_player_privs(name)
 	local added = {}
-	for priv in pairs(core.registered_privileges) do
-		if not privs[priv] then
+	for priv, def in pairs(core.registered_privileges) do
+		-- not those marked as never for the admin (orthoverse_monsters marks
+		-- Mobs Redo's peaceful_player: monsters would ignore the admin, who
+		-- tests the adventures)
+		if not privs[priv] and def.give_to_admin ~= false then
 			privs[priv] = true
 			added[#added + 1] = priv
 		end
