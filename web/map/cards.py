@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
-from render_map import voxels  # noqa: E402
+from render_map import voxels, Y_HI as Y_DRAWN  # noqa: E402
 
 SIZE = 96            # nodes across a land
 CARD = 800           # card size, pixels
@@ -39,6 +39,14 @@ FUTURISTIC = [(0xa43795, 0xffff66), (0x4a87a2, 0xffef76), (0x6f52ab, 0xffdf86),
 
 GROUND = 8          # mgflat_ground_level: the flat land surface
 FLOATING = 10       # blocks with this much air under them are not drawn
+
+# The one exception: Tir Na Nog's castle in the sky (its ready-made
+# adventure, tools/adventures/tir_na_nog.lua) is far above what a card draws.
+# Its card brings it down to float 25 blocks over the land, the rest of the sky
+# between left out, and is drawn at whatever size fits rather than double.
+# The castle's box, from the land's south-west corner, in nodes (x, z) and
+# map heights (y); empty until the adventure is placed.
+SKY_CASTLES = {"0:-29": {"x": (18, 75), "z": (18, 74), "y": (84, 159), "above": 25}}
 SOIL = np.array((120, 86, 52), dtype=np.float32)
 ROCK = np.array((112, 112, 116), dtype=np.float32)
 
@@ -93,24 +101,30 @@ def isometric(top, h):
     return Image.fromarray(img, "RGBA")
 
 
-def isometric_blocks(ids, colours, y0):
-    """A land from the north-west, above, block by block: ids[y, v, u] colour
-    indices (0: nothing), colours their RGB, y0 the world height of ids[0].
-    Each block is a cube 4 pixels across: its top, and its south and east sides
-    in two shades. Air stays air, so overhangs, arches and poles look as built."""
+def grounded(ids, y0):
+    """ids without what floats high over the land (Tir Na Nog's stones in the
+    sky): a block well above the ground with a long fall of air under it. It
+    would make the picture taller, and the land drawn at half the size."""
     solid = ids > 0
-    # Not what floats high over the land (Tir Na Nog's stones in the sky):
-    # a block well above the ground with a long fall of air under it. It would make the picture
-    # taller, and the land drawn at half the size.
     gap = np.zeros(solid.shape[1:], dtype=np.int32)    # air under, so far
     ground = np.zeros(solid.shape[1:], dtype=bool)     # has the column reached solid yet
     for y in range(solid.shape[0]):
         # (above the ground only: not a cave's roof)
-        floating = solid[y] & ground & (gap >= FLOATING) & (y0 + y > GROUND + FLOATING)
-        solid[y] &= ~floating
+        drop = solid[y] & ground & (gap >= FLOATING) & (y0 + y > GROUND + FLOATING)
+        solid[y] &= ~drop
         ground |= solid[y]
         gap = np.where(solid[y], 0, gap + 1)
-    ids = np.where(solid, ids, 0)
+    return np.where(solid, ids, 0)
+
+
+def isometric_blocks(ids, colours, y0, floating=True):
+    """A land from the north-west, above, block by block: ids[y, v, u] colour
+    indices (0: nothing), colours their RGB, y0 the world height of ids[0].
+    Each block is a cube 4 pixels across: its top, and its south and east sides
+    in two shades. Air stays air, so overhangs, arches and poles look as built."""
+    if floating:
+        ids = grounded(ids, y0)
+    solid = ids > 0
     if not solid.any():
         return Image.new("RGBA", (SIZE * 4, SIZE * 2), (0, 0, 0, 0))
     ny = ids.shape[0]
@@ -186,7 +200,27 @@ def fitting(draw, texts, room, sizes):
     return ImageFont.truetype(FONT, sizes[-1])
 
 
-def card(land_img, name, level, key, crest, token):
+def sky_castle(con, west, south, box):
+    """A land and the castle over it, brought down: (ids, colours, y0) as
+    voxels() gives them."""
+    ids, colours, y0 = voxels(con, west, south, SIZE, yhi=box["y"][1])
+    land = grounded(ids[:Y_DRAWN - y0 + 1], y0)
+    castle = ids[box["y"][0] - y0:].copy()
+    keep = np.zeros(castle.shape[1:], dtype=bool)        # v grows southwards
+    keep[SIZE - 1 - box["z"][1]:SIZE - box["z"][0], box["x"][0]:box["x"][1] + 1] = True
+    castle[:, ~keep] = 0
+    solid = land > 0
+    if not castle.any() or not solid.any():
+        return land, colours, y0
+    top = int(np.nonzero(solid.any(axis=(1, 2)))[0].max())
+    at = top + box["above"] + 1
+    out = np.zeros((at + castle.shape[0],) + land.shape[1:], dtype=ids.dtype)
+    out[:land.shape[0]] = land
+    out[at:] = np.where(castle > 0, castle, out[at:])
+    return out, colours, y0
+
+
+def card(land_img, name, level, key, crest, token, fit=False):
     realm = FUTURISTIC if level >= 8 else FANTASY
     bg, banner = (rgb_of(c) for c in realm[int(token[-2:], 16) % len(realm)])
     canvas = Image.new("RGB", (CARD, CARD), bg)
@@ -215,8 +249,14 @@ def card(land_img, name, level, key, crest, token):
 
     # The land, as large as fits below the banner
     room_w, room_h = CARD - 32, CARD - 156 - 32
+    if fit:
+        # (without the empty rows the picture keeps at its top for the
+        # highest block, as if it stood at the land's far corner)
+        land_img = land_img.crop(land_img.getbbox())
     scale = max(1, min(room_w // land_img.width, room_h // land_img.height))
-    big_land = land_img.resize((land_img.width * scale, land_img.height * scale), Image.NEAREST)
+    if fit and scale < 2:
+        scale = min(room_w / land_img.width, room_h / land_img.height)
+    big_land = land_img.resize((int(land_img.width * scale), int(land_img.height * scale)), Image.NEAREST)
     x = (CARD - big_land.width) // 2
     y = 156 + (CARD - 156 - big_land.height) // 2
     canvas.paste(big_land, (x, y), big_land)
@@ -297,13 +337,18 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
         level, crest_n = card_inputs(land, tokens)
         drawn[key] = [level, crest_n]
         crest = heraldry.crest(crest_n, level % 8) if level % 8 > 0 else None
+        fit = False
         if con is not None:
             west = lx * SIZE - SIZE // 2
             south = -lz * SIZE - SIZE // 2
-            iso = isometric_blocks(*voxels(con, west, south, SIZE))
+            if key in SKY_CASTLES:
+                iso = isometric_blocks(*sky_castle(con, west, south, SKY_CASTLES[key]), floating=False)
+                fit = True
+            else:
+                iso = isometric_blocks(*voxels(con, west, south, SIZE))
         else:
             iso = isometric(rgb[row:row + SIZE, col:col + SIZE], heights[row:row + SIZE, col:col + SIZE])
-        img = card(iso, land["name"], level, key, crest, token)
+        img = card(iso, land["name"], level, key, crest, token, fit)
         buf = io.BytesIO()
         img.save(buf, "PNG")
         data = buf.getvalue()
