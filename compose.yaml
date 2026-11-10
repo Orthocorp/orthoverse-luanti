@@ -88,6 +88,10 @@ services:
       # (both empty: no check)
       OV_TURNSTILE_SITEKEY: ${OV_TURNSTILE_SITEKEY:-}
       OV_TURNSTILE_SECRET: ${OV_TURNSTILE_SECRET:-}
+      # OpenSea: refresh the metadata of lands that changed, every 20 minutes
+      # (empty: OpenSea is not asked anything)
+      OV_OPENSEA_KEY: ${OV_OPENSEA_KEY:-}
+      OV_OPENSEA_EVERY_MIN: ${OV_OPENSEA_EVERY_MIN:-20}
     volumes:
       - ${OV_DATA}/auth:/data
       - ${OV_WORLD}:/world:ro

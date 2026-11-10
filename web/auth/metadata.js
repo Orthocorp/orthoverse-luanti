@@ -283,5 +283,19 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex
 	}
 	handle.landImage = landImage;
 	handle.landToken = landToken;
+	// For the OpenSea refresh (opensea.js): every placed land's token, and
+	// what its metadata says now
+	handle.tokens = () => {
+		const out = [...byToken.keys()];
+		const nl = newLands();
+		if (nl && nl.lands) {
+			for (const land of Object.values(nl.lands)) {
+				const t = land && typeof land.token === 'string' ? land.token.toLowerCase() : null;
+				if (t && /^0x[0-9a-f]{40}$/.test(t) && !byToken.has(t)) out.push(t);
+			}
+		}
+		return out;
+	};
+	handle.tokenJson = token => tokenJson(token, null);
 	return handle;
 }

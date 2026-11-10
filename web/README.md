@@ -175,6 +175,28 @@ plain one is swapped then), never one already used. The 13,188 crests made by
 orthoverse-offline's `make-shields.js` are in `web/heraldry/escutcheons.png`,
 128 to a row, with their blazons in `heraldry.json`.
 
+### Telling OpenSea
+
+Marketplaces keep their own copy of each token's metadata and picture, so a
+land that changes (built on and drawn again, a castle upgrade, a crest) looks
+the same there until it is fetched again. With an OpenSea API key in `.env`
+(`OV_OPENSEA_KEY`; opensea.io > Settings > Developer), the auth service
+(`web/auth/opensea.js`) checks every 20 minutes (`OV_OPENSEA_EVERY_MIN`) which
+lands' metadata differs from what OpenSea was last asked to show, and asks
+OpenSea to refresh those. Without a key it asks nothing.
+
+- The first run only notes what every land shows: do a complete collection
+  refresh on OpenSea by hand, as the collection's owner, once.
+- It keeps within OpenSea's limits: at most 60 refreshes a run, spaced out,
+  stopping when OpenSea's count of calls left is low (the rest waits for the
+  next run); a "too many" answer waits as long as OpenSea asks; three failures
+  in a row pause it for an hour; a refused key pauses it for six hours. The
+  queue is kept in `OV_DATA/auth/opensea.json` (never the key), so a restart
+  loses nothing.
+- `curl -s http://127.0.0.1:8485/auth/status` shows how it is doing: the last
+  run, how many are waiting, how many refreshed, any pause and why, and the
+  limits OpenSea last reported.
+
 ## Proxy settings
 
 Set in `.env` (the first two) or `compose.yaml`:

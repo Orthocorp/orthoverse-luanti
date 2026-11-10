@@ -34,6 +34,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
 import { createMetadata } from './metadata.js';
+import { createOpenSea } from './opensea.js';
 import { srpVerifier } from './srp.js';
 import { PNG } from 'pngjs';
 
@@ -1135,6 +1136,7 @@ const routes = {
 			ownersError,
 			rpc: RPC_SHOWN,
 			contract: CONTRACT,
+			opensea: opensea.status(),
 		});
 	},
 };
@@ -1163,6 +1165,20 @@ const metadata = createMetadata({
 	royaltyRecipient: () => contractOwner,
 	limited: req => limited(req, 60),
 });
+
+// Asking OpenSea to refresh lands whose metadata changed (opensea.js): only
+// with an API key (OV_OPENSEA_KEY); without one, nothing is sent
+const opensea = createOpenSea({
+	apiKey: env.OV_OPENSEA_KEY || '',
+	contract: CONTRACT,
+	stateFile: join(DATA_DIR, 'opensea.json'),
+	tokens: metadata.tokens,
+	tokenJson: metadata.tokenJson,
+	baseUrl: env.OV_OPENSEA_URL || 'https://api.opensea.io',
+	everyMs: Math.max(5, parseFloat(env.OV_OPENSEA_EVERY_MIN || '20')) * 60e3,
+	log,
+});
+opensea.start();
 
 const server = http.createServer(async (req, res) => {
 	const url = new URL(req.url, 'http://x');

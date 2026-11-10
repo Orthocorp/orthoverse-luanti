@@ -178,6 +178,8 @@ try {
 	check(pic('-1:-2') === `/api/metadata/classic/${CROFT}-0.png`, `adventures: no card yet, the classic picture (${pic('-1:-2')})`);
 	check(pic('-7:4') === `/api/metadata/classic/${NEWBIE}-1.png`, `adventures: a new land too (${pic('-7:4')})`);
 	check(pic('99:99') === null, 'adventures: no land, no picture');
+	const status = await (await fetch(`http://127.0.0.1:${PORT}/auth/status`)).json();
+	check(status.opensea && status.opensea.on === false, 'status: OpenSea refreshing off without a key');
 	check((adv.adventures.find(a => a.key === '12:-3') || {}).token === KING.toLowerCase(), 'adventures: the land\'s token, for its OpenSea link');
 } catch (e) {
 	failures.push('exception: ' + e.stack);
