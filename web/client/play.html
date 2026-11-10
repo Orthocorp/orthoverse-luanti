@@ -376,7 +376,9 @@
         if (!me.signedIn || !me.name) { OV.set(me); return; }
         // A fresh game password for this one entry (the game takes it once)
         const entry = await api('POST', '/auth/play', {});
-        name = entry.name; password = entry.password; exists = entry.exists;
+        // The game makes a website character's account as it joins (before
+        // the client is asked for its password), so it always logs in
+        name = entry.name; password = entry.password; exists = true;
         if (quest && quest.open) {
           try { await api('POST', '/auth/visit', { adventure: quest.key }); } catch (e) { /* arrive where they left off */ }
         } else if (visit && me.canVisit) await api('POST', '/auth/visit', visit);
@@ -396,7 +398,7 @@
     args.name = name;
     args.password = password;
     args.go = true;
-    // The first visit creates the player in the game; later ones log in
+    // A guest's first visit creates the player in the game; later ones log in
     args.extra = [exists ? '--login' : '--register'];
 
     mtl.setProxy(PROXY_URL);
