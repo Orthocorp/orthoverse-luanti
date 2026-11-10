@@ -4,7 +4,9 @@
 -- esp32-s3-minetest (mosslings, hexers, wisps). All but the wisp are skins on
 -- Luanti's character model, painted by tools/monsters/make_monster_skins.py.
 -- The adventures add their own: the Mill's, the Fallen Star's robots, and St
--- Morwen's undead (zombies, ghouls, the wight; tools/props/make_st_morwens.py).
+-- Morwen's undead (zombies, ghouls, the wight; tools/props/make_st_morwens.py),
+-- and The Wyrm Below's goblin cutthroats, deep orcs and the wyrm (its model,
+-- skin and sounds from Draconis: LICENSE-wyrm.txt).
 --
 -- Monsters only exist in adventures: none spawn in the world by themselves.
 -- A builder places Monster spawners (Creative tab) and sets what each brings;
@@ -243,10 +245,13 @@ local function on_blow(self, blow)
 	local a = blow.attacker
 	if a and a:get_pos() then
 		local dir = vector.normalize(vector.subtract(self.object:get_pos(), a:get_pos()))
-		local push = blow.weapon.kind == "bash" and 4 or 2
-		self.object:add_velocity({x = dir.x * push, y = 1.5, z = dir.z * push})
-		self.pause_timer = blow.stun or 0.25
-		if blow.stun then self._windup = nil end
+		-- (a great beast is not knocked back, nor kept from fighting)
+		if not self._heavy then
+			local push = blow.weapon.kind == "bash" and 4 or 2
+			self.object:add_velocity({x = dir.x * push, y = 1.5, z = dir.z * push})
+			self.pause_timer = blow.stun or 0.25
+			if blow.stun then self._windup = nil end
+		end
 		if self._hx then self._hx.stagger = blow.stun or 0.5 end
 		struck_by(self, a)
 	end
@@ -295,11 +300,12 @@ local function monster(id, def)
 		punch_interval = def.interval or 1.5,
 		drops = {},
 		sounds = def.sounds or {},
-		visual = mesh and "mesh" or def.visual, mesh = mesh and "character.b3d" or nil,
+		visual = mesh and "mesh" or def.visual, mesh = mesh and (def.mesh or "character.b3d") or nil,
 		textures = {def.textures or {"orthoverse_monsters_" .. id .. ".png"}},
 		visual_size = {x = size, y = size},
 		collisionbox = def.collisionbox or {-0.3 * size, 0, -0.3 * size, 0.3 * size, 1.7 * size, 0.3 * size},
-		animation = mesh and ANIM or nil,
+		selectionbox = def.selectionbox,
+		animation = mesh and (def.animation or ANIM) or nil,
 		glow = def.glow,
 		use_texture_alpha = def.alpha,
 		backface_culling = not def.alpha,
@@ -310,7 +316,7 @@ local function monster(id, def)
 			core.after(0.1, function() if self.object:get_pos() then hold(self) end end)
 			if def.after_activate then def.after_activate(self) end
 		end,
-		do_custom = function(self, dtime)
+		do_custom = function(self, dtime, moveresult)
 			local t = now()
 			if self._windup and t >= self._windup then finish_windup(self) end
 			if def.undead then
@@ -334,7 +340,7 @@ local function monster(id, def)
 					self._fought = now()
 				end
 			end
-			if def.do_custom then return def.do_custom(self, dtime) end
+			if def.do_custom then return def.do_custom(self, dtime, moveresult) end
 		end,
 	}
 	for k, v in pairs(def.mobs or {}) do base[k] = v end
@@ -345,6 +351,7 @@ local function monster(id, def)
 	ent._on_struck = def.on_struck
 	ent._on_hit = def.on_hit
 	ent._undead = def.undead
+	ent._heavy = def.heavy
 	ent._windup_time = def.windup
 	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
 	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc}
@@ -456,6 +463,26 @@ monster("wight", {
 		end
 		label(self, S("The wight calls its guard!"), "#8fd0ff")
 	end,
+})
+-- The Wyrm Below's tribes, harder than the Gullet's: goblin cutthroats
+-- (quick, in packs, poisoned blades that sting for a while) and deep orcs
+-- (grey from the dark, heavily armed). Ranks 6 to 12.
+monster("cutthroat", {
+	desc = S("Goblin cutthroat"), level = 6, xp = 140, size = 0.7, hp = 24, ac = 15, damage = 5, windup = 0.35, interval = 1.1,
+	walk = 2.0, run = 4.4, weapon = "orthoverse_combat:dagger_bronze_carried", reach = 2.0,
+	textures = {"orthoverse_monsters_goblin.png^[multiply:#b8a0c8"},
+	sounds = {random = "orthoverse_monsters_mossling_call", damage = "orthoverse_monsters_mossling_hurt",
+		death = "orthoverse_monsters_mossling_death", distance = 14},
+	on_hit = function(self, target)
+		if math.random(3) == 1 then hamper(target, 0.6, 2, S("The cutthroat's blade stings: your legs drag.")) end
+	end,
+})
+monster("deep_orc", {
+	desc = S("Deep orc"), level = 8, xp = 220, size = 1.2, hp = 48, ac = 16, damage = 8, windup = 0.6, interval = 1.7,
+	walk = 1.5, run = 3.2, weapon = "orthoverse_combat:war_hammer_bronze_carried", reach = 2.6, view_range = 16,
+	textures = {"orthoverse_monsters_orc.png^[multiply:#a4aab4"},
+	sounds = {random = "orthoverse_monsters_hexer_hiss", damage = "orthoverse_monsters_hexer_hurt",
+		death = "orthoverse_monsters_hexer_death", distance = 18},
 })
 monster("mossling", {
 	desc = S("Mossling"), level = 1, xp = 25, size = 0.55, hp = 10, ac = 11, damage = 2, windup = 0.4, interval = 1.5,
@@ -1029,6 +1056,481 @@ monster("turret", {
 		end
 		return false
 	end,
+})
+
+------------------------------------------------------------------------------
+-- The wyrm: the dragon of The Wyrm Below, ranks 6 to 12. Its model, skin and
+-- sounds are Draconis's fire dragon (by ElCeejo, MIT: LICENSE-wyrm.txt); what
+-- it does is ours, and none of Mobs Redo's own behaviour is used.
+--
+-- It sleeps on its hoard until someone comes near (or strikes it). Then, in
+-- turns:
+--   * on the ground it walks at the nearest player and slams the ground in
+--     front of it (a wind-up, then a blow all round that point), or, when two
+--     or more are close, beats its wings to throw them back. This is when it
+--     can be struck;
+--   * it takes off and hovers out of reach, breathing fireballs in threes
+--     (a wind-up each time, and the balls fly straight: step behind a pillar,
+--     or strike one down);
+--   * and lands again near its target.
+-- Below a third of its health it is enraged: shorter turns, quicker fire.
+-- It is never knocked back. When it dies it drops the ring (orthoverse_props).
+
+local WYRM = {
+	scale = 0.6,             -- of Draconis's full-grown size
+	hp = 420, ac = 16, level = 12, xp = 1500,
+	wake = 16,               -- a player this near (and seen) wakes it
+	view = 30,
+	ground = {14, 18}, air = {9, 12},    -- seconds in each turn (enraged: two thirds)
+	walk = 2.4, turn = 2.5,  -- blocks a second, radians a second
+	reach = 4.5,
+	slam = {windup = 0.75, damage = 9, radius = 3.6, ahead = 2.6, every = 2.4},
+	repel = {windup = 0.6, damage = 3, radius = 6, push = 11, every = 7},
+	breath = {every = 3.4, windup = 0.9, shots = 3, gap = 0.4, speed = 11, damage = 5, radius = 1.6},
+	hover = 6,               -- above the floor, ceiling allowing
+	enraged = 1 / 3,
+	-- The model faces -x with yaw 0 (Luanti's own facing is +z)
+	yaw_off = math.pi / 2,
+}
+local WS = WYRM.scale
+
+-- Draconis's frames, at its speeds
+local WA = {
+	stand = {1, 59, 20}, stand_fire = {61, 119, 20}, slam = {121, 159, 30}, repel = {161, 209, 30},
+	walk = {211, 249, 25}, takeoff = {291, 319, 30}, hover = {321, 359, 30}, hover_fire = {361, 399, 30},
+	fly = {401, 439, 30}, land = {481, 509, 30}, sleep = {511, 569, 20}, death = {571, 579, 15},
+}
+local WA_ONCE = {slam = true, repel = true, takeoff = true, land = true, death = true}
+
+local function wyrm_anim(self, name)
+	if self._wa == name then return end
+	self._wa = name
+	local a = WA[name]
+	self.object:set_animation({x = a[1], y = a[2]}, a[3], 0.3, not WA_ONCE[name])
+	-- eyes shut in sleep
+	self.object:set_properties({textures = {name == "sleep" and "orthoverse_monsters_wyrm.png^orthoverse_monsters_wyrm_shading.png"
+		or "orthoverse_monsters_wyrm.png^orthoverse_monsters_wyrm_shading.png^orthoverse_monsters_wyrm_eyes.png"}})
+end
+
+local function wyrm_sound(self, name, gain, pitch)
+	core.sound_play(name, {object = self.object, gain = gain or 1, pitch = pitch, max_hear_distance = 48}, true)
+end
+
+-- Where it faces (Luanti's yaw, with the model's offset taken off)
+local function wyrm_fwd(self)
+	local yaw = (self.object:get_yaw() or 0) - WYRM.yaw_off
+	return {x = -math.sin(yaw), y = 0, z = math.cos(yaw)}
+end
+
+local function wyrm_face(self, to, dtime)
+	local pos = self.object:get_pos()
+	local want = math.atan2(-(to.x - pos.x), to.z - pos.z) + WYRM.yaw_off
+	local yaw = self.object:get_yaw() or 0
+	local d = (want - yaw + math.pi) % (2 * math.pi) - math.pi
+	local step = WYRM.turn * dtime
+	self.object:set_yaw(yaw + math.max(-step, math.min(step, d)))
+	return math.abs(d)
+end
+
+-- The floor under it, and the room over its back
+local function solid(p)
+	local d = core.registered_nodes[core.get_node(p).name]
+	return not d or d.walkable ~= false
+end
+local function floor_below(pos, down)
+	for d = 0, down do
+		local p = {x = pos.x, y = math.floor(pos.y + 0.5) - d, z = pos.z}
+		if solid(p) then return p.y + 0.5 end
+	end
+end
+local function room_above(pos, up)
+	for d = 0, up do
+		if solid({x = pos.x, y = math.floor(pos.y + 0.5) + d, z = pos.z}) then return d end
+	end
+	return up
+end
+
+-- Whom it fights: the nearest it can see, kept while it can
+local function wyrm_eye(self) return vector.offset(self.object:get_pos(), 0, 2.4 * WS / 0.6, 0) end
+local function wyrm_sees(self, p)
+	return core.line_of_sight(wyrm_eye(self), vector.offset(p:get_pos(), 0, 1.4, 0))
+end
+-- It keeps to its lair: nobody further than LEASH from where it woke is
+-- fought (it goes home, and sleeps again)
+local LEASH = 20
+local function far_from_home(self, p)
+	local h = self._home
+	if not h then return false end
+	return vector.distance({x = p.x, y = 0, z = p.z}, {x = h.x, y = 0, z = h.z}) > LEASH
+end
+local function wyrm_target(self, range)
+	local pos = self.object:get_pos()
+	local cur = self._wt
+	if cur and cur:get_pos() and can_fight(self, cur) and vector.distance(pos, cur:get_pos()) <= WYRM.view
+			and not far_from_home(self, cur:get_pos()) then
+		if wyrm_sees(self, cur) then self._wt_lost = 0; return cur end
+		self._wt_lost = (self._wt_lost or 0) + 1
+		if self._wt_lost < 12 then return cur end
+	end
+	local best, bd
+	for _, p in ipairs(core.get_connected_players()) do
+		if can_fight(self, p) then
+			local d = vector.distance(pos, p:get_pos())
+			if d <= (range or WYRM.view) and (not bd or d < bd) and not far_from_home(self, p:get_pos())
+					and wyrm_sees(self, p) then best, bd = p, d end
+		end
+	end
+	self._wt, self._wt_lost = best, 0
+	return best
+end
+
+local function players_near(pos, r)
+	local out = {}
+	for _, p in ipairs(core.get_connected_players()) do
+		if p:get_hp() > 0 and vector.distance(pos, p:get_pos()) <= r then out[#out + 1] = p end
+	end
+	return out
+end
+
+local function hurt(self, player, dmg, from, push, up)
+	player:punch(self.object, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = dmg}}, nil)
+	local dir = vector.direction(from, player:get_pos())
+	player:add_velocity({x = dir.x * (push or 3), y = up or 2, z = dir.z * (push or 3)})
+	self._fought = now()
+end
+
+local function dust(pos, r)
+	core.add_particlespawner({amount = 30, time = 0.3, pos = {min = vector.offset(pos, -r, 0, -r), max = vector.offset(pos, r, 0.3, r)},
+		vel = {min = {x = -1, y = 0.5, z = -1}, max = {x = 1, y = 2, z = 1}}, exptime = {min = 0.6, max = 1.4},
+		size = {min = 3, max = 6}, texture = "orthoverse_monsters_wyrm_smoke.png"})
+end
+
+-- Its fire: a ball that flies straight, bursts on what it meets
+core.register_entity("orthoverse_monsters:wyrm_fire", {
+	initial_properties = {
+		visual = "sprite", textures = {"orthoverse_monsters_wyrm_fire.png"}, visual_size = {x = 1.1, y = 1.1},
+		glow = 14, physical = false, pointable = true, static_save = false,
+		collisionbox = {-0.3, -0.3, -0.3, 0.3, 0.3, 0.3}, selectionbox = {-0.4, -0.4, -0.4, 0.4, 0.4, 0.4},
+	},
+	_orthoverse_target = {ac = 1},
+	_on_blow = function(self, blow) if blow.result ~= "miss" then self._burst(self, true) end end,
+	on_punch = function() return true end,
+	on_activate = function(self)
+		self._t = 0
+		core.add_particlespawner({amount = 60, time = 4, attached = self.object, pos = {x = 0, y = 0, z = 0}, radius = 0.25,
+			vel = {min = {x = -0.4, y = 0.2, z = -0.4}, max = {x = 0.4, y = 0.8, z = 0.4}}, exptime = {min = 0.2, max = 0.5},
+			size = {min = 2, max = 4}, glow = 14, texture = "orthoverse_monsters_wyrm_fire.png"})
+	end,
+	_burst = function(self, quiet)
+		local pos = self.object:get_pos()
+		if not pos then return end
+		self.object:remove()
+		core.add_particlespawner({amount = 24, time = 0.15, pos = pos, radius = 0.4,
+			vel = {min = {x = -3, y = -1, z = -3}, max = {x = 3, y = 3, z = 3}}, exptime = {min = 0.3, max = 0.7},
+			size = {min = 3, max = 6}, glow = 14, texture = "orthoverse_monsters_wyrm_fire.png"})
+		core.sound_play("fire_flint_and_steel", {pos = pos, gain = 0.8, pitch = 0.6, max_hear_distance = 16}, true)
+		if quiet then return end
+		for _, p in ipairs(players_near(pos, WYRM.breath.radius + 0.9)) do
+			local d = vector.distance(pos, vector.offset(p:get_pos(), 0, 0.9, 0))
+			if d <= WYRM.breath.radius + 0.9 then
+				local owner = self._owner and self._owner:get_pos() and self._owner or self.object
+				p:punch(owner, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = d < 1 and WYRM.breath.damage or
+					math.ceil(WYRM.breath.damage / 2)}}, nil)
+			end
+		end
+	end,
+	on_step = function(self, dtime)
+		self._t = self._t + dtime
+		local pos = self.object:get_pos()
+		if not pos then return end
+		local from = self._last or pos
+		self._last = pos
+		if self._t > 4 or solid(vector.round(pos)) then return self._burst(self) end
+		-- the whole way since the last step, against each player's body
+		local seg = vector.subtract(pos, from)
+		local len2 = vector.dot(seg, seg)
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, 3)) do
+			if obj:is_player() and obj:get_hp() > 0 then
+				local p = obj:get_pos()
+				local mid = {x = p.x, y = p.y + 0.9, z = p.z}
+				local k = len2 > 0 and math.max(0, math.min(1, vector.dot(vector.subtract(mid, from), seg) / len2)) or 1
+				local c = vector.add(from, vector.multiply(seg, k))
+				if math.abs(c.x - p.x) < 0.6 and math.abs(c.z - p.z) < 0.6 and c.y > p.y - 0.2 and c.y < p.y + 2 then
+					self.object:set_pos(c)
+					return self._burst(self)
+				end
+			end
+		end
+	end,
+})
+
+local function wyrm_head(self)
+	local f = wyrm_fwd(self)
+	return vector.add(vector.offset(self.object:get_pos(), 0, 2.9 * WS / 0.6, 0), vector.multiply(f, 3.6 * WS / 0.6))
+end
+
+local function breathe(self, target)
+	local from = wyrm_head(self)
+	local aim = vector.offset(target:get_pos(), 0, 1.0, 0)
+	local dir = vector.direction(from, aim)
+	local ball = core.add_entity(vector.add(from, dir), "orthoverse_monsters:wyrm_fire")
+	if ball then
+		ball:set_velocity(vector.multiply(dir, WYRM.breath.speed))
+		ball:get_luaentity()._owner = self.object
+	end
+	core.add_particlespawner({amount = 14, time = 0.2, pos = from, radius = 0.3,
+		vel = {min = vector.multiply(dir, 4), max = vector.multiply(dir, 8)}, exptime = {min = 0.2, max = 0.4},
+		size = {min = 4, max = 7}, glow = 14, texture = "orthoverse_monsters_wyrm_fire.png"})
+	self._fought = now()
+end
+
+local function mode(self, m, t)
+	self._wm, self._wmt = m, 0
+	self._wmlen = t
+	self._act = nil
+end
+
+local function turn_len(self, range)
+	local len = range[1] + math.random() * (range[2] - range[1])
+	return self._enraged and len * 2 / 3 or len
+end
+
+local function wyrm_think(self, dtime, moveresult)
+	local pos = self.object:get_pos()
+	if not pos or self.state == "die" then return false end
+	self._wmt = (self._wmt or 0) + dtime
+	local t = now()
+	local m = self._wm or "sleep"
+	if not self._enraged and self.health < WYRM.hp * WYRM.enraged then
+		self._enraged = true
+		wyrm_sound(self, "orthoverse_monsters_wyrm_roar", 1.5, 0.8)
+		label(self, S("The wyrm is enraged!"), "#ff8040")
+	end
+	local grounded = m == "sleep" or m == "ground" or m == "rest"
+	self.object:set_acceleration({x = 0, y = grounded and -10 or 0, z = 0})
+	local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
+
+	if m == "sleep" then
+		wyrm_anim(self, "sleep")
+		self.object:set_velocity({x = 0, y = v.y, z = 0})
+		self._look = (self._look or 0) - dtime
+		if self._look > 0 then return false end
+		self._look = 0.5
+		local woken = self.health < WYRM.hp or wyrm_target(self, WYRM.wake)
+		if woken then
+			wyrm_sound(self, "orthoverse_monsters_wyrm_roar", 1.5)
+			mode(self, "rest", 2)
+		end
+		return false
+	end
+
+	local target = wyrm_target(self)
+	if not target then
+		self._alone = (self._alone or 0) + dtime
+		if self._alone > 25 and grounded then mode(self, "sleep"); self._alone = 0 end
+		-- home, on foot
+		local h = self._home
+		if m == "ground" and h and vector.distance({x = pos.x, y = 0, z = pos.z}, {x = h.x, y = 0, z = h.z}) > 2 then
+			wyrm_face(self, h, dtime)
+			local f = wyrm_fwd(self)
+			local v0 = self.object:get_velocity() or {y = 0}
+			self.object:set_velocity({x = f.x * WYRM.walk, y = v0.y, z = f.z * WYRM.walk})
+			wyrm_anim(self, "walk")
+			return false
+		end
+	else
+		self._alone = 0
+		self._fought = t
+	end
+
+	if m == "rest" then
+		wyrm_anim(self, "stand")
+		self.object:set_velocity({x = 0, y = v.y, z = 0})
+		if target then wyrm_face(self, target:get_pos(), dtime) end
+		if self._wmt >= (self._wmlen or 0) then mode(self, "ground", turn_len(self, WYRM.ground)) end
+		return false
+	end
+
+	if m == "ground" then
+		local act = self._act
+		if act then
+			self.object:set_velocity({x = 0, y = v.y, z = 0})
+			if t < act.at then return false end
+			self._act = nil
+			if act.kind == "slam" then
+				local at = vector.add(pos, vector.multiply(wyrm_fwd(self), WYRM.slam.ahead))
+				wyrm_sound(self, "orthoverse_monsters_wyrm_slam", 1.5)
+				dust(at, WYRM.slam.radius * 0.7)
+				for _, p in ipairs(players_near(at, WYRM.slam.radius)) do
+					if math.abs(p:get_pos().y - pos.y) < 2.5 then hurt(self, p, WYRM.slam.damage, at, 4, 5) end
+				end
+			elseif act.kind == "repel" then
+				for _, p in ipairs(players_near(pos, WYRM.repel.radius)) do
+					hurt(self, p, WYRM.repel.damage, pos, WYRM.repel.push, 4)
+				end
+				dust(pos, 2.5)
+			end
+			self._wa = nil
+			return false
+		end
+		if not target then
+			wyrm_anim(self, "stand")
+			self.object:set_velocity({x = 0, y = v.y, z = 0})
+			return false
+		end
+		if self._wmt >= (self._wmlen or 0) then
+			mode(self, "takeoff", 1.2)
+			wyrm_anim(self, "takeoff")
+			wyrm_sound(self, "orthoverse_monsters_wyrm_flap", 1.2)
+			return false
+		end
+		local tp = target:get_pos()
+		local off = wyrm_face(self, tp, dtime)
+		local d = vector.distance({x = pos.x, y = 0, z = pos.z}, {x = tp.x, y = 0, z = tp.z})
+		-- two or more close by, or one under its feet: wings
+		if (#players_near(pos, WYRM.repel.radius - 1.5) >= 2 or d < 1.8) and t >= (self._repel_ok or 0) then
+			self._repel_ok = t + WYRM.repel.every
+			self._act = {kind = "repel", at = t + WYRM.repel.windup}
+			self._wa = nil; wyrm_anim(self, "repel")
+			wyrm_sound(self, "orthoverse_monsters_wyrm_repel", 1.2)
+			return false
+		end
+		if d <= WYRM.reach and off < 0.7 and t >= (self._slam_ok or 0) then
+			self._slam_ok = t + WYRM.slam.every * (self._enraged and 0.75 or 1)
+			self._act = {kind = "slam", at = t + WYRM.slam.windup}
+			self._wa = nil; wyrm_anim(self, "slam")
+			wyrm_sound(self, "orthoverse_monsters_wyrm_roar", 0.8, 1.2)
+			return false
+		end
+		if d > WYRM.reach - 1 then
+			local f = wyrm_fwd(self)
+			local speed = off < 1.2 and WYRM.walk or 0.4
+			self.object:set_velocity({x = f.x * speed, y = v.y, z = f.z * speed})
+			wyrm_anim(self, "walk")
+			-- held up (a pillar, a wall): it flies instead
+			local moved = vector.distance(pos, self._was or pos)
+			self._was = pos
+			self._stuck = moved < 0.4 * WYRM.walk * dtime and (self._stuck or 0) + dtime or 0
+			if self._stuck > 2 then self._wmt = self._wmlen or 0 end
+		else
+			self.object:set_velocity({x = 0, y = v.y, z = 0})
+			wyrm_anim(self, "stand")
+		end
+		return false
+	end
+
+	if m == "takeoff" then
+		if self._wmt > 0.4 then self.object:set_velocity({x = 0, y = 3, z = 0}) end
+		if self._wmt >= (self._wmlen or 0) then mode(self, "air", turn_len(self, WYRM.air)); self._breath_ok = t + 1.2 end
+		return false
+	end
+
+	local fl = floor_below(pos, 24) or pos.y
+	if m == "air" then
+		self._flap = (self._flap or 0) - dtime
+		if self._flap <= 0 then self._flap = 1.3; wyrm_sound(self, "orthoverse_monsters_wyrm_flap", 0.7) end
+		local room = room_above(vector.offset(pos, 0, 3 * WS / 0.6, 0), 10)
+		local want_y = math.min(fl + WYRM.hover, pos.y + room - 1)
+		local vy = math.max(-2.5, math.min(2.5, (want_y - pos.y) * 1.5))
+		local vx, vz = 0, 0
+		if target then
+			local tp = target:get_pos()
+			wyrm_face(self, tp, dtime)
+			local flat = {x = tp.x - pos.x, y = 0, z = tp.z - pos.z}
+			local d = vector.length(flat)
+			if d > 0.1 then
+				flat = vector.divide(flat, d)
+				local go = d > 11 and 2.5 or (d < 7 and -2 or 0)
+				-- and round it, slowly
+				vx, vz = flat.x * go - flat.z * 1.2, flat.z * go + flat.x * 1.2
+			end
+			local b = self._breath
+			if b then
+				if t >= b.next then
+					breathe(self, target)
+					b.left = b.left - 1
+					b.next = t + WYRM.breath.gap
+					if b.left <= 0 then self._breath = nil; self._wa = nil end
+				end
+			elseif t >= (self._breath_ok or 0) then
+				self._breath_ok = t + WYRM.breath.every * (self._enraged and 0.7 or 1)
+				self._breath = {left = WYRM.breath.shots, next = t + WYRM.breath.windup}
+				wyrm_anim(self, "hover_fire")
+				wyrm_sound(self, "orthoverse_monsters_wyrm_breath", 1.2)
+			end
+		end
+		if not self._breath then wyrm_anim(self, "hover") end
+		self.object:set_velocity({x = vx, y = vy, z = vz})
+		if (self._wmt >= (self._wmlen or 0) or not target) and not self._breath then mode(self, "descend") end
+		return false
+	end
+
+	if m == "descend" then
+		wyrm_anim(self, "fly")
+		local vx, vz = 0, 0
+		if target then
+			local tp = target:get_pos()
+			wyrm_face(self, tp, dtime)
+			local flat = {x = tp.x - pos.x, y = 0, z = tp.z - pos.z}
+			local d = vector.length(flat)
+			if d > WYRM.reach then vx, vz = flat.x / d * 2.5, flat.z / d * 2.5 end
+		end
+		self.object:set_velocity({x = vx, y = -3, z = vz})
+		if pos.y - fl < 0.3 or (moveresult and moveresult.touching_ground) or self._wmt > 6 then
+			mode(self, "rest", 1)
+			self._wa = nil; wyrm_anim(self, "land")
+			wyrm_sound(self, "orthoverse_monsters_wyrm_slam", 0.8, 0.8)
+			dust(pos, 2)
+		end
+		return false
+	end
+	mode(self, "sleep")
+	return false
+end
+
+monster("wyrm", {
+	desc = S("The Wyrm"), level = WYRM.level, xp = WYRM.xp, hp = WYRM.hp, ac = WYRM.ac, damage = WYRM.slam.damage,
+	mesh = "orthoverse_monsters_wyrm.b3d", size = 20 * WS, heavy = true, glow = 4,
+	textures = {"orthoverse_monsters_wyrm.png^orthoverse_monsters_wyrm_shading.png"},
+	animation = {speed_normal = 20, stand_start = 1, stand_end = 59, walk_start = 211, walk_end = 249},
+	collisionbox = {-1.25 * WS, 0, -1.25 * WS, 1.25 * WS, 4.6 * WS, 1.25 * WS},
+	selectionbox = {-1.6 * WS, 0, -6 * WS, 1.6 * WS, 4.8 * WS, 6 * WS, rotate = true},
+	walk = WYRM.walk, run = WYRM.walk, view_range = WYRM.view, reach = WYRM.reach,
+	mobs = {fly = true, fly_in = {"air"}, fall_damage = false, jump = false, fear_height = 0, stand_chance = 100,
+		walk_chance = 0, lava_damage = 0, fire_damage = 0, water_damage = 0, stepheight = 1.1, pathfinding = 0,
+		on_die = function(self, pos)
+			self._wa = nil; wyrm_anim(self, "death")
+			self.object:set_velocity({x = 0, y = 0, z = 0})
+			self.object:set_acceleration({x = 0, y = -10, z = 0})
+			wyrm_sound(self, "orthoverse_monsters_wyrm_roar", 2, 0.6)
+			dust(pos, 3)
+			-- the ring, on the floor below where it fell
+			local fl = floor_below(pos, 24)
+			if core.registered_items["orthoverse_props:wyrm_ring"] then
+				local at = vector.new(pos.x, (fl or pos.y) + 0.3, pos.z)
+				core.after(1.2, function() core.add_item(at, "orthoverse_props:wyrm_ring") end)
+			end
+			local obj = self.object
+			core.after(4, function()
+				local p = obj:get_pos()
+				if not p then return end
+				core.add_particlespawner({amount = 60, time = 0.6, pos = {min = vector.offset(p, -2, 0, -2), max = vector.offset(p, 2, 3, 2)},
+					vel = {min = {x = -0.5, y = 0.5, z = -0.5}, max = {x = 0.5, y = 2, z = 0.5}}, exptime = {min = 1, max = 2.5},
+					size = {min = 4, max = 8}, texture = "orthoverse_monsters_wyrm_smoke.png"})
+				obj:remove()
+			end)
+			return true
+		end},
+	sounds = {random = "orthoverse_monsters_wyrm_roar", distance = 48},
+	after_activate = function(self)
+		self._wm = self._wm or "sleep"
+		self._home = self._home or vector.round(self.object:get_pos())
+		self._wa = nil
+		wyrm_anim(self, "sleep")
+		-- a fresh one faces south, its spawner's way in (the builder turns the lair)
+		self.object:set_yaw(WYRM.yaw_off + math.pi)
+	end,
+	do_custom = wyrm_think,
 })
 
 ------------------------------------------------------------------------------

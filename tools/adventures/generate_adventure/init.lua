@@ -24,8 +24,14 @@ local function walkable(p)
 	local d = core.registered_nodes[core.get_node(p).name]
 	return d and d.walkable ~= false
 end
+-- (not in lava, or anything else that burns)
+local function harmful(p)
+	local d = core.registered_nodes[core.get_node(p).name]
+	return d and (d.damage_per_second or 0) > 0
+end
 local function standable(p)
 	return walkable({x = p.x, y = p.y - 1, z = p.z}) and not walkable(p) and not walkable({x = p.x, y = p.y + 1, z = p.z})
+		and not harmful(p) and not harmful({x = p.x, y = p.y + 1, z = p.z})
 end
 
 -- Every place a player can walk to from `from` (absolute), jumping one block
@@ -117,9 +123,9 @@ local function check(O, label)
 		local x, y, z = k3:match("^([^,]+),([^,]+),([^,]+)$")
 		x, y, z = tonumber(x) - O.x, tonumber(y) - O.y, tonumber(z) - O.z
 		if x >= math.min(c1.x, c2.x) and x <= math.max(c1.x, c2.x) and z >= math.min(c1.z, c2.z) and z <= math.max(c1.z, c2.z)
-				and y >= math.min(c1.y, c2.y) and y <= math.max(c1.y, c2.y) then into = true break end
+				and y >= math.min(c1.y, c2.y) and y <= math.max(c1.y, c2.y) then into = ("%d,%d,%d"):format(x, y, z) break end
 	end
-	say(label .. ": the dungeon reachable from the land: " .. tostring(into))
+	say(label .. ": the dungeon reachable from the land: " .. (into and ("true (at " .. into .. ")") or "false"))
 	-- where the ground is open to the sky (a player could fall in, unless a
 	-- barrier keeps them off)
 	local holes = 0
@@ -170,15 +176,30 @@ core.after(2, function()
 		say("built; missing nodes: " .. (#m > 0 and table.concat(m, ", ") or "none"))
 		core.safe_file_write(core.get_worldpath() .. "/plan.txt", g.plan())
 		core.after(3, function()
-			local data, n = worldedit.serialize(A, vector.add(A, vector.subtract(size, 1)))
-			core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".we", data)
+			local data, n
+			if g.compact then
+				-- the compact form (.ovt), for a big one: see orthoverse_adventure
+				local tpl
+				tpl, n = orthoverse.adventure.capture(A, vector.add(A, vector.subtract(size, 1)))
+				data = core.compress(core.serialize(tpl), "zstd")
+				core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".ovt", data)
+			else
+				data, n = worldedit.serialize(A, vector.add(A, vector.subtract(size, 1)))
+				core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".we", data)
+			end
 			local info = table.copy(g.info)
 			core.safe_file_write(core.get_worldpath() .. "/" .. NAME .. ".json", core.write_json(info))
 			say(("saved %d nodes, %d bytes"):format(n, #data))
-			-- For the checks, doors open (the players carry their cards)
+			-- For the checks, doors open (the players carry their cards), and
+			-- what a run changes changed (The Wyrm Below's bridge risen)
 			for _, nm in ipairs(g.open_for_checks or {}) do
 				for _, p in ipairs(core.find_nodes_in_area(A, vector.add(A, vector.subtract(size, 1)), {nm})) do
 					core.remove_node(p)
+				end
+			end
+			for from, to in pairs(g.swap_for_checks or {}) do
+				for _, p in ipairs(core.find_nodes_in_area(A, vector.add(A, vector.subtract(size, 1)), {from})) do
+					core.set_node(p, {name = to})
 				end
 			end
 			check(A, "built")

@@ -1,0 +1,40 @@
+The wyrm (The Wyrm Below's dragon): its model, textures, fire and smoke
+particles and sounds come from Draconis by ElCeejo
+(https://content.luanti.org/packages/ElCeejo/draconis/,
+https://github.com/ElCeejo/draconis), renamed:
+
+  models/orthoverse_monsters_wyrm.b3d          draconis_fire_dragon.b3d
+  textures/orthoverse_monsters_wyrm.png        draconis_fire_dragon_red.png
+  textures/orthoverse_monsters_wyrm_shading.png  draconis_baked_in_shading.png
+  textures/orthoverse_monsters_wyrm_eyes.png   draconis_fire_eyes_orange.png
+  textures/orthoverse_monsters_wyrm_fire.png   draconis_fire_particle.png
+  textures/orthoverse_monsters_wyrm_smoke.png  draconis_smoke_particle.png
+  sounds/orthoverse_monsters_wyrm_roar.1-3.ogg draconis_fire_dragon.1-3.ogg
+  sounds/orthoverse_monsters_wyrm_flap.ogg     draconis_flap.ogg
+  sounds/orthoverse_monsters_wyrm_breath.ogg   draconis_fire_breath.ogg
+  sounds/orthoverse_monsters_wyrm_slam.ogg     draconis_slam.ogg
+  sounds/orthoverse_monsters_wyrm_repel.ogg    draconis_repel.ogg
+
+Its behaviour (orthoverse_monsters/init.lua) is our own.
+
+MIT License
+
+Copyright (c) 2022 ElCeejo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

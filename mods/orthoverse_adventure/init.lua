@@ -132,8 +132,10 @@ local function template_file(key, version)
 	return DIR .. "/" .. key:gsub(":", "_") .. "-v" .. version .. ".dat"
 end
 
-local function save_template(key, def)
-	local p1, p2 = area_of(def)
+-- Every node of an area (p1 to p2, smallest and largest corners): the table
+-- that save_template writes and restore reads, also the compact form of a
+-- ready-made adventure (<name>.ovt)
+local function capture(p1, p2)
 	local vm = VoxelManip()
 	local e1, e2 = vm:read_from_map(p1, p2)
 	local va = VoxelArea(e1, e2)
@@ -180,8 +182,13 @@ local function save_template(key, def)
 		end
 	end
 	local size = vector.subtract(p2, p1)
-	local tpl = {size = {x = size.x, y = size.y, z = size.z}, palette = palette, nodes = nodes, param2 = param2,
-		metas = metas, timers = timers}
+	return {size = {x = size.x, y = size.y, z = size.z}, palette = palette, nodes = nodes, param2 = param2,
+		metas = metas, timers = timers}, n
+end
+
+local function save_template(key, def)
+	local p1, p2 = area_of(def)
+	local tpl, n = capture(p1, p2)
 	local blob = core.compress(core.serialize(tpl), "zstd")
 	local file = template_file(key, def.version + 1)
 	if not core.safe_file_write(file, blob) then return nil, "The dungeon could not be written to " .. file .. "." end
@@ -962,7 +969,9 @@ local function template_names()
 	local out = {}
 	for _, file in ipairs(core.get_dir_list(TEMPLATES_DIR, false) or {}) do
 		local n = file:match("^(.+)%.json$")
-		if n and read_file(TEMPLATES_DIR .. "/" .. n .. ".we") then out[#out + 1] = n end
+		if n and (read_file(TEMPLATES_DIR .. "/" .. n .. ".we") or read_file(TEMPLATES_DIR .. "/" .. n .. ".ovt")) then
+			out[#out + 1] = n
+		end
 	end
 	table.sort(out)
 	return out
@@ -1094,6 +1103,56 @@ local function deserialize_half_turned(p1, size, data)
 	return n
 end
 
+-- A ready-made adventure in the compact form (<name>.ovt: capture's table,
+-- compressed): every node written at once, turned round if asked, then its
+-- metadata and node timers. Returns the number of nodes set, or nil.
+local function place_compact(p1, tpl, turned)
+	local sx, sy, sz = tpl.size.x + 1, tpl.size.y + 1, tpl.size.z + 1
+	local p2 = vector.add(p1, tpl.size)
+	local vm = VoxelManip()
+	local e1, e2 = vm:read_from_map(p1, p2)
+	local va = VoxelArea(e1, e2)
+	local data, p2data = vm:get_data(), vm:get_param2_data()
+	local cids, air = {}, core.get_content_id("air")
+	for i, name in ipairs(tpl.palette) do
+		cids[i] = core.registered_nodes[name] and core.get_content_id(name) or air
+	end
+	local turn = {}   -- palette index -> {param2 -> turned param2}
+	local n = 0
+	for z = 0, sz - 1 do
+		for y = 0, sy - 1 do
+			local row = z * sy * sx + y * sx
+			for x = 0, sx - 1 do
+				local pi = tpl.nodes[row + x + 1]
+				local p2v = tpl.param2[row + x + 1] or 0
+				local tx, tz = x, z
+				if turned then
+					tx, tz = sx - 1 - x, sz - 1 - z
+					local t = turn[pi]
+					if not t then t = {}; turn[pi] = t end
+					local v = t[p2v]
+					if not v then v = half_turn_param2(tpl.palette[pi], p2v); t[p2v] = v end
+					p2v = v
+				end
+				local vi = va:index(p1.x + tx, p1.y + y, p1.z + tz)
+				data[vi] = cids[pi] or air
+				p2data[vi] = p2v
+				if cids[pi] ~= air then n = n + 1 end
+			end
+		end
+	end
+	vm:set_data(data)
+	vm:set_param2_data(p2data)
+	vm:write_to_map(true)
+	local function at(rel)
+		if turned then rel = {x = sx - 1 - rel.x, y = rel.y, z = sz - 1 - rel.z} end
+		return vector.add(p1, rel)
+	end
+	for _, m in ipairs(tpl.metas or {}) do core.get_meta(at(m.p)):from_table(m.m) end
+	for _, t in ipairs(tpl.timers or {}) do core.get_node_timer(at(t.p)):set(t.t, t.e) end
+	return n
+end
+
 -- Place ready-made adventure `tname` with its south-west corner's ground
 -- layer at `at` (the block a player stands on), and make it this land's
 -- adventure (closed, not yet saved). `turned`: half a turn round, so the
@@ -1136,11 +1195,17 @@ end
 local function place_template(tname, at, by, done, turned)
 	local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
 	local data = read_file(TEMPLATES_DIR .. "/" .. tname .. ".we")
-	if type(info) ~= "table" or type(info.size) ~= "table" or not data then
+	local compact
+	if not data then
+		local blob = read_file(TEMPLATES_DIR .. "/" .. tname .. ".ovt")
+		local ok, t = pcall(function() return blob and core.deserialize(core.decompress(blob, "zstd"), true) end)
+		compact = ok and type(t) == "table" and type(t.size) == "table" and t or nil
+	end
+	if type(info) ~= "table" or type(info.size) ~= "table" or not (data or compact) then
 		return done(false, "There is no ready-made adventure called " .. tname .. ".")
 	end
 	if turned then info = half_turn_info(info) end
-	if not (worldedit and worldedit.deserialize) then return done(false, "Placing it needs WorldEdit.") end
+	if data and not (worldedit and worldedit.deserialize) then return done(false, "Placing it needs WorldEdit.") end
 	local p1 = vector.subtract(vector.round(at), vector.new(0, info.ground or 0, 0))
 	local p2 = offset(p1, {x = info.size.x - 1, y = info.size.y - 1, z = info.size.z - 1})
 	local land, key = orthoverse.land_at(p1)
@@ -1174,8 +1239,10 @@ local function place_template(tname, at, by, done, turned)
 		end
 		underpin(p1, p2, ground, dig)
 		local n
-		if turned then n = deserialize_half_turned(p1, info.size, data) else n = worldedit.deserialize(p1, data) end
-		if not n then return done(false, "The file " .. tname .. ".we could not be read.") end
+		if compact then n = place_compact(p1, compact, turned)
+		elseif turned then n = deserialize_half_turned(p1, info.size, data)
+		else n = worldedit.deserialize(p1, data) end
+		if not n then return done(false, "The file " .. tname .. (compact and ".ovt" or ".we") .. " could not be read.") end
 		-- so a castle upgrade or a flip of the land keeps it
 		if orthoverse.note_built then orthoverse.note_built(p1, p2) end
 		-- its ground takes the land's: tarmac on a land of the flipped realm
@@ -1558,6 +1625,7 @@ load_all()
 write_public()
 
 orthoverse.adventure.at = adventure_at
+orthoverse.adventure.capture = capture   -- for tools/adventures: a ready-made adventure in the compact form
 
 -- Nobody but an adventure's builders (and the admin) digs or builds in it: its
 -- area, and for a ready-made one everything it placed (the gate and the

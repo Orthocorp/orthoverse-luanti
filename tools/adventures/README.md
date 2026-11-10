@@ -25,11 +25,11 @@ The game must be installed from this repository, so that its path holds `tools/`
 
 Every door should read `closed` at the start. Each puzzle step should then open its door: the grate with a pebble on the plate, the library with the real lever, the levers at high, low, high, low, and the three ropes.
 
-## The Gullet, The Fallen Star, The Mill and St Morwen's
+## The Gullet, The Fallen Star, The Mill, St Morwen's and The Wyrm Below
 
-`gullet.lua`, `fallen_star.lua`, `mill.lua` and `st_morwens.lua` build them the same way, and `generate_adventure/` is their world mod: setting `orthoverse_generate_adventure` names which (`gullet`, the default, `fallen_star`, `mill` or `st_morwens`). It builds it in the sky, writes `<name>.we`, `<name>.json` and `plan.txt` (a map below the ground), opens its card and blast doors (players carry the cards) and St Morwen's crypt gate and secret floor, and checks with a walk through every place a player can stand:
+`gullet.lua`, `fallen_star.lua`, `mill.lua`, `st_morwens.lua` and `wyrm_below.lua` build them the same way, and `generate_adventure/` is their world mod: setting `orthoverse_generate_adventure` names which (`gullet`, the default, `fallen_star`, `mill`, `st_morwens` or `wyrm_below`). It builds it in the sky, writes `<name>.we` (or `<name>.ovt`, the compact form, for The Wyrm Below), `<name>.json` and `plan.txt` (a map below the ground), opens its card and blast doors (players carry the cards) and St Morwen's crypt gate and secret floor, raises The Wyrm Below's bridge, and checks with a walk through every place a player can stand:
 - that the start leads to every spawner (but turrets on ledges), chest, locker and the finish;
-- that each gated place (the Gullet's temple; the Fallen Star's reactor, armoury and lower passage; the Mill's river; St Morwen's tomb) cannot be reached with its ways in walled off;
+- that each gated place (the Gullet's temple; the Fallen Star's reactor, armoury and lower passage; the Mill's river; St Morwen's tomb; The Wyrm Below's far shore, with the bridge) cannot be reached with its ways in walled off;
 - that the gate can be reached from open ground outside, but not from inside;
 - that nobody climbs out, or up onto the rim's barrier from the land;
 - that every sign hangs on a wall.
@@ -48,3 +48,12 @@ python3 -m json.tool --tab --sort-keys /tmp/gu/world/fallen_star.json > adventur
 Expected: `unreachable: none`, `finish reachable true`, every gated place `(with them: true): false`, `gate reachable from outside: true`, `the rim can be climbed from the land: false`, `entrance reachable from inside: false`, `can climb out: false` and `signs not on a wall: none`.
 
 The ship's textures and sounds, the locker's and the robots' come from `tools/scifi/make_textures.py`; the mill's fittings and its two new monsters' from `tools/props/make_textures.py`; St Morwen's fittings, the zombie, the ghoul and the wight, and their sounds, from `tools/props/make_st_morwens.py`. The checks cannot ride a boat: the Mill's river is checked by its culvert, with the sluice open. Nor climb a ladder: St Morwen's tower (its landings and belfry) is left out of the walk.
+
+The Wyrm Below is big (80 x 80 x 80), so give the generating server room to forceload it (`max_forceloaded_blocks = 400`), and copy `wyrm_below.ovt` instead of a `.we`:
+
+```
+cp /tmp/gu/world/wyrm_below.ovt adventures/
+python3 -m json.tool --tab --sort-keys /tmp/gu/world/wyrm_below.json > adventures/wyrm_below.json
+```
+
+The checks treat lava (anything that burns) as no place to stand. The wyrm's ring and bridge are in `mods/orthoverse_props`, the wyrm, the cutthroat and the deep orc in `mods/orthoverse_monsters`.

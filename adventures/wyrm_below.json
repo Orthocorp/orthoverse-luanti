@@ -1,0 +1,47 @@
+{
+	"arrival": {
+		"x": 40.5,
+		"y": 73,
+		"z": 2.5
+	},
+	"corner1": {
+		"x": 1,
+		"y": 0,
+		"z": 1
+	},
+	"corner2": {
+		"x": 78,
+		"y": 72,
+		"z": 78
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 79,
+				"y": 71,
+				"z": 79
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"ground": 72,
+	"limit": 90,
+	"line": "Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm sleeps on a ring made in the lake of fire. The lake keeps what lies beyond: give the ring back to it.",
+	"name": "The Wyrm Below",
+	"rank_max": 12,
+	"rank_min": 6,
+	"size": {
+		"x": 80,
+		"y": 80,
+		"z": 80
+	},
+	"start": {
+		"x": 40.5,
+		"y": 61,
+		"z": 21.5
+	}
+}

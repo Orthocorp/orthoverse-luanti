@@ -26,6 +26,13 @@
 --   players are near.
 -- * The reliquary: an adventure finish, as the ledger.
 --
+-- And for The Wyrm Below:
+-- * The wyrm's ring, which the wyrm drops: thrown into lava near the
+--   sleeping bridge, it wakes the bridge (lava turns to stone, from where
+--   it fell). Other lava spits it back out.
+-- * The sleeping bridge: lava that does not flow, until then.
+-- * Still lava: the same, for show, never a bridge.
+--
 -- By Keir Finlow-Bates; textures CC BY-SA 3.0.
 
 local S = core.get_translator and core.get_translator("orthoverse_props") or function(s) return s end
@@ -439,3 +446,178 @@ core.register_node("orthoverse_props:reliquary", {
 	on_rightclick = function(pos, node, clicker) finish(pos, clicker) end,
 	on_punch = function(pos, node, puncher) finish(pos, puncher) end,
 })
+
+------------------------------------------------------------------------------
+-- The Wyrm Below: the ring and the bridge
+--
+-- * The wyrm's ring: the wyrm drops it when it dies. Thrown (dropped) into
+--   lava near a sleeping bridge, it is unmade, and the bridge rises out of
+--   the lava, from where the ring fell outward. Into any other lava, the
+--   lava spits it back out onto the nearest ground, so it is never lost.
+-- * The sleeping bridge: lava (it looks and burns like it, and does not
+--   flow), until the ring wakes it; then dark stone. The adventure's restore
+--   after the run makes it lava again.
+
+local RING = "orthoverse_props:wyrm_ring"
+local BRIDGE_LAVA = "orthoverse_props:wyrm_lava"
+local BRIDGE = "orthoverse_props:wyrm_bridge"
+local WAKES_WITHIN = 14     -- blocks from where the ring falls
+local RISE_EVERY = 0.12     -- seconds between each step of the bridge
+
+core.register_craftitem(RING, {
+	description = S("The wyrm's ring") .. "\n" .. S("Heavy, red gold, warm to the touch. Made in the fire below; only that fire unmakes it."),
+	inventory_image = "orthoverse_props_wyrm_ring.png",
+	stack_max = 1,
+	groups = {not_in_creative_inventory = 1},
+	-- thrown a little further than an ordinary drop, to clear the shore
+	on_drop = function(itemstack, dropper, pos)
+		if not (dropper and dropper:is_player()) then return core.item_drop(itemstack, dropper, pos) end
+		local eye = vector.offset(dropper:get_pos(), 0, 1.3, 0)
+		local dir = dropper:get_look_dir()
+		local obj = core.add_item(vector.add(eye, vector.multiply(dir, 0.4)), itemstack:take_item())
+		if obj then
+			obj:set_velocity(vector.add(vector.multiply(dir, 6), {x = 0, y = 2, z = 0}))
+			local e = obj:get_luaentity()
+			if e then e._thrower = dropper:get_player_name() end
+		end
+		return itemstack
+	end,
+})
+
+-- Not a liquid (a liquid source, of whatever kind, is remade by the engine's
+-- flowing): a block that looks, lights and burns like lava, with lava's
+-- surface a little below the top, and that slows like it
+core.register_node(BRIDGE_LAVA, {
+	description = S("Sleeping bridge (lava until the wyrm's ring is thrown in near it)"),
+	drawtype = "nodebox",
+	node_box = {type = "fixed", fixed = {-0.5, -0.5, -0.5, 0.5, 0.375, 0.5}},
+	tiles = {{name = "default_lava_source_animated.png", backface_culling = true,
+		animation = {type = "vertical_frames", aspect_w = 16, aspect_h = 16, length = 3.0}}},
+	use_texture_alpha = "opaque",
+	paramtype = "light",
+	light_source = 13,
+	walkable = false,
+	pointable = false,
+	diggable = false,
+	buildable_to = false,
+	is_ground_content = false,
+	drop = "",
+	drowning = 1,
+	move_resistance = 7,
+	liquid_move_physics = true,
+	damage_per_second = 8,
+	post_effect_color = {a = 191, r = 255, g = 64, b = 0},
+	groups = {lava = 3, igniter = 1},
+})
+
+-- And the same, for show (in a wall, a niche, a crack): never a bridge
+do
+	local def = table.copy(core.registered_nodes[BRIDGE_LAVA])
+	def.description = S("Still lava (looks and burns like lava, does not flow)")
+	core.register_node("orthoverse_props:still_lava", def)
+end
+
+core.register_node(BRIDGE, {
+	description = S("Wyrm's bridge (stone)"),
+	tiles = {"default_obsidian.png^[colorize:#4a1c0a:110"},
+	light_source = 3,
+	groups = {cracky = 1, level = 2},
+	is_ground_content = false,
+	sounds = stone,
+})
+
+-- Wake the bridge round `pos`: lava to stone, nearest first
+local function wake_bridge(pos)
+	local r = vector.new(WAKES_WITHIN, WAKES_WITHIN, WAKES_WITHIN)
+	local found = core.find_nodes_in_area(vector.subtract(pos, r), vector.add(pos, r), {BRIDGE_LAVA})
+	if #found == 0 then return false end
+	table.sort(found, function(a, b) return vector.distance(a, pos) < vector.distance(b, pos) end)
+	core.sound_play("default_cool_lava", {pos = pos, gain = 1, max_hear_distance = 32}, true)
+	-- the bridge can reach further than WAKES_WITHIN: what touches a woken
+	-- block wakes too
+	local seen, queue = {}, {}
+	for _, p in ipairs(found) do seen[core.hash_node_position(p)] = true; queue[#queue + 1] = p end
+	local step = 0
+	local i = 1
+	local function rise()
+		for _ = 1, 3 do
+			local p = queue[i]
+			if not p then return end
+			i = i + 1
+			if core.get_node(p).name == BRIDGE_LAVA then
+				core.set_node(p, {name = BRIDGE})
+				core.add_particlespawner({amount = 6, time = 0.2, pos = vector.offset(p, 0, 0.5, 0), radius = 0.4,
+					vel = {min = {x = -0.3, y = 1, z = -0.3}, max = {x = 0.3, y = 2, z = 0.3}}, exptime = {min = 1, max = 2},
+					size = {min = 3, max = 5}, texture = "default_item_smoke.png"})
+				for _, d in ipairs({{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0}, {0, -1, 0}}) do
+					local q = vector.offset(p, d[1], d[2], d[3])
+					local h = core.hash_node_position(q)
+					if not seen[h] and core.get_node(q).name == BRIDGE_LAVA then seen[h] = true; queue[#queue + 1] = q end
+				end
+			end
+		end
+		step = step + 1
+		if step % 8 == 0 then core.sound_play("default_cool_lava", {pos = queue[i - 1], gain = 0.6, max_hear_distance = 24}, true) end
+		core.after(RISE_EVERY, rise)
+	end
+	rise()
+	return true
+end
+orthoverse.props.wake_bridge = wake_bridge
+
+-- A place round `pos` where something can lie (open, on solid ground that is
+-- not lava): the nearest to `near` (the thrower), or to `pos`
+local function shore(pos, near)
+	local best, bd
+	near = near or pos
+	for _, p in ipairs(core.find_nodes_in_area(vector.offset(pos, -8, -3, -8), vector.offset(pos, 8, 4, 8), {"air"})) do
+		local under = core.registered_nodes[core.get_node(vector.offset(p, 0, -1, 0)).name]
+		if under and under.walkable ~= false and core.get_item_group(under.name or "", "lava") == 0 then
+			local d = vector.distance(p, near)
+			if not bd or d < bd then best, bd = p, d end
+		end
+	end
+	return best
+end
+
+local function ring_in_lava(self)
+	local pos = self.object:get_pos()
+	if not pos then return false end
+	local node = core.get_node(vector.round(pos))
+	if core.get_item_group(node.name, "lava") == 0 then return false end
+	if wake_bridge(pos) then
+		self.object:remove()
+		core.add_particlespawner({amount = 40, time = 0.5, pos = pos, radius = 0.5,
+			vel = {min = {x = -1, y = 2, z = -1}, max = {x = 1, y = 5, z = 1}}, exptime = {min = 0.5, max = 1.2},
+			size = {min = 2, max = 5}, glow = 14, texture = "default_item_smoke.png^[colorize:#ffb030:160"})
+		return true
+	end
+	-- not here: back out, on the thrower's side
+	local thrower = self._thrower and core.get_player_by_name(self._thrower)
+	local to = shore(pos, thrower and thrower:get_pos())
+	if to then
+		self.object:set_pos(vector.offset(to, 0, 0.3, 0))
+		self.object:set_velocity({x = 0, y = 2, z = 0})
+		core.sound_play("default_cool_lava", {pos = pos, gain = 0.5, pitch = 1.4, max_hear_distance = 16}, true)
+		for _, p in ipairs(core.get_objects_inside_radius(pos, 16)) do
+			if p:is_player() then core.chat_send_player(p:get_player_name(), S("The lava spits the ring back out.")) end
+		end
+	end
+	return true
+end
+
+core.register_on_mods_loaded(function()
+	local item = core.registered_entities["__builtin:item"]
+	if not item then return end
+	local step = item.on_step
+	item.on_step = function(self, dtime, ...)
+		if self.itemstring and self.itemstring:sub(1, #RING) == RING then
+			self._ring_t = (self._ring_t or 0) + dtime
+			if self._ring_t > 0.1 then
+				self._ring_t = 0
+				if ring_in_lava(self) then return end
+			end
+		end
+		return step(self, dtime, ...)
+	end
+end)

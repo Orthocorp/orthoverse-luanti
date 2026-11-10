@@ -2,7 +2,7 @@
 
 Each adventure here is two files:
 
-- `<name>.we`: its buildings, as a WorldEdit file.
+- `<name>.we`: its buildings, as a WorldEdit file; or, for a big one, `<name>.ovt`: every block of it in the compact form the game also keeps saved dungeons in (The Wyrm Below's 512,000 blocks are 46 KB this way, and go in with one fast write instead of minutes of WorldEdit).
 - `<name>.json`: where things are in it. This covers its size, the ground layer, the underground parts to dig out, the dungeon area's corners, the start, the arrival, the name, the one-line description and the time limit.
 
 The server image copies this folder into the game, so after a `git pull` and `docker compose up -d --build luanti` the admin can place one with `/adventure place`.
@@ -25,7 +25,7 @@ The adventure is left **closed and unsaved**. Look round, change what you like, 
 
 Placing is for the admin only, because it changes a large area at once.
 
-The file also works with plain WorldEdit (`//load three-bells` after copying it to the world's `schems/` folder), but then nothing is cleared or set up for you.
+A `.we` file also works with plain WorldEdit (`//load three-bells` after copying it to the world's `schems/` folder), but then nothing is cleared or set up for you.
 
 ## The Three Bells
 
@@ -159,3 +159,18 @@ The bell of St Morwen's has not rung in forty years, and the dead there do not l
 The new monsters: the **zombie** (level 4, 30 health, slow; a blow that lands is a grab, and for a moment you can hardly move), the **ghoul** (level 5, quick, in packs; one blow in three numbs, half speed for two seconds) and the **wight** (level 8). Skeletons count as undead too.
 
 Everything is put back after each run: the gate locked, the floor shut, the fonts full.
+
+## The Wyrm Below
+
+Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm sleeps on a ring made in the lake of fire. The lake keeps what lies beyond: give the ring back to it. For ranks 6 to 12, a party of two to six, 90 minutes. It is 80 blocks by 80 and goes 72 blocks down: stand at the land's south-west corner (it needs 80 x 80 of the land). Placing it clears the land above it and digs out everything under it. It has one sign, the title at the gate: the rest is told by the place.
+
+- **Karn Dolm** (outside, at the south end, or the north with `north`): a ruined hold, its old stair under a steel grate, the gate, the board and the title.
+- **The upper halls** (12 blocks down), built of cobble: the stair hall where the run starts (its stair up has fallen in), the pillared hall (goblins and an orc), the guard room to the west (goblins and a cutthroat, a common chest) and the barracks to the east (cutthroats and goblins, a weapon chest). Each has its own way to the landing, and the stair goes down from there.
+- **The delvings** (25 down), the mine: the long gallery under its timbers, the mess (orcs, a common chest), the ore chamber with mese in its walls (deep orcs, a weapon chest) and the forge (a deep orc and cutthroats), whose back wall has fallen into the caves.
+- **The caves**, winding down and down by torchlight: the goblin camp (goblins and cutthroats, a common chest, and its store in a dead end off it, a weapon chest), the orc post behind its barricade (deep orcs and orcs), and the wyrm's own guard of deep orcs before the lair.
+- **The lair** (68 down): a great cavern of rock pillars and pools of fire, the hoard (two chests in it), and **the wyrm** asleep on it. It wakes when someone comes within 16 blocks, or strikes it. On the ground it walks at the nearest, slams the ground in front of it (a wind-up, then a blow all round that spot) and beats its wings to throw back two or more close by, or one under it: this is when it can be struck. Then it takes off and hovers out of reach, breathing fireballs in threes (each after a wind-up; they fly straight, so step behind a pillar, or strike one down), and lands again near its target. Below a third of its health it is enraged: shorter turns, quicker fire. It is never knocked back, and keeps to its lair. 420 health, armour class 16. When it dies it drops **the ring**.
+- **The hall of fire**, east of the lair: a lake of lava from wall to wall, the stubs of a bridge on either shore. Throw the ring (drop it) into the lake near the old bridge and the bridge rises from the lava, from where the ring fell outward; into any other lava, it is spat back out at the thrower's feet, so it is never lost. Across, on a dais, the **finish**, with the finish chest. Swimming the lake is death.
+
+The new monsters: the **goblin cutthroat** (level 6, quick, in packs; one blow in three stings and slows you for two seconds), the **deep orc** (level 8, 48 health, armour class 16, a war hammer) and **the wyrm** (level 12). Its model, skin and sounds are Draconis's fire dragon by ElCeejo (MIT; `mods/orthoverse_monsters/LICENSE-wyrm.txt`); what it does is ours.
+
+Everything is put back after each run: the bridge sleeping again, the ring with the wyrm.
