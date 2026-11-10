@@ -23,7 +23,8 @@
 -- make it easier after a record), written to <world>/orthoverse_adventures/
 -- for the website, with the saved dungeons.
 --
--- /adventure (no arguments) explains the commands.
+-- /adventure (no arguments) explains the commands. Anyone can travel to an
+-- open adventure's entrance: /adventure go <name> (on its own, the list).
 
 local C = orthoverse.coords
 local storage = core.get_mod_storage()
@@ -41,6 +42,8 @@ local GUARD_EVERY = 1       -- seconds between checks of who is where
 
 local adventures = {}       -- land key -> definition (persisted in mod storage)
 local runs = {}             -- land key -> the run in progress
+-- Who may go in: character rank (orthoverse_rank), set by the builder
+local RANK_MIN_DEFAULT, RANK_MAX_DEFAULT = 1, 5
 local restocking = {}       -- land key -> true while the area is being restored
 local templates = {}        -- land key -> the saved dungeon, loaded
 
@@ -305,6 +308,7 @@ local function write_public()
 		end
 		list[#list + 1] = {key = key, land = land and land.name, name = def.name, line = def.line,
 			open = def.open == true, version = def.version, limit = def.limit, completions = #vrec,
+			rank_min = def.rank_min or RANK_MIN_DEFAULT, rank_max = def.rank_max or RANK_MAX_DEFAULT,
 			first = vrec[1], best = best, records = vrec}
 	end
 	table.sort(list, function(a, b) return (a.name or "") < (b.name or "") end)
@@ -345,8 +349,6 @@ end
 
 local function now() return os.time() end
 
--- Who may go in: character rank (orthoverse_rank), set by the builder
-local RANK_MIN_DEFAULT, RANK_MAX_DEFAULT = 1, 5
 -- Dying in a run keeps a player out of that adventure for a while: 10
 -- minutes, doubling with each further death there within 4 hours, at most an
 -- hour; it all clears the next day. Nothing else is lost.
@@ -1205,9 +1207,89 @@ local function place_template(tname, at, by, done, turned)
 end
 
 ------------------------------------------------------------------------------
+-- Going to an adventure: anyone, to the entrance (the arrival point) of an
+-- open one, outside the gate. Not during a run; once every GO_EVERY seconds.
+
+local GO_EVERY = 30
+local went = {}   -- name -> when they last went
+
+-- A name to match against: lower case, letters and digits only ("St
+-- Morwen's" and "st morwens" match)
+local function plain(s) return (s or ""):lower():gsub("[^%w]", "") end
+
+local function ranks_of(def)
+	return ("ranks %d to %d"):format(def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT)
+end
+
+local function go(name, player, rest)
+	local open = {}
+	for key, def in pairs(adventures) do
+		if def.open and def.arrival then open[#open + 1] = {key = key, def = def} end
+	end
+	table.sort(open, function(a, b) return (a.def.name or "") < (b.def.name or "") end)
+	if rest == "" then
+		if #open == 0 then return true, "No adventures are open yet." end
+		local names = {}
+		for i, a in ipairs(open) do names[i] = a.def.name .. " (" .. ranks_of(a.def) .. ")" end
+		return true, "Open adventures: " .. table.concat(names, ", ") .. ". To go to one: /adventure go <name>"
+	end
+	for _, run in pairs(runs) do
+		if run.members[name] then return false, "Not during a run: /adventure leave first." end
+	end
+	if player:get_hp() <= 0 then return false, "Not while you are dead." end
+	local want = plain(rest)
+	if want == "" then return false, "Which adventure? /adventure go <name>" end
+	local exact, part = {}, {}
+	for _, a in ipairs(open) do
+		local n, land = plain(a.def.name), orthoverse.lands[a.key]
+		if n == want or a.key == rest then exact[#exact + 1] = a
+		elseif n:find(want, 1, true) or (land and plain(land.name) == want) then part[#part + 1] = a end
+	end
+	local found = #exact > 0 and exact or part
+	if #found == 0 then
+		return false, "No open adventure called \"" .. rest .. "\". /adventure go on its own lists them."
+	end
+	if #found > 1 then
+		local names = {}
+		for i, a in ipairs(found) do names[i] = a.def.name end
+		return false, "Which one? " .. table.concat(names, ", ")
+	end
+	local t = now()
+	if went[name] and t - went[name] < GO_EVERY and not is_admin(name) then
+		return false, ("Wait %d seconds before going again."):format(GO_EVERY - (t - went[name]))
+	end
+	went[name] = t
+	local key, def = found[1].key, found[1].def
+	local at = vec(def.arrival)
+	core.emerge_area(vector.subtract(at, 16), vector.add(at, 16), function(_, _, remaining)
+		if remaining > 0 then return end
+		local p = core.get_player_by_name(name)
+		if not p or p:get_hp() <= 0 then return end
+		for _, run in pairs(runs) do
+			if run.members[name] then return end   -- went through a gate meanwhile
+		end
+		p:set_pos(at)
+		if def.start then
+			local d = vector.subtract(vec(def.start), at)
+			p:set_look_horizontal(math.atan2(-d.x, d.z))
+		end
+		local land = orthoverse.lands[key]
+		core.chat_send_player(name, ("Welcome to %s%s: %s. %s Right-click the gate to go in."):format(def.name,
+			land and (", on " .. land.name) or "", ranks_of(def), def.line or ""))
+	end)
+	core.log("action", ("[orthoverse_adventure] %s goes to %s (%s)"):format(name, def.name, key))
+	return true, "Going to " .. def.name .. "..."
+end
+
+core.register_on_leaveplayer(function(player) went[player:get_player_name()] = nil end)
+
+------------------------------------------------------------------------------
 -- The command
 
 local HELP = table.concat({
+	"To go to an open adventure's entrance: /adventure go <name>. On its own,",
+	"/adventure go lists the open adventures.",
+	"",
 	"To give up a run: /adventure leave (it takes you back to the entrance).",
 	"",
 	"How an adventure works: players gather at the entrance, outside your dungeon. They",
@@ -1273,7 +1355,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[leave | place <name> [north] | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
+	params = "[go [<name>] | leave | place <name> [north] | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -1304,6 +1386,7 @@ core.register_chatcommand("adventure", {
 			end
 			return false, "You are not in an adventure."
 		end
+		if cmd == "go" then return go(name, player, rest) end
 		if cmd == "status" then
 			if not def then return false, "This land has no adventure." end
 			return true, status(key, def)

@@ -38,6 +38,9 @@
   th { color: var(--quiet); font-weight: normal; }
   td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
   .none { margin-top: 32px; }
+  .go { margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
+  .go code { font-family: "Midnight", monospace; color: var(--gold); background: var(--night); padding: 2px 6px;
+    border: 1px solid var(--line); user-select: all; }
   @media (max-width: 640px) { th.when, td.when { display: none; } }
 </style>
 </head>
@@ -81,6 +84,7 @@
     const facts = el('div', { class: 'facts' },
       el('span', {}, 'Completed ', el('b', {}, String(a.completions)), a.completions === 1 ? ' time' : ' times'),
       a.first ? el('span', {}, 'First to complete: ', el('b', {}, a.first.names.join(', '))) : el('span', {}, 'Nobody has completed it yet'),
+      a.rank_min ? el('span', {}, 'Ranks ', el('b', {}, a.rank_min + ' to ' + a.rank_max)) : null,
       el('span', {}, 'Time limit ', el('b', {}, (a.limit || 60) + ' minutes')),
       el('span', {}, 'Version ', el('b', {}, String(a.version))));
     return el('article', { class: 'adv', id: 'a-' + a.key.replace(':', '_') },
@@ -88,6 +92,7 @@
       el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
       a.line ? el('div', { class: 'line' }, a.line) : null,
       facts,
+      a.open ? el('div', { class: 'go' }, 'To go there in the game, type ', el('code', {}, '/adventure go ' + (a.name || a.key))) : null,
       rows.length ? el('table', {},
         el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
         el('tbody', {}, ...rows)) : null);
