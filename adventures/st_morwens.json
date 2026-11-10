@@ -1,0 +1,47 @@
+{
+	"arrival": {
+		"x": 48.5,
+		"y": 12,
+		"z": 5.5
+	},
+	"corner1": {
+		"x": 2,
+		"y": 0,
+		"z": 11
+	},
+	"corner2": {
+		"x": 93,
+		"y": 45,
+		"z": 93
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 72,
+				"y": 10,
+				"z": 90
+			},
+			"min": {
+				"x": 22,
+				"y": 0,
+				"z": 40
+			}
+		}
+	],
+	"ground": 11,
+	"limit": 75,
+	"line": "The bell of St Morwen's has not rung in forty years. The dead there do not lie still.",
+	"name": "St Morwen's",
+	"rank_max": 8,
+	"rank_min": 4,
+	"size": {
+		"x": 96,
+		"y": 46,
+		"z": 96
+	},
+	"start": {
+		"x": 48.5,
+		"y": 12,
+		"z": 13.5
+	}
+}

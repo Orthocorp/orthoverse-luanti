@@ -342,7 +342,8 @@ end)
 -- is a crawl, as slow as sneaking: so a fighter cannot keep stepping back
 -- out of reach and then dart in to strike. Walking forward or sideways is
 -- as ever. Draughts of swiftness (orthoverse_loot) speed it all up for a
--- while: orthoverse.combat.boost(player, multiplier, seconds).
+-- while: orthoverse.combat.boost(player, multiplier, seconds). Some monsters
+-- hold a player back for a moment: orthoverse.combat.hamper(player, ...).
 -- (speed_walk only: the beds' `speed` override is left alone.)
 
 local BACK_ARMED = 0.6      -- of walking speed: 2.4 blocks a second
@@ -353,6 +354,16 @@ local applied = {}          -- name -> the speed_walk last set
 
 function orthoverse.combat.boost(player, mult, secs)
 	boosts[player:get_player_name()] = {mult = mult, till = now() + secs}
+end
+
+-- Held back for a while (a zombie's grab, a ghoul's numbing claws): the
+-- slowest of those still holding counts
+local hampers = {}          -- name -> {mult, till}
+function orthoverse.combat.hamper(player, mult, secs)
+	local name = player:get_player_name()
+	local cur, till = hampers[name], now() + secs
+	if cur and cur.till > now() and cur.mult <= mult then return end
+	hampers[name] = {mult = mult, till = till}
 end
 
 core.register_globalstep(function()
@@ -370,7 +381,9 @@ core.register_globalstep(function()
 			b = nil
 			core.chat_send_player(name, "Your swiftness wears off.")
 		end
-		local speed = factor * (b and b.mult or 1)
+		local hm = hampers[name]
+		if hm and t > hm.till then hampers[name] = nil; hm = nil end
+		local speed = factor * (b and b.mult or 1) * (hm and hm.mult or 1)
 		if applied[name] ~= speed then
 			applied[name] = speed
 			player:set_physics_override({speed_walk = speed})

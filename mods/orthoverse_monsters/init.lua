@@ -3,6 +3,8 @@
 -- Classic D&D: kobolds, goblins, orcs, skeletons, plus three from
 -- esp32-s3-minetest (mosslings, hexers, wisps). All but the wisp are skins on
 -- Luanti's character model, painted by tools/monsters/make_monster_skins.py.
+-- The adventures add their own: the Mill's, the Fallen Star's robots, and St
+-- Morwen's undead (zombies, ghouls, the wight; tools/props/make_st_morwens.py).
 --
 -- Monsters only exist in adventures: none spawn in the world by themselves.
 -- A builder places Monster spawners (Creative tab) and sets what each brings;
@@ -108,6 +110,7 @@ local function finish_windup(self)
 	if target:is_player() then
 		target:add_velocity({x = dir.x * 1.5, y = 1, z = dir.z * 1.5})
 	end
+	if self._on_hit then self._on_hit(self, target, dir) end
 end
 
 ------------------------------------------------------------------------------
@@ -156,6 +159,66 @@ local function struck_by(self, a)
 end
 
 ------------------------------------------------------------------------------
+-- The undead (skeletons, zombies, ghouls, the wight): holy water on a
+-- fighter (orthoverse_props' font) makes their blows hurt the undead more;
+-- a church bell stuns them; they cannot set foot on consecrated ground
+-- (group orthoverse_consecrated).
+
+local HOLY_BONUS = 3
+local blessings = {}   -- name -> until
+
+function orthoverse.monsters.bless(player, secs)
+	blessings[player:get_player_name()] = now() + secs
+end
+
+function orthoverse.monsters.blessed(player)
+	if not player.get_player_name then return false end
+	local till = blessings[player:get_player_name()]
+	return till ~= nil and now() < till
+end
+
+core.register_on_leaveplayer(function(player) blessings[player:get_player_name()] = nil end)
+
+-- Every undead within `radius` of `pos` stands stunned for `secs`
+function orthoverse.monsters.stun_undead(pos, radius, secs)
+	local n = 0
+	for _, obj in ipairs(core.get_objects_inside_radius(pos, radius)) do
+		local e = obj:get_luaentity()
+		if e and e._undead and e.state ~= "die" then
+			e._windup = nil
+			e.pause_timer = secs
+			obj:set_velocity({x = 0, y = 0, z = 0})
+			label(e, S("stunned"), "#b8d8ff")
+			n = n + 1
+		end
+	end
+	return n
+end
+
+-- Keeping the undead off consecrated ground: back to the last place they
+-- stood that was not
+local function hallowed(self)
+	local pos = self.object:get_pos()
+	if not pos then return end
+	local cb = self.object:get_properties().collisionbox
+	local below = core.get_node({x = pos.x, y = pos.y + cb[2] - 0.7, z = pos.z}).name
+	if core.get_item_group(below, "orthoverse_consecrated") > 0 then
+		local back = self._unhallowed or vector.offset(pos, 0, 0, -1)
+		self.object:set_pos(back)
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		self._windup = nil
+		if not self._hiss or now() > self._hiss then
+			self._hiss = now() + 2
+			core.add_particlespawner({amount = 8, time = 0.2, pos = vector.offset(back, 0, 0.3, 0), radius = 0.3,
+				vel = {min = {x = -0.5, y = 1, z = -0.5}, max = {x = 0.5, y = 2, z = 0.5}}, exptime = {min = 0.5, max = 1},
+				size = {min = 1, max = 2}, texture = "orthoverse_props_fog.png"})
+		end
+	else
+		self._unhallowed = pos
+	end
+end
+
+------------------------------------------------------------------------------
 -- Blows from orthoverse_combat
 
 local function on_blow(self, blow)
@@ -163,6 +226,17 @@ local function on_blow(self, blow)
 	if blow.result == "miss" then
 		label(self, blow.text, "#a09a90")
 		return
+	end
+	-- Holy water on the striker: the undead take more
+	if self._undead and blow.attacker and orthoverse.monsters.blessed(blow.attacker) then
+		blow.damage = blow.damage + HOLY_BONUS
+		blow.text = (blow.text or "") .. " +" .. HOLY_BONUS .. " holy"
+		local pos = self.object:get_pos()
+		if pos then
+			core.add_particlespawner({amount = 10, time = 0.15, pos = vector.offset(pos, 0, 1, 0), radius = 0.3,
+				vel = {min = {x = -1, y = 0.5, z = -1}, max = {x = 1, y = 2, z = 1}}, exptime = {min = 0.3, max = 0.7},
+				size = {min = 1, max = 2}, texture = "orthoverse_props_holy_water.png^[colorize:#ffffff:120", glow = 14})
+		end
 	end
 	self.health = self.health - blow.damage
 	if self._on_struck then self._on_struck(self, blow) end
@@ -239,6 +313,10 @@ local function monster(id, def)
 		do_custom = function(self, dtime)
 			local t = now()
 			if self._windup and t >= self._windup then finish_windup(self) end
+			if def.undead then
+				self._hal = (self._hal or 0) + dtime
+				if self._hal > 0.2 then self._hal = 0; hallowed(self) end
+			end
 			if self._label_until and t > self._label_until then
 				self._label_until = nil
 				self.object:set_properties({nametag = ""})
@@ -265,6 +343,8 @@ local function monster(id, def)
 	ent._orthoverse_target = {ac = def.ac or 10}
 	ent._on_blow = on_blow
 	ent._on_struck = def.on_struck
+	ent._on_hit = def.on_hit
+	ent._undead = def.undead
 	ent._windup_time = def.windup
 	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
 	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc}
@@ -298,8 +378,84 @@ monster("warlord", {
 })
 monster("skeleton", {
 	desc = S("Skeleton"), level = 3, xp = 75, size = 1.0, hp = 18, ac = 13, damage = 4, windup = 0.5, interval = 1.5,
-	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword_bronze_carried", alpha = true,
+	walk = 1.3, run = 2.8, weapon = "orthoverse_combat:short_sword_bronze_carried", alpha = true, undead = true,
 	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 12},
+})
+-- St Morwen's undead.
+--
+-- The zombie: slow and hard to put down. A blow that lands is a grab: for a
+-- moment the player can hardly move.
+local function hamper(player, mult, secs, text)
+	if not player:is_player() then return end
+	if orthoverse.combat and orthoverse.combat.hamper then orthoverse.combat.hamper(player, mult, secs) end
+	if text then core.chat_send_player(player:get_player_name(), text) end
+end
+
+monster("zombie", {
+	desc = S("Zombie"), level = 4, xp = 90, size = 1.0, hp = 30, ac = 10, damage = 4, windup = 0.75, interval = 1.9,
+	walk = 0.7, run = 1.7, reach = 2.0, undead = true,
+	sounds = {random = "orthoverse_monsters_zombie_groan", damage = "default_dig_crumbly", death = "orthoverse_monsters_zombie_groan",
+		distance = 14},
+	on_hit = function(self, target)
+		hamper(target, 0.15, 0.8, S("The zombie's hands close on you."))
+	end,
+})
+
+-- The ghoul: quick, in packs, and its claws numb: half speed for two
+-- seconds, one blow in three.
+monster("ghoul", {
+	desc = S("Ghoul"), level = 5, xp = 110, size = 0.95, hp = 22, ac = 13, damage = 3, windup = 0.35, interval = 1.1,
+	walk = 1.9, run = 4.0, reach = 1.9, undead = true,
+	sounds = {random = "orthoverse_monsters_ghoul_screech", attack = "orthoverse_monsters_ghoul_screech",
+		damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_monsters_ghoul_screech", distance = 16},
+	on_hit = function(self, target)
+		if math.random(3) == 1 then hamper(target, 0.5, 2, S("A ghoul's claws: your limbs go numb.")) end
+	end,
+})
+
+-- The wight: St Morwen's dead lord, the boss. Its blows drink life, which
+-- heals it; at half its health it calls up two skeletons, once.
+local WIGHT_HP = 90
+monster("wight", {
+	desc = S("The Wight"), level = 8, xp = 500, size = 1.2, hp = WIGHT_HP, ac = 15, damage = 7, windup = 0.8,
+	interval = 2.0, walk = 1.3, run = 3.0, weapon = "orthoverse_combat:broadsword_bronze_carried", reach = 2.6,
+	view_range = 20, glow = 4, undead = true,
+	sounds = {random = "orthoverse_monsters_wight_breath", damage = "default_dig_cracky",
+		death = "orthoverse_monsters_wight_breath", distance = 24},
+	on_hit = function(self, target)
+		self.health = math.min(WIGHT_HP, self.health + self.damage)
+		local pos = target:get_pos()
+		if pos then
+			core.add_particlespawner({amount = 12, time = 0.3, pos = vector.offset(pos, 0, 1, 0), radius = 0.3,
+				attract = {kind = "point", strength = 2, origin_attached = self.object, origin = {x = 0, y = 1.5, z = 0}},
+				exptime = {min = 0.5, max = 0.9}, size = {min = 1, max = 2},
+				texture = "orthoverse_props_fog.png^[colorize:#8fd0ff:160", glow = 10})
+		end
+		if target:is_player() then core.chat_send_player(target:get_player_name(), S("The wight drinks your life.")) end
+	end,
+	on_struck = function(self)
+		if self._called or self.health > WIGHT_HP / 2 then return end
+		self._called = true
+		local pos = self.object:get_pos()
+		if not pos then return end
+		core.sound_play("orthoverse_monsters_wight_breath", {pos = pos, gain = 1, pitch = 0.7, max_hear_distance = 32}, true)
+		for _, d in ipairs({{2, 0}, {-2, 0}, {0, 2}, {0, -2}}) do
+			local p = vector.offset(pos, d[1], 0.5, d[2])
+			local n = core.registered_nodes[core.get_node(p).name]
+			if n and not n.walkable and (self._calls or 0) < 2 then
+				local obj = core.add_entity(p, "orthoverse_monsters:skeleton")
+				local e = obj and obj:get_luaentity()
+				if e then
+					e._adventure, e._run, e._free = self._adventure, self._run, self._free
+					self._calls = (self._calls or 0) + 1
+					core.add_particlespawner({amount = 14, time = 0.3, pos = p, radius = 0.4,
+						vel = {min = {x = -0.5, y = 0.5, z = -0.5}, max = {x = 0.5, y = 2, z = 0.5}},
+						exptime = {min = 0.5, max = 1.2}, size = {min = 2, max = 4}, texture = "orthoverse_props_fog.png"})
+				end
+			end
+		end
+		label(self, S("The wight calls its guard!"), "#8fd0ff")
+	end,
 })
 monster("mossling", {
 	desc = S("Mossling"), level = 1, xp = 25, size = 0.55, hp = 10, ac = 11, damage = 2, windup = 0.4, interval = 1.5,
@@ -1020,7 +1176,7 @@ end)
 -- Admin: /monster <kind> brings one in front of you, to look at or fight
 
 core.register_chatcommand("monster", {
-	params = "<kobold|goblin|orc|warlord|skeleton|mossling|hexer|wisp>",
+	params = "<kind, e.g. goblin, skeleton, zombie, ghoul, wight>",
 	description = "Bring a monster in front of you (admin)",
 	privs = {server = true},
 	func = function(name, param)

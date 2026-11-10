@@ -140,3 +140,22 @@ Lights in the old mill at night, and screams; the miller vanished last spring. A
 - **The smugglers' hall**: 3 kobolds and 3 goblins among the contraband, a common and a weapon chest, and the **Ringmaster's office**: the Ringmaster (a hexer in a red coat, 45 health), 2 goblin bodyguards, the miller in chains, and the **ledger** on the desk, the finish, with the finish chest.
 - **The shortcut**: three windlasses, one by the waterwheel, one in the miller's rooms, one in the cellar. Wind all three and the cellar's sluice gate rises on a dry culvert that runs down to the hall.
 
+
+## St Morwen's
+
+The bell of St Morwen's has not rung in forty years, and the dead there do not lie still. An undead adventure for ranks 4 to 8, a party of one to four. It is 96 blocks by 96 (a land of 6 x 6 tiles): stand at the land's south-west corner. The churchyard is on the ground, the church's tower rises 31 blocks over it, and the crypt is eight blocks below. Placing it clears the land above it and digs out only the crypt's part of the ground.
+
+- **The crossroads** (outside, at the south end, or the north with `north`): the road, an empty gibbet with the title sign, the gate and the board.
+- **The haunted forest**, inside a thorn hedge three blocks high (nobody climbs in or out): dead trees and dark pines, low fog, 2 wisp pairs and 3 ghoul packs, a common chest. The run starts on the path north from the gate.
+- **The churchyard**, walled in brick, through the lych gate: the path between lamp posts, rows of graves (four of them open in the night: zombies rise), skeletons by the tower, two mausoleums (a common chest in the north-east one).
+- **The church**: white walls, a dark roof, the tower over the door. The church is **consecrated**: the undead cannot set foot in it, so it is a safe place to stand and get your breath. In the nave, the pews, the altar and two **fonts**: holy water, three flasks a player a run; drunk, it blesses for a minute, and every blow that lands on one of the undead does 3 more. The side chapel (a common chest); the sacristy (a weapon chest, the sexton's note, and the stair down to the crypt).
+- **The tower**: ladders up to two landings (2 skeletons on each) and the belfry, and the **great bell**. Ring it (right-click or punch) and every one of the undead within 32 blocks stands stunned for 4 seconds (once every 20 seconds); the first ring of a run opens the **crypt gate** at the foot of the sacristy stair.
+- **The ossuary**, past the gate: walls of bones, 5 skeletons, a common chest.
+- **The catacombs**: narrow ways, bones and coffins in the niches, 3 zombie pairs and a ghoul pair, two common chests and a weapon chest in the niches.
+- **The flooded vault**: wade it (3 zombies on its ledge).
+- **The wight's tomb**: 3 skeleton guards, and **the wight** (90 health): its blows drink life, which heals it, and at half its health it calls up two more skeletons. The **reliquary** of St Morwen, on the altar, is the finish, with the finish chest.
+- **The secret way**: in the north-west mausoleum (a torch burns by the sarcophagus), a loose brick in the east wall slides the floor aside on a stair down to the flooded vault, without the bell.
+
+The new monsters: the **zombie** (level 4, 30 health, slow; a blow that lands is a grab, and for a moment you can hardly move), the **ghoul** (level 5, quick, in packs; one blow in three numbs, half speed for two seconds) and the **wight** (level 8). Skeletons count as undead too.
+
+Everything is put back after each run: the gate locked, the floor shut, the fonts full.
