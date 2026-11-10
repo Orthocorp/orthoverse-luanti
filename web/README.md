@@ -85,7 +85,8 @@ replays the contract's TransferSingle and TransferBatch events and reads every
 in the lands file). A land held by anyone else is "not held by a player here", and nobody
 can build on it. A sale moves building rights within 10 minutes, and a wallet's
 lands are looked up at once when it signs in. If the endpoint is down, the last
-good list is kept. Check it with `curl -s http://127.0.0.1:8485/auth/status`.
+good list is kept. Check it with `./status.sh` on the server (the status page
+answers only there, not through Cloudflare).
 
 The auth service writes `registry.json` (names and wallets) and `owners.json` to
 `OV_DATA/auth/`, which the game server reads (read-only) as
@@ -193,7 +194,7 @@ OpenSea to refresh those. Without a key it asks nothing.
   in a row pause it for an hour; a refused key pauses it for six hours. The
   queue is kept in `OV_DATA/auth/opensea.json` (never the key), so a restart
   loses nothing.
-- `curl -s http://127.0.0.1:8485/auth/status` shows how it is doing: the last
+- `./status.sh` (on the server) shows how it is doing: the last
   run, how many are waiting, how many refreshed, any pause and why, and the
   limits OpenSea last reported.
 

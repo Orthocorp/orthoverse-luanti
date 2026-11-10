@@ -125,8 +125,10 @@ fast with J and noclip with H.
   kept: it signs everyone's sign-ins, so changing it signs everyone out (they
   sign in again; game passwords are made fresh for each entry, so nothing else
   is lost).
-- `curl -s http://127.0.0.1:8485/auth/status` shows how many players are signed
-  up, when land ownership was last read, and any error reading it.
+- `./status.sh` (in the repository folder, on the server) shows how many players
+  are signed up, when land ownership was last read and any error reading it, and
+  how the OpenSea refresh is doing. The page answers only on the server: through
+  Cloudflare (`orthoverse.land/auth/status`) it is not there.
 - `docker compose logs auth` shows sign-ins, new names and each ownership update:
   `owners updated: N lands held by W player wallets; M of 1943 held as the chain
   index says`. M should be nearly all of them (before the chain service's first
