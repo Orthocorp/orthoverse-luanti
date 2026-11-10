@@ -322,15 +322,20 @@ core.register_globalstep(function()
 		local w = by_item[player:get_wielded_item():get_name()]
 		local down = player:get_player_control().dig
 		local h = holding[name]
+		local wield = orthoverse.wield
 		if h and h.w ~= w then
 			-- weapon changed while winding up: no blow
 			holding[name] = nil
 			h = nil
+			if wield then wield.pose(player, nil) end
 		end
 		if w and down and not h then
 			holding[name] = {t0 = t, w = w}
+			-- others see the arm raised (orthoverse_wield)
+			if wield then wield.pose(player, "windup", w.kind) end
 		elseif h and not down then
 			holding[name] = nil
+			if wield then wield.pose(player, "strike", h.w.kind) end
 			strike(player, h.w, t - h.t0)
 		end
 	end
