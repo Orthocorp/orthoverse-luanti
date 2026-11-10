@@ -22,6 +22,7 @@
   --btn-go: #3f7d26;     /* green: go to a page, or any action that spends nothing */
   --btn-info: #16837b;   /* teal: show information */
   --btn-spend: #b4532a;  /* terracotta: spends ETH */
+  --btn-undo: #6a4f9c;   /* violet: undo, go back to what was saved */
   --body-font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -35,6 +36,7 @@
   box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
 .ov-btn.info { background: var(--btn-info); }
 .ov-btn.spend { background: var(--btn-spend); }
+.ov-btn.undo { background: var(--btn-undo); }
 .ov-btn.chosen { outline: 3px solid var(--gold); outline-offset: 2px; }
 .ov-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .ov-btn:active:not(:disabled) { box-shadow: inset -4px -4px 0 rgba(255, 255, 255, 0.25), inset 4px 4px 0 rgba(0, 0, 0, 0.35); }
