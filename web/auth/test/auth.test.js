@@ -254,6 +254,30 @@ try {
 	r = await call('POST', '/auth/visit', { x: 999999, z: 0 });
 	check(r.status === 400, 'a spot outside the world is refused');
 
+	// The skin: a design, painted here; crowns from castle level 7 (Alice has one now)
+	r = await call('GET', '/auth/skin');
+	check(r.status === 200 && r.body.design === null && r.body.level === 7, `skin: none yet; castle level 7 (${r.body.level})`);
+	const look = { skin: '#d49e7a', eyes: 'large', eye: '#64c5ce', hair: 2, hairc: '#bc3b15', beard: 0, beardc: '#000000',
+		top: 3, topc: '#2e6b2a', pants: 1, pantsc: '#4d311f', boots: 2, bootsc: '#222222', acc: [13, 0] };
+	r = await call('POST', '/auth/skin', { design: look });
+	check(r.status === 200 && /^[0-9a-f]{16}$/.test(r.body.hash) && r.body.design.acc.join() === '0,13',
+		'skin saved, a gold crown and armbands, tidied');
+	{
+		const { PNG } = await import('pngjs');
+		const png = PNG.sync.read(readFileSync(join(dir, 'data', 'skins', 'alice_1.png')));
+		const e = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.alice_1;
+		check(png.width === 64 && png.height === 32 && e.skin && e.skin.h === r.body.hash && e.skin.d.top === 3,
+			'skins/alice_1.png (64 x 32) for the game, its hash and the design in registry.json');
+	}
+	r = await call('GET', '/auth/skin');
+	check(r.body.design && r.body.design.hairc === '#bc3b15', 'skin: the design comes back');
+	for (const [bad, why] of [[{ ...look, skin: 'red' }, 'a colour that is not #rrggbb'], [{ ...look, hair: 99 }, 'no such hair'],
+		[{ ...look, acc: [99] }, 'no such accessory'], [null, 'no design'], [{ ...look, acc: '13' }, 'accessories not a list']]) {
+		r = await call('POST', '/auth/skin', { design: bad });
+		check(why === 'accessories not a list' ? r.status === 200 && r.body.design.acc.length === 0 : r.status === 400,
+			`skin: ${why} (${r.status} ${r.body.error || ''})`);
+	}
+
 	// Another wallet cannot take the name
 	const saved = cookie;
 	cookie = '';
@@ -337,6 +361,11 @@ try {
 	r = await call('POST', '/auth/play', {});
 	const patGame = r.body.password;
 	check(r.status === 200 && /^[0-9a-f]{32}$/.test(patGame || ''), 'play: a password character gets a game password too');
+	r = await call('GET', '/auth/skin');
+	check(r.status === 200 && r.body.level === 0, 'skin: no wallet, castle level 0');
+	r = await call('POST', '/auth/skin', { design: { skin: '#d49e7a', eyes: 'small', eye: '#64c5ce', hair: 1, hairc: '#000000',
+		beard: 1, beardc: '#000000', top: 1, topc: '#000000', pants: 1, pantsc: '#000000', boots: 1, bootsc: '#000000', acc: [11] } });
+	check(r.status === 400 && /level 7/.test(r.body.error), 'skin: a crown needs a castle at level 7');
 	const regP = JSON.parse(readFileSync(join(dir, 'data', 'registry.json'), 'utf8')).players.pat;
 	check(regP && regP.name === 'Pat' && !regP.address && regP.pw && regP.rc &&
 		!JSON.stringify(regP).includes('correct horse') && !JSON.stringify(regP).includes(patCode.replace(/-/g, '')),

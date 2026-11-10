@@ -35,6 +35,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
 import { createMetadata } from './metadata.js';
 import { srpVerifier } from './srp.js';
+import { PNG } from 'pngjs';
+
+// Skins: the designer's parts and painting, shared with the Account page
+// (web/skin; /app/skin in the image)
+const SKIN_DIR = fileURLToPath(new URL(
+	existsSync(new URL('./skin', import.meta.url)) ? './skin/' : '../skin/', import.meta.url));
+const skin = await import(join(SKIN_DIR, 'skin.js'));
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -100,6 +107,12 @@ function b64url(buf) {
 function writeJsonAtomic(path, value) {
 	const tmp = path + '.tmp';
 	writeFileSync(tmp, JSON.stringify(value, null, 1));
+	renameSync(tmp, path);
+}
+
+function writeFileAtomic(path, data) {
+	const tmp = path + '.tmp';
+	writeFileSync(tmp, data);
 	renameSync(tmp, path);
 }
 
@@ -644,6 +657,36 @@ function mayVisit(address, name) {
 	return lands.some(l => owners.owners[l.token] === a && levelOf(l) % 8 === 7);
 }
 
+// The highest castle level (0 to 7, either realm) of the lands a wallet holds
+// now; the admin counts as 7 (for the skin designer's crowns)
+function highestLevel(address, name) {
+	if (ADMIN && name === ADMIN) return 7;
+	if (!owners || !address) return 0;
+	const a = address.toLowerCase();
+	let best = 0;
+	for (const l of lands) if (owners.owners[l.token] === a) best = Math.max(best, levelOf(l) % 8);
+	return best;
+}
+
+// ---------------------------------------------------------------------------
+// Skins: each character's design (registry.json, skin: { d: the design, h: its
+// picture's hash }) and the picture the game wears (skins/<name>.png, 64 x 32)
+
+const SKINS_DIR = join(DATA_DIR, 'skins');
+mkdirSync(SKINS_DIR, { recursive: true });
+const skinParts = new Map();
+for (const f of skin.allParts()) {
+	const png = PNG.sync.read(readFileSync(join(SKIN_DIR, 'parts', f + '.png')));
+	if (png.width !== 64 || png.height !== 64) throw new Error('skin part ' + f + ' is not 64 x 64');
+	skinParts.set(f, png.data);
+}
+
+function paintSkin(design) {
+	const png = new PNG({ width: 64, height: 32 });
+	png.data = Buffer.from(skin.toGame(skin.paint(design, f => skinParts.get(f))));
+	return PNG.sync.write(png);
+}
+
 // Where players asked to arrive (from the map), read by the game when they join
 const VISITS_FILE = join(DATA_DIR, 'visits.json');
 const visits = readJson(VISITS_FILE, { format: 1, visits: {} });
@@ -892,6 +935,44 @@ const routes = {
 		saveRegistry();
 		log('name', name, 'for', address);
 		send(res, 200, me(address));
+	},
+
+	// The character's skin design, and the castle level its accessories may need
+	'GET /auth/skin': async (req, res) => {
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
+		send(res, 200, {
+			name: sess.entry.name,
+			design: sess.entry.skin ? sess.entry.skin.d : null,
+			level: highestLevel(sess.address, sess.entry.name),
+		});
+	},
+
+	// Save the character's skin: the design only. This service paints the
+	// picture from the designer's parts (nobody uploads one), writes it where
+	// the game reads it, and notes its hash in registry.json, so the game
+	// puts it on the player within seconds.
+	'POST /auth/skin': async (req, res) => {
+		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
+		let body;
+		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
+		let design;
+		try {
+			design = skin.checkDesign(body && body.design, highestLevel(sess.address, sess.entry.name));
+		} catch (e) {
+			return send(res, 400, { error: e.message });
+		}
+		const png = paintSkin(design);
+		const hash = createHash('sha256').update(png).digest('hex').slice(0, 16);
+		writeFileAtomic(join(SKINS_DIR, sess.entry.name.toLowerCase() + '.png'), png);
+		sess.entry.skin = { d: design, h: hash };
+		saveRegistry();
+		log('skin saved for', sess.entry.name);
+		send(res, 200, { design, hash });
 	},
 
 	// Entering the game: a fresh game password for this character, for this

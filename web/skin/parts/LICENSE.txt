@@ -1,0 +1,3 @@
+The skin parts here come from Ready Player Doomed, the Orthoverse avatar
+designer (https://github.com/Orthocorp/orthoverse-avatars), by Orthocorp.
+Licensed CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/).

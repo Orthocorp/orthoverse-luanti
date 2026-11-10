@@ -60,6 +60,26 @@
   .tabpanel > section:not(.panel) > h2 { margin-top: 32px; }
   .tabpanel > section:not(.panel):first-child > h2, .tabpanel > p:first-child + section:not(.panel) > h2 { margin-top: 0; }
   #contract-address { font-size: 14px; word-break: break-all; color: var(--parchment); }
+  .look { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
+  .look-view { background: var(--night-3); border: 3px solid var(--outline); padding: 10px; }
+  .look-view canvas { display: block; margin: 0 auto; max-width: 100%; cursor: grab; }
+  .look-anim { justify-content: center; margin-top: 8px; gap: 6px; }
+  .chip { font: 14px/1 var(--body-font); color: var(--parchment); background: var(--night-2); border: 2px solid var(--line);
+    padding: 6px 10px; cursor: pointer; }
+  .chip[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  .chip:disabled { opacity: 0.45; cursor: not-allowed; }
+  .part { margin: 0 0 14px; }
+  .part h3 { margin-bottom: 6px; }
+  .part .style { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 15px; }
+  .part .style button { width: 32px; height: 32px; font: 16px/1 "Midnight", monospace; color: var(--parchment);
+    background: var(--night-2); border: 2px solid var(--line); cursor: pointer; }
+  .part .style span { min-width: 6.5em; text-align: center; color: var(--quiet); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+  .swatch { width: 22px; height: 22px; border: 2px solid var(--night); outline: 0; cursor: pointer; padding: 0; }
+  .swatch[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px var(--night); }
+  .swatch:focus-visible, .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .accs { display: flex; flex-wrap: wrap; gap: 6px; }
+  @media (max-width: 760px) { .look { grid-template-columns: 1fr; } }
   @media (max-width: 640px) {
     .tab { padding: 12px 10px 10px; font-size: 14px; }
     .land { grid-template-columns: 1fr; }
@@ -109,6 +129,30 @@
         <div style="margin-top:12px"><button id="pw-go" class="ov-btn" type="submit">Set the password</button></div>
         <div id="pw-status" class="status" aria-live="polite"></div>
       </form>
+    </section>
+
+    <section id="look" class="panel" hidden>
+      <h2>Your look</h2>
+      <p class="quiet">How your character looks in the game. Drag the figure to turn it round. When you save, it
+        is what you wear in the game within a few seconds, and what everyone there sees.</p>
+      <div class="look">
+        <div class="look-view">
+          <canvas id="look-canvas" width="280" height="380" aria-label="Your character, in three dimensions"></canvas>
+          <div class="row look-anim" role="group" aria-label="Pose">
+            <button type="button" class="chip" data-anim="still">Still</button>
+            <button type="button" class="chip" data-anim="idle">Idle</button>
+            <button type="button" class="chip" data-anim="walk">Walk</button>
+            <button type="button" class="chip" data-anim="run">Run</button>
+          </div>
+        </div>
+        <div class="look-parts" id="look-parts"></div>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button id="look-save" class="ov-btn" type="button">Wear it in the game</button>
+        <button id="look-random" class="ov-btn info" type="button">Surprise me</button>
+        <button id="look-undo" class="ov-btn info" type="button">Back to the saved one</button>
+      </div>
+      <div id="look-status" class="status" aria-live="polite"></div>
     </section>
   </div>
 
@@ -588,6 +632,159 @@
     fromHash();
   })();
   });
+</script>
+<script src="/js/vendor/skinview3d.bundle.js"></script>
+<script type="module">
+  // The skin designer: paints the design here (as the auth service will, from
+  // the same parts) and shows it on the game's figure in 3D
+  import { PALETTES, STYLES, ACCESSORIES, allParts, checkDesign, randomDesign, paint, toGame } from '/skin/skin.js';
+
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v == null) continue;
+      if (k === 'class') e.className = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null) e.append(k);
+    return e;
+  };
+  const PARTS = [
+    ['hair', 'Hair'], ['beard', 'Beard'], ['top', 'Top'], ['pants', 'Trousers'], ['boots', 'Boots'],
+  ];
+
+  let parts = null;            // file -> RGBA pixels
+  let design = null, saved = null, level = 0, viewer = null, shownFor = null;
+  const say = (text, kind) => { const s = $('look-status'); s.className = 'status' + (kind ? ' ' + kind : ''); s.textContent = text; };
+
+  async function loadParts() {
+    if (parts) return parts;
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    const out = new Map();
+    await Promise.all(allParts().map(f => new Promise((ok, bad) => {
+      const img = new Image();
+      img.onload = () => ok([f, img]);
+      img.onerror = () => bad(new Error('could not load ' + f));
+      img.src = '/skin/parts/' + f + '.png';
+    }).then(([f, img]) => {
+      g.clearRect(0, 0, 64, 64);
+      g.drawImage(img, 0, 0);
+      out.set(f, g.getImageData(0, 0, 64, 64).data.slice());
+    })));
+    parts = out;
+    return parts;
+  }
+
+  function render() {
+    const skin = toGame(paint(design, f => parts.get(f)));
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 32;
+    c.getContext('2d').putImageData(new ImageData(skin, 64, 32), 0, 0);
+    viewer.loadSkin(c, { model: 'default' });
+    drawControls();
+  }
+
+  function swatches(key) {
+    return el('div', { class: 'swatches', role: 'group', 'aria-label': 'Colour' },
+      ...PALETTES[key === 'skin' ? 'skin' : key === 'eye' ? 'eye' : key.replace(/c$/, '')].map(hex =>
+        el('button', { type: 'button', class: 'swatch', style: 'background:' + hex, 'aria-label': hex,
+          'aria-pressed': design[key] === hex ? 'true' : 'false', onclick: () => { design[key] = hex; render(); } })));
+  }
+
+  function drawControls() {
+    const box = $('look-parts');
+    box.textContent = '';
+    box.append(el('div', { class: 'part' }, el('h3', {}, 'Skin'), swatches('skin')));
+    box.append(el('div', { class: 'part' }, el('h3', {}, 'Eyes'),
+      el('div', { class: 'row', style: 'gap:6px;margin-bottom:6px' },
+        ...['small', 'large'].map(k => el('button', { type: 'button', class: 'chip', 'aria-pressed': design.eyes === k ? 'true' : 'false',
+          onclick: () => { design.eyes = k; render(); } }, k === 'small' ? 'Small' : 'Large'))),
+      swatches('eye')));
+    for (const [k, label] of PARTS) {
+      const n = design[k], max = STYLES[k];
+      const step = d => { design[k] = (n + d + max + 1) % (max + 1); render(); };
+      box.append(el('div', { class: 'part' }, el('h3', {}, label),
+        el('div', { class: 'style' },
+          el('button', { type: 'button', 'aria-label': 'Previous ' + label.toLowerCase(), onclick: () => step(-1) }, '<'),
+          el('span', {}, n === 0 ? 'None' : 'Style ' + n + ' of ' + max),
+          el('button', { type: 'button', 'aria-label': 'Next ' + label.toLowerCase(), onclick: () => step(1) }, '>')),
+        n === 0 ? null : swatches(k + 'c')));
+    }
+    box.append(el('div', { class: 'part' }, el('h3', {}, 'Accessories'),
+      el('div', { class: 'accs' }, ...ACCESSORIES.map(([, name, need], i) => {
+        const on = design.acc.includes(i), locked = need > level;
+        return el('button', { type: 'button', class: 'chip', 'aria-pressed': on ? 'true' : 'false', disabled: locked && !on ? '' : null,
+          title: locked ? 'Needs a castle at level ' + need : null,
+          onclick: () => { design.acc = on ? design.acc.filter(x => x !== i) : [...design.acc, i].sort((a, b) => a - b); render(); } },
+          name + (locked ? ' (level ' + need + ')' : ''));
+      })),
+      level < 7 ? el('p', { class: 'quiet', style: 'font-size:14px;margin:8px 0 0' },
+        'Hats and crowns come with castles: the Borgo hat from level 1, diadems from 5, coronets from 6, crowns from 7.') : null));
+  }
+
+  async function start(me) {
+    const signedIn = me && me.signedIn && me.name;
+    $('look').hidden = !signedIn;
+    if (!signedIn || shownFor === me.name) return;
+    shownFor = me.name;
+    try {
+      const [info] = await Promise.all([OV.api('GET', '/auth/skin'), loadParts()]);
+      level = info.level || 0;
+      saved = info.design ? checkDesign(info.design, 7) : null;
+    } catch (e) {
+      say('Your look could not be loaded: ' + e.message, 'bad');
+      return;
+    }
+    design = structuredClone(saved || randomDesign());
+    if (!viewer) {
+      viewer = new skinview3d.SkinViewer({ canvas: $('look-canvas'), width: 280, height: 380 });
+      viewer.zoom = 0.85;
+      viewer.camera.position.x = 20;
+      setAnim('idle');
+    }
+    if (!saved) say('You have not saved a look yet: this one is picked at random. Change what you like, then save it.');
+    render();
+  }
+
+  function setAnim(kind) {
+    viewer.animation = kind === 'walk' ? new skinview3d.WalkingAnimation() : kind === 'run' ? new skinview3d.RunningAnimation()
+      : kind === 'idle' ? new skinview3d.IdleAnimation() : null;
+    document.querySelectorAll('[data-anim]').forEach(b => b.setAttribute('aria-pressed', b.dataset.anim === kind ? 'true' : 'false'));
+  }
+  document.querySelectorAll('[data-anim]').forEach(b => b.addEventListener('click', () => setAnim(b.dataset.anim)));
+
+  $('look-random').addEventListener('click', () => {
+    const r = randomDesign();
+    r.acc = design.acc.filter(i => ACCESSORIES[i][2] <= level);
+    design = r;
+    render();
+  });
+  $('look-undo').addEventListener('click', () => {
+    if (!saved) return say('Nothing saved yet.');
+    design = structuredClone(saved);
+    render();
+    say('');
+  });
+  $('look-save').addEventListener('click', async () => {
+    const btn = $('look-save');
+    btn.disabled = true;
+    say('Saving…');
+    try {
+      const r = await OV.api('POST', '/auth/skin', { design });
+      saved = r.design;
+      say('Saved. You will wear it in the game within a few seconds.', 'good');
+    } catch (e) {
+      say(e.message, 'bad');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  OV.on(me => start(me));
 </script>
 </body>
 </html>

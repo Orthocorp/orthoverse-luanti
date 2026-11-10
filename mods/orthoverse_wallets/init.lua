@@ -65,6 +65,10 @@ local function reload()
 						srp = type(p.srp) == "string" and p.srp:match("^#1#[%w+/]+=*#[%w+/]+=*$") and p.srp or nil,
 						-- when the website made that password, for one entry
 						issued = tonumber(p.issued),
+						-- the skin designed on the website: its picture's hash
+						-- (the picture is skins/<name>.png)
+						skin = type(p.skin) == "table" and type(p.skin.h) == "string" and p.skin.h:match("^%x+$")
+							and #p.skin.h <= 32 and p.skin.h or nil,
 					}
 				end
 			end
@@ -505,4 +509,11 @@ orthoverse.wallets = {
 	is_croft = is_croft,
 	highest_level = highest_level,
 	updated = function() return owners_updated end,
+	-- A character's skin from the website: its hash and the picture's file,
+	-- or nil if it has none
+	skin_of = function(name)
+		local p = is_registered(name) and registry[name:lower()]
+		if not (p and p.skin) then return nil end
+		return p.skin, DIR .. "/skins/" .. name:lower() .. ".png"
+	end,
 }

@@ -91,6 +91,32 @@ The auth service writes `registry.json` (names and wallets) and `owners.json` to
 `OV_DATA/auth/`, which the game server reads (read-only) as
 `/world/orthoverse_auth/`.
 
+## Skins
+
+Each character designs one look on the Account page (Character tab): skin
+tone, eyes, hair, beard, top, trousers and boots, each with a colour from its
+palette, and accessories, some of which need a castle (the Borgo hat from
+level 1, diadems from 5, coronets from 6, crowns from 7: the highest level among
+the lands the character's wallet holds; the admin has them all). The page
+shows it on the game's figure in 3D (skinview3d, MIT, in `site/js/vendor/`).
+The parts are Ready Player Doomed's, the Orthoverse avatar designer
+(Orthocorp, CC BY-SA 3.0), in `web/skin/parts/`.
+
+The page sends only the design (`POST /auth/skin`). The auth service checks it,
+paints the picture itself from the same parts with the same code as the page
+(`web/skin/skin.js`), so nobody uploads a picture, and writes it to
+`OV_DATA/auth/skins/<name>.png` in the game's 64 x 32 layout (the hat layer
+kept; the outer layers of body, right arm and right leg painted onto them;
+the model mirrors the right arm and leg for the left), with the design and
+the picture's hash in `registry.json`.
+
+The game (`mods/orthoverse_skins`) sees the new hash within 15 seconds and
+sends the picture to every client while it runs (dynamic media, under a new
+name for each version), then puts it on the player, so players already in the
+game see the new look without reloading. Nobody chooses a skin in the game.
+Guests, who cannot design one, wear one of the built-in skins, picked from
+their name; a character with no design yet wears the default.
+
 The engine gets `--login` or `--register` from the page (added by
 `patches/luanti-login-register.patch`), so a player is created in the game on
 their first visit only. When joining fails, the engine hands the reason to the

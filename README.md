@@ -35,9 +35,11 @@ First rough version of the world:
   `mods/orthoverse_creative/init.lua`.
 - Rollback recording: an admin can see who changed a block (`/rollback_check`)
   and undo a player's changes (`/rollback <player> <seconds>`).
-- Player skins, chosen in the inventory's Skin tab with a 3D preview: Default, Wizard,
-  Elf, Borgo and Strider. To add one, put a 64 × 32 (or 64 × 64) skin in
-  `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild.
+- Player skins: each character designs its own look on the website (the Account
+  page's Character tab, with a 3D preview), and wears it in the game within
+  seconds; see `web/README.md`. Guests wear one of Wizard, Elf, Borgo and Strider,
+  picked from their name (to add one, put a 64 × 32 or 64 × 64 skin in
+  `mods/orthoverse_skins/textures/` named `orthoverse_skin_<name>.png` and rebuild).
 - Animals (Animalia): cows, sheep, horses, pigs and chickens on the natural lands,
   cats, rats, songbirds and owls, bats in caves and tropical fish in the sea; in the
   woods, wolves, foxes, reindeer, turkeys and opossums (`orthoverse_forest_animals`).
@@ -61,7 +63,7 @@ game.conf, minetest.conf     game definition and map defaults (flat mapgen, chun
 mods/mtg/                    Minetest Game mods, vendored by tools/assemble.sh
 mods/animals/                Animalia and Creatura (animals), vendored by tools/assemble-animals.sh
 mods/orthoverse_animals/     which animals spawn where in the Orthoverse
-mods/orthoverse_skins/       player skins and the Skin tab
+mods/orthoverse_skins/       player skins: the website's, and the guests'
 mods/orthoverse_minimap/     the minimap for every player, on when they join
 mods/orthoverse_landhud/     the land you are on and its crest, at the bottom left
 texturepacks/                the look of the world for everyone (OV_TEXTURES in .env; see its README)

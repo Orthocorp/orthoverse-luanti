@@ -1,16 +1,21 @@
--- orthoverse_skins: player skins, chosen in the inventory's Skin tab with a 3D
--- preview of each, and remembered per player.
+-- orthoverse_skins: player skins.
 --
+-- A character wears the skin designed for it on the website (the Account
+-- page): the auth service paints it and writes skins/<name>.png, with its
+-- hash in registry.json (orthoverse_wallets). The game sends each picture to
+-- every client as it runs (dynamic media, a new file name for each version),
+-- so a new look reaches players already in the game, and puts it on the
+-- player within a few seconds. Nobody chooses a skin in the game.
+--
+-- Guests, who cannot design one, each wear one of the skins below, picked
+-- from their name; a character that has not designed one wears the default.
 -- The skins are textures for Minetest Game's character model, in the 64 x 32
--- skin layout. Besides the built-in ones below, any file in this mod's textures
--- folder called orthoverse_skin_<name>.png is offered as "<Name>". 64 x 64
--- (modern Minecraft) skins work too: only their top half, which holds the
--- 64 x 32 layout, is used.
+-- layout; any file in this mod's textures folder called
+-- orthoverse_skin_<name>.png is a guest skin too (64 x 64 skins: their top
+-- half).
 
 local modpath = core.get_modpath(core.get_current_modname())
 local PREFIX = "orthoverse_skin_"
-local META = "orthoverse_skins:skin"
-local PER_PAGE = 5
 
 -- Built-in skins, in the order they are shown: key, label, texture
 local BUILT_IN = {
@@ -86,8 +91,28 @@ core.log("action", "[orthoverse_skins] skins: " .. table.concat(names, ", "))
 ------------------------------------------------------------------------------
 -- Wearing a skin
 
+-- Website skins: hash -> the texture's name once sent to the clients
+local media = {}
+local pending = {}    -- hash -> the players waiting for it
+
+local function guest_skin(name)
+	local n = 0
+	for i = 1, #name do n = (n * 31 + name:byte(i)) % 2147483647 end
+	local pool = {}
+	for _, s in ipairs(skins) do if s.key ~= "default" then pool[#pool + 1] = s end end
+	if #pool == 0 then return by_key.default end
+	return pool[n % #pool + 1]
+end
+
 local function current(player)
-	return by_key[player:get_meta():get_string(META)] or by_key.default
+	local name = player:get_player_name()
+	local w = orthoverse.wallets
+	if w and w.is_guest(name) then return guest_skin(name) end
+	local hash = w and w.skin_of(name)
+	if hash and media[hash] then
+		return {key = "own", label = "Own", texture = media[hash], file = media[hash]}
+	end
+	return by_key.default
 end
 
 ------------------------------------------------------------------------------
@@ -144,74 +169,76 @@ core.register_on_joinplayer(function(player)
 	apply(player)
 end)
 
-local function choose(player, key)
-	if not by_key[key] then return end
-	player:get_meta():set_string(META, key)
-	apply(player)
+-- Sends a character's website skin to every client (once per version per
+-- server run), then puts it on them
+local worn = {}       -- name -> the hash they wear
+
+local function fetch(name)
+	local w = orthoverse.wallets
+	local hash, file = w.skin_of(name)
+	if not hash or media[hash] then return end
+	if pending[hash] then return end
+	local f = io.open(file, "rb")
+	local data = f and f:read("*a")
+	if f then f:close() end
+	if not data or data:sub(1, 8) ~= "\137PNG\r\n\26\n" or #data > 65536 then
+		core.log("warning", "[orthoverse_skins] the skin of " .. name .. " is not a PNG")
+		return
+	end
+	local filename = "orthoverse_skin_c_" .. hash .. ".png"
+	-- Worn once every client in the game has it (or after a few seconds), so
+	-- nobody sees a missing texture on them
+	local waiting = {}
+	for _, p in ipairs(core.get_connected_players()) do waiting[p:get_player_name()] = true end
+	local done = false
+	local function wear()
+		if done then return end
+		done = true
+		media[hash] = filename
+		pending[hash] = nil
+		local player = core.get_player_by_name(name)
+		if player then apply(player) end
+	end
+	pending[hash] = true
+	local ok = core.dynamic_add_media({filename = filename, filedata = data, ephemeral = false}, function(who)
+		waiting[who] = nil
+		for n in pairs(waiting) do if core.get_player_by_name(n) then return end end
+		wear()
+	end)
+	if not ok then pending[hash] = nil return end
+	core.after(5, wear)
 end
 
-------------------------------------------------------------------------------
--- The Skin tab
+-- A player's skin now: their website skin (sent first if need be), or the
+-- one a guest or a character without one wears
+local function check(player)
+	local name = player:get_player_name()
+	local w = orthoverse.wallets
+	local hash = w and w.skin_of(name)
+	if hash == worn[name] then return end
+	worn[name] = hash
+	if hash and not media[hash] then fetch(name) else apply(player) end
+end
 
-local page_of = {}  -- player name -> page of skins shown
-
-sfinv.register_page("orthoverse_skins:skins", {
-	title = "Skin",
-	get = function(self, player, context)
-		local name = player:get_player_name()
-		local pages = math.ceil(#skins / PER_PAGE)
-		local page = math.min(page_of[name] or 1, pages)
-		local worn = current(player).key
-		local fs = {}
-		local first = (page - 1) * PER_PAGE + 1
-		for i = first, math.min(first + PER_PAGE - 1, #skins) do
-			local s = skins[i]
-			local x = (i - first) * 1.6
-			fs[#fs + 1] = ("model[%.2f,0.1;1.6,3.1;skin_%d;character.b3d;%s;0,180;false;true;0,79;30]")
-				:format(x, i, core.formspec_escape(s.texture))
-			if s.key == worn then
-				-- The one being worn: highlighted, not a button
-				fs[#fs + 1] = ("box[%.2f,3.25;1.45,0.8;#4ee69a70]"):format(x)
-				fs[#fs + 1] = ("label[%.2f,3.4;%s]"):format(x + 0.15, core.formspec_escape(s.label))
-			else
-				fs[#fs + 1] = ("button[%.2f,3.25;1.6,0.8;wear_%s;%s]")
-					:format(x, s.key, core.formspec_escape(s.label))
-			end
-		end
-		fs[#fs + 1] = "label[0,4.05;Click a name to wear it.]"
-		if pages > 1 then
-			fs[#fs + 1] = ("label[4.9,4.05;Page %d of %d]"):format(page, pages)
-			if page > 1 then fs[#fs + 1] = "button[6.4,3.95;0.8,0.6;skins_prev;<]" end
-			if page < pages then fs[#fs + 1] = "button[7.2,3.95;0.8,0.6;skins_next;>]" end
-		end
-		return sfinv.make_formspec(player, context, table.concat(fs), true)
-	end,
-	on_player_receive_fields = function(self, player, context, fields)
-		local name = player:get_player_name()
-		local pages = math.ceil(#skins / PER_PAGE)
-		for field in pairs(fields) do
-			local key = field:match("^wear_(.+)$")
-			if key then
-				choose(player, key)
-			elseif field == "skins_next" then
-				page_of[name] = math.min((page_of[name] or 1) + 1, pages)
-			elseif field == "skins_prev" then
-				page_of[name] = math.max((page_of[name] or 1) - 1, 1)
-			end
-		end
-		sfinv.set_player_inventory_formspec(player)
-	end,
-})
-
-core.register_on_leaveplayer(function(player)
-	page_of[player:get_player_name()] = nil
+-- Every few seconds: a new skin saved on the website for anyone in the game
+local timer = 0
+core.register_globalstep(function(dtime)
+	timer = timer + dtime
+	if timer < 3 then return end
+	timer = 0
+	local w = orthoverse.wallets
+	if not w then return end
+	for _, player in ipairs(core.get_connected_players()) do check(player) end
 end)
+
+core.register_on_joinplayer(function(player) check(player) end)
+
+core.register_on_leaveplayer(function(player) worn[player:get_player_name()] = nil end)
 
 -- For other mods and tests
 orthoverse_skins = {
 	list = skins,
 	get = current,
-	choose = choose,
 	hand = HAND,
 	hand_image = hand_image,
 	fit_hand = fit_hand,
