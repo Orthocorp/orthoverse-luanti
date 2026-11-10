@@ -209,8 +209,27 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex
 		res.end(JSON.stringify(body, null, 1));
 	}
 
+	// The picture of the land at `key` ("x:z"), as its token shows it (the
+	// map's card, or the classic picture), as a path on this site; null for a
+	// land with no token (a henge, a croft without one)
+	function landToken(key) {
+		let token = Object.hasOwn(fixed.lands, key) ? fixed.lands[key].token : null;
+		if (!token) {
+			const nl = newLands();
+			const land = nl && nl.lands && Object.hasOwn(nl.lands, key) ? nl.lands[key] : null;
+			token = land && land.token;
+		}
+		return typeof token === 'string' && /^0x[0-9a-fA-F]{40}$/.test(token) ? token.toLowerCase() : null;
+	}
+	function landImage(key) {
+		const token = landToken(key);
+		if (!token) return null;
+		const image = tokenJson(token, null).image;
+		return image.startsWith(BASE + '/') ? image.slice(BASE.length) : image;
+	}
+
 	// Handles /api/metadata/...; returns false for anything else
-	return function handle(req, res, url) {
+	function handle(req, res, url) {
 		const path = url.pathname;
 		if (!path.startsWith('/api/metadata/')) return false;
 		if (req.method !== 'GET' && req.method !== 'HEAD') { sendJson(res, 405, { error: 'GET only' }); return true; }
@@ -261,5 +280,8 @@ export function createMetadata({ landsFile, newLandsFile, tokensFile, cardsIndex
 		}
 		sendJson(res, 404, { error: 'Not found' });
 		return true;
-	};
+	}
+	handle.landImage = landImage;
+	handle.landToken = landToken;
+	return handle;
 }

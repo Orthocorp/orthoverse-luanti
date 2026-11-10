@@ -43,6 +43,11 @@ writeFileSync(join(dir, 'tokens.json'), JSON.stringify({
 	},
 }));
 
+// Adventures on three lands (and one on a key with no land)
+writeFileSync(join(dir, 'adventures.json'), JSON.stringify({ adventures: [
+	{ key: '12:-3', name: 'Kingly' }, { key: '-1:-2', name: 'Crofty' }, { key: '-7:4', name: 'Newish' },
+	{ key: '99:99', name: 'Nowhere' }] }));
+
 // The map service's token pictures: one for the kingdom so far
 mkdirSync(join(dir, 'map', 'cards'), { recursive: true });
 writeFileSync(join(dir, 'map', 'cards', 'index.json'), JSON.stringify({ '12:-3': '12_-3-0123456789.png' }));
@@ -74,6 +79,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
 		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`, OV_PUBLIC_URL: 'https://orthoverse.land',
 		OV_MAP_DIR: join(dir, 'map'),
+		OV_ADVENTURES: join(dir, 'adventures.json'),
 		NODE_NO_WARNINGS: '1',
 	},
 	stdio: ['ignore', 'pipe', 'pipe'],
@@ -164,6 +170,15 @@ try {
 	check(r.status === 404, 'a crest that does not exist: 404');
 	r = await get('nonsense');
 	check(r.status === 404, 'anything else: 404');
+
+	// The Adventures page: each adventure with its land's token picture, as a path on the site
+	const adv = await (await fetch(`http://127.0.0.1:${PORT}/api/adventures`)).json();
+	const pic = k => (adv.adventures.find(a => a.key === k) || {}).image;
+	check(pic('12:-3') === '/map/cards/12_-3-0123456789.png', `adventures: a land with a card shows it (${pic('12:-3')})`);
+	check(pic('-1:-2') === `/api/metadata/classic/${CROFT}-0.png`, `adventures: no card yet, the classic picture (${pic('-1:-2')})`);
+	check(pic('-7:4') === `/api/metadata/classic/${NEWBIE}-1.png`, `adventures: a new land too (${pic('-7:4')})`);
+	check(pic('99:99') === null, 'adventures: no land, no picture');
+	check((adv.adventures.find(a => a.key === '12:-3') || {}).token === KING.toLowerCase(), 'adventures: the land\'s token, for its OpenSea link');
 } catch (e) {
 	failures.push('exception: ' + e.stack);
 	console.log(e);

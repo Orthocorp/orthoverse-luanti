@@ -939,6 +939,17 @@ const routes = {
 		} catch (e) {
 			data = { updated: null, adventures: [] };
 		}
+		// Each with its land's token and picture, for the Adventures page
+		if (Array.isArray(data.adventures)) {
+			for (const a of data.adventures) {
+				if (a && typeof a.key === 'string') {
+					try {
+						a.image = metadata.landImage(a.key);
+						a.token = metadata.landToken(a.key);
+					} catch (e) { a.image = a.token = null; }
+				}
+			}
+		}
 		send(res, 200, data, { 'cache-control': 'public, max-age=30' });
 	},
 
