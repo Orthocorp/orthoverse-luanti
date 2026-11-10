@@ -200,7 +200,11 @@
   // ------------------------------------------------------------------
   // Signed in or not
 
+  // show() runs again whenever the sign-in state is refreshed, and it waits on
+  // the wallet, so two runs can overlap: only the latest one fills the list
+  let showRun = 0;
   async function show() {
+    const run = ++showRun;
     const signedIn = me && me.signedIn;
     $('out').hidden = !!signedIn;
     $('mine').hidden = !signedIn;
@@ -217,10 +221,11 @@
       $('reveal').hidden = revealed !== false;
       if (revealed) awaitOwnLand();
     }
-    const list = $('my-lands');
-    list.innerHTML = '';
+    const panels = [];
+    for (const l of me.lands) panels.push(await landPanel(l.key, true));
+    if (run !== showRun) return;
     $('none').hidden = me.lands.length > 0;
-    for (const l of me.lands) list.append(await landPanel(l.key, true));
+    $('my-lands').replaceChildren(...panels);
   }
 
   // Your own token is revealed (here, or elsewhere such as Etherscan) but
@@ -463,11 +468,14 @@
     for (const l of hits) results.append(el('li', {}, el('button', { type: 'button', onclick: () => pick(l.key) }, l.name + ' (' + l.key + ')')));
   }
 
+  let pickRun = 0;
   async function pick(key) {
     $('results').innerHTML = '';
     $('search').value = landInfo(key) ? landInfo(key).name : key;
-    $('found').innerHTML = '';
-    $('found').append(await landPanel(key, isMine(key)));
+    const run = ++pickRun;
+    const panel = await landPanel(key, isMine(key));
+    if (run !== pickRun) return;               // another land was picked meanwhile
+    $('found').replaceChildren(panel);
     $('found').scrollIntoView({ block: 'nearest' });
   }
 
