@@ -36,19 +36,19 @@ local ARMOUR_SOAK = 0.5        -- damage armour takes off a blow, per point of a
 
 local kinds = {
 	dagger = {desc = "dagger", kind = "thrust", ready = 0.1, full = 0.3, tires = 1.5, best = 1.5, reach = 2.5,
-		dice = {1, 4}, behind = 0.5},
+		dice = {1, 4}, behind = 0.5, recover = 0.8},
 	short_sword = {desc = "short sword", kind = "slash", ready = 0.2, full = 0.5, tires = 2.0, best = 2.0, reach = 3.0,
-		dice = {1, 6}},
+		dice = {1, 6}, recover = 0.7},
 	broadsword = {desc = "broadsword", kind = "slash", ready = 0.4, full = 1.2, tires = 2.5, best = 2.5, reach = 3.5,
-		dice = {1, 8}, full_dice = {1, 10}},
+		dice = {1, 8}, full_dice = {1, 10}, recover = 0.6},
 	spear = {desc = "spear", kind = "jab", ready = 0.3, full = 0.8, tires = 2.5, best = 3.5, reach = 4.5,
-		dice = {1, 6}, wield_scale = 2.0},
+		dice = {1, 6}, wield_scale = 2.0, recover = 0.6},
 	mace = {desc = "mace", kind = "bash", ready = 0.4, full = 1.0, tires = 2.5, best = 2.0, reach = 3.0,
-		dice = {1, 6}},
+		dice = {1, 6}, recover = 0.6},
 	morning_star = {desc = "morning star", kind = "bash", ready = 0.5, full = 1.2, tires = 2.6, best = 2.0, reach = 3.0,
-		dice = {1, 8}},
+		dice = {1, 8}, recover = 0.6},
 	war_hammer = {desc = "war hammer", kind = "bash", ready = 0.7, full = 1.8, tires = 3.0, best = 2.0, reach = 3.0,
-		dice = {1, 10}},
+		dice = {1, 10}, recover = 0.6},
 }
 local KIND_ORDER = {"dagger", "short_sword", "broadsword", "spear", "mace", "morning_star", "war_hammer"}
 local materials = {
@@ -80,7 +80,8 @@ for _, kid in ipairs(KIND_ORDER) do
 			-- digs nothing; the default punch does nothing (blows are ours)
 			tool_capabilities = {full_punch_interval = 0.5, max_drop_level = 0, groupcaps = {}, damage_groups = {fleshy = 0}},
 			groups = {orthoverse_weapon = 1, hold_attack = math.floor(k.full * 1000), hold_tires = math.floor(k.tires * 1000),
-				hold_thrust = k.kind == "thrust" and 1 or nil, hold_jab = k.kind == "jab" and 1 or nil},
+				hold_thrust = k.kind == "thrust" and 1 or nil, hold_jab = k.kind == "jab" and 1 or nil,
+				hold_recover = math.floor(k.recover * 1000)},
 			range = k.reach + 0.5,
 		})
 		-- What a monster carries: the same weapon without a human hand on it
@@ -312,6 +313,11 @@ orthoverse.combat.strike = strike   -- for tests
 -- Watching the attack button
 
 local holding = {}   -- name -> {t0 = seconds, w = weapon, phase}
+-- After a blow the arm recovers (each weapon's `recover`, in seconds) before
+-- the next can be wound up: held through it, the wind-up counts from its end
+-- (the browser client shows it so too: item group hold_recover). Without it a
+-- quick weapon could strike again and again, as fast as the button goes.
+local rested = {}    -- name -> when the arm has recovered
 
 local function now() return core.get_us_time() / 1e6 end
 
@@ -330,13 +336,19 @@ core.register_globalstep(function()
 			if wield then wield.pose(player, nil) end
 		end
 		if w and down and not h then
-			holding[name] = {t0 = t, w = w}
+			holding[name] = {t0 = math.max(t, rested[name] or 0), w = w}
 			-- others see the arm raised (orthoverse_wield)
 			if wield then wield.pose(player, "windup", w.kind) end
 		elseif h and not down then
 			holding[name] = nil
-			if wield then wield.pose(player, "strike", h.w.kind) end
-			strike(player, h.w, t - h.t0)
+			if t <= h.t0 then
+				-- let go while still recovering: no blow
+				if wield then wield.pose(player, nil) end
+			else
+				if wield then wield.pose(player, "strike", h.w.kind) end
+				strike(player, h.w, t - h.t0)
+				rested[name] = t + (h.w.recover or 0)
+			end
 		end
 	end
 end)
@@ -399,6 +411,7 @@ end)
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	holding[name] = nil
+	rested[name] = nil
 	boosts[name] = nil
 	applied[name] = nil
 end)

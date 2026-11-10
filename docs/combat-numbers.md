@@ -20,6 +20,29 @@ Minetest Game has only swords (wood, stone, bronze, steel, mese, diamond) plus t
 
 Distances in blocks from the player's eye to the point hit. Inside best range: full effect; between best range and reach: a glance (half damage); beyond reach: a miss.
 
+### Recovery (added 10 Nov 2026)
+
+After a blow the arm recovers before the next can be wound up; held through
+it, the wind-up counts from its end (the browser client shows it the same
+way, from the item group hold_recover). Without it the dagger, ready at full
+strength in 0.3 s, struck two and a half times a second: nearly three times
+the war hammer's damage. As built:
+
+| Weapon | Recovery | Damage a second (steel, rank 1, sweet spot): unarmoured / armour class 15 |
+| --- | --- | --- |
+| Dagger | 0.8 s | 4.1 / 1.8 |
+| Short sword | 0.7 s | 4.6 / 2.5 |
+| Broadsword | 0.6 s | 4.2 / 2.8 |
+| Spear | 0.6 s | 3.9 / 2.1 |
+| Mace | 0.6 s | 3.4 / 2.7 |
+| Morning star | 0.6 s | 3.6 / 2.9 |
+| War hammer | 0.6 s | 3.1 / 2.6 |
+
+So each weapon's character comes from its trade-offs, not its speed: the
+dagger is quick to react with and cruel from behind but nearly useless on
+armour, bashing weapons answer armour, the spear has reach, the hammer the
+biggest single blow.
+
 ### How strong a blow is (the hold)
 
 - Released before "ready": a feeble poke (a quarter of the damage, no bonuses).

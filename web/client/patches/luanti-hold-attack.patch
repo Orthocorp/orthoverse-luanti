@@ -131,10 +131,10 @@ index 03e4f19..028a30a 100644
  	f32 m_wield_change_timer = 0.125f;
  	ItemStack m_wield_item_next;
 diff --git a/src/client/game.cpp b/src/client/game.cpp
-index f901556..434a2ea 100644
+index a1ac678..cc52d8f 100644
 --- a/src/client/game.cpp
 +++ b/src/client/game.cpp
-@@ -2682,6 +2682,38 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
+@@ -2684,6 +2684,46 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
  	const ItemDefinition &selected_def = tool_item.getDefinition(itemdef_manager);
  	f32 d = getToolRange(tool_item, hand_item, itemdef_manager);
  
@@ -142,14 +142,21 @@ index f901556..434a2ea 100644
 +		Weapons wound up by holding the dig button (item group hold_attack:
 +		milliseconds to full strength; hold_tires: when the arm tires;
 +		hold_thrust: levelled rather than raised; hold_jab: drawn back, and
-+		jabbed forward on release). While
++		jabbed forward on release; hold_recover: the pause after a blow before
++		the next winds up). While
 +		the button is down nothing is dug or punched and the weapon does not
 +		swing: the camera raises it instead, and it swings once on release.
 +		The server sees the button through the player's controls as usual.
 +	*/
 +	int hold_ms = itemgroup_get(selected_def.groups, "hold_attack");
++	// After a blow the arm recovers (item group hold_recover: milliseconds)
++	// before the next can be wound up: held through it, the wind-up starts
++	// when it ends, as the server counts it
++	runData.hold_recover_left = std::max(0.0f, runData.hold_recover_left - dtime);
 +	if (hold_ms > 0) {
-+		if (input->isKeyDown(KeyType::DIG)) {
++		if (input->isKeyDown(KeyType::DIG) && runData.hold_recover_left > 0) {
++			// still recovering: nothing yet
++		} else if (input->isKeyDown(KeyType::DIG)) {
 +			runData.hold_attack_time += dtime;
 +			int tires_ms = itemgroup_get(selected_def.groups, "hold_tires");
 +			int style = itemgroup_get(selected_def.groups, "hold_jab") > 0 ? 2
@@ -158,6 +165,7 @@ index f901556..434a2ea 100644
 +					tires_ms > 0 ? tires_ms / (f32)hold_ms : 0.0f, style);
 +		} else if (runData.hold_attack_time > 0) {
 +			runData.hold_attack_time = 0;
++			runData.hold_recover_left = itemgroup_get(selected_def.groups, "hold_recover") / 1000.0f;
 +			camera->setHoldAttack(-1.0f, 0.0f, 0);
 +			if (itemgroup_get(selected_def.groups, "hold_jab") > 0)
 +				camera->setJab(); // the blow
@@ -173,7 +181,7 @@ index f901556..434a2ea 100644
  	core::line3d<f32> shootline;
  
  	switch (camera->getCameraMode()) {
-@@ -2815,6 +2847,7 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
+@@ -2817,6 +2857,7 @@ void Game::processPlayerInteraction(f32 dtime, bool show_hud)
  	if (runData.punching || wasKeyPressed(KeyType::DIG))
  		camera->setDigging(0); // dig animation
  
@@ -182,20 +190,21 @@ index f901556..434a2ea 100644
  	input->clearWasKeyReleased();
  	// Ensure DIG & PLACE are marked as handled
 diff --git a/src/client/game_internal.h b/src/client/game_internal.h
-index 6de7934..653b02e 100644
+index 50685e1..aacf706 100644
 --- a/src/client/game_internal.h
 +++ b/src/client/game_internal.h
-@@ -62,6 +62,9 @@ struct GameRunData {
+@@ -62,6 +62,10 @@ struct GameRunData {
  	float repeat_place_timer;
  	float object_hit_delay_timer;
  	float time_from_last_punch;
 +	// A weapon wound up by holding the dig button (item group hold_attack)
 +	float hold_attack_time = 0.0f;
++	float hold_recover_left = 0.0f;   // seconds until the arm has recovered from a blow
 +	bool dig_masked = false;
  	ClientActiveObject *selected_object;
  
  	float jump_timer_up;          // from key up until key down
-@@ -240,18 +243,26 @@ class Game {
+@@ -240,18 +244,26 @@ class Game {
  	}
  	inline bool isKeyDown(GameKeyType k)
  	{
