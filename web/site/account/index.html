@@ -46,7 +46,22 @@
   #results button { width: 100%; text-align: left; background: none; border: 0; color: var(--parchment); font: inherit;
     padding: 6px 8px; cursor: pointer; }
   #results button:hover, #results button:focus { background: var(--night-2); }
+  .tabs { display: flex; gap: 8px; margin: 28px 0 0; border-bottom: 3px solid var(--outline); flex-wrap: wrap; }
+  .tab { font: 16px/16px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--quiet); cursor: pointer;
+    background: var(--night-2); border: 3px solid var(--outline); border-bottom: 0; padding: 14px 18px 12px;
+    margin-bottom: -3px; }
+  .tab:hover { color: var(--parchment); }
+  .tab[aria-selected="true"] { color: var(--gold); background: var(--night-3); border-bottom: 3px solid var(--night-3);
+    text-shadow: 2px 2px 0 var(--bronze); }
+  .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .tabpanel { padding-top: 24px; }
+  .tabpanel:focus-visible { outline: none; }
+  .tabpanel > section + section { margin-top: 16px; }
+  .tabpanel > section:not(.panel) > h2 { margin-top: 32px; }
+  .tabpanel > section:not(.panel):first-child > h2, .tabpanel > p:first-child + section:not(.panel) > h2 { margin-top: 0; }
+  #contract-address { font-size: 14px; word-break: break-all; color: var(--parchment); }
   @media (max-width: 640px) {
+    .tab { padding: 12px 10px 10px; font-size: 14px; }
     .land { grid-template-columns: 1fr; }
     .land img { width: 100%; height: auto; aspect-ratio: 1; }
   }
@@ -58,92 +73,117 @@
 
 <main class="wrap">
   <h1>Account</h1>
-  <p class="quiet">Your Orthoverse lands: reveal your own, build up their castles, flip their realm. Payments go
-    to the Orthoverse contract from your own wallet; this site never holds your keys or your ETH.</p>
+  <p class="quiet">Your character, your Orthoverse lands, and what you can do with them on the chain.</p>
 
-  <section id="out" class="panel" hidden>
-    <h2>Sign in</h2>
-    <p>Sign in with your player name and password, or with your Ethereum wallet. With a wallet you see your
-      lands here, and if your address has no land yet, you can reveal it.</p>
-    <div class="row">
-      <button id="signin" class="ov-btn" type="button">Sign in</button>
-      <button id="register" class="ov-btn" type="button">Make a character</button>
-    </div>
-  </section>
+  <div class="tabs" role="tablist" aria-label="Account">
+    <button class="tab" role="tab" type="button" id="tab-character" aria-controls="panel-character" data-tab="character">Character</button>
+    <button class="tab" role="tab" type="button" id="tab-lands" aria-controls="panel-lands" data-tab="lands">Lands</button>
+    <button class="tab" role="tab" type="button" id="tab-blockchain" aria-controls="panel-blockchain" data-tab="blockchain">Blockchain</button>
+  </div>
 
-  <section id="character" class="panel" hidden style="margin-top:16px">
-    <h2>Your character</h2>
-    <p id="char-name"></p>
-    <h3>Wallet</h3>
-    <p id="char-wallet" class="quiet"></p>
-    <div id="char-link" hidden>
-      <button id="link-go" class="ov-btn" type="button">Link a wallet</button>
-      <div id="link-status" class="status" aria-live="polite"></div>
-    </div>
-    <h3 style="margin-top:16px">Password</h3>
-    <p id="char-pw" class="quiet"></p>
-    <form id="pw-form" novalidate>
-      <div id="pw-current-box">
-        <label for="pw-current" class="quiet">Current password</label><br>
-        <input id="pw-current" class="field" type="password" maxlength="128" autocomplete="current-password">
+  <div class="tabpanel" role="tabpanel" id="panel-character" aria-labelledby="tab-character" tabindex="0">
+    <section id="out" class="panel" hidden>
+      <h2>Sign in</h2>
+      <p>Sign in with your player name and password, or with your Ethereum wallet. With a wallet you see your
+        lands here, and if your address has no land yet, you can reveal it.</p>
+      <div class="row">
+        <button id="signin" class="ov-btn" type="button">Sign in</button>
+        <button id="register" class="ov-btn" type="button">Make a character</button>
       </div>
-      <label for="pw-new" class="quiet">New password: at least 8 characters</label><br>
-      <input id="pw-new" class="field" type="password" maxlength="128" autocomplete="new-password"><br>
-      <label for="pw-new2" class="quiet">The new password again</label><br>
-      <input id="pw-new2" class="field" type="password" maxlength="128" autocomplete="new-password">
-      <div style="margin-top:12px"><button id="pw-go" class="ov-btn" type="submit">Set the password</button></div>
-      <div id="pw-status" class="status" aria-live="polite"></div>
-    </form>
-  </section>
+    </section>
 
-  <section id="net" class="panel" hidden style="margin-top:16px">
-    <p>Your wallet is on another network. Lands live on Ethereum mainnet.</p>
-    <button id="switch" class="ov-btn" type="button">Switch to Ethereum mainnet</button>
-  </section>
+    <section id="character" class="panel" hidden>
+      <h2>Your character</h2>
+      <p id="char-name"></p>
+      <h3>Password</h3>
+      <p id="char-pw" class="quiet"></p>
+      <form id="pw-form" novalidate>
+        <div id="pw-current-box">
+          <label for="pw-current" class="quiet">Current password</label><br>
+          <input id="pw-current" class="field" type="password" maxlength="128" autocomplete="current-password">
+        </div>
+        <label for="pw-new" class="quiet">New password: at least 8 characters</label><br>
+        <input id="pw-new" class="field" type="password" maxlength="128" autocomplete="new-password"><br>
+        <label for="pw-new2" class="quiet">The new password again</label><br>
+        <input id="pw-new2" class="field" type="password" maxlength="128" autocomplete="new-password">
+        <div style="margin-top:12px"><button id="pw-go" class="ov-btn" type="submit">Set the password</button></div>
+        <div id="pw-status" class="status" aria-live="polite"></div>
+      </form>
+    </section>
+  </div>
 
-  <section id="placing" class="panel" hidden style="margin-top:24px">
-    <h2>Your land is on its way</h2>
-    <p>Your address's land has been revealed on the chain, and is being placed in the world. This usually
-      takes a minute or two; it will appear under your lands below.</p>
-    <div id="placing-status" class="status" aria-live="polite"></div>
-  </section>
+  <div class="tabpanel" role="tabpanel" id="panel-lands" aria-labelledby="tab-lands" tabindex="0" hidden>
+    <section id="mine" hidden>
+      <h2>Your lands</h2>
+      <div class="lands" id="my-lands"></div>
+      <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
+        crofts in the game, reveal your own land or give someone a land on the Blockchain tab, or give a castle
+        upgrade to any land below.</p>
+      <p id="nowallet" class="quiet" hidden>Lands belong to Ethereum wallets. Link a wallet to your character (on
+        the Blockchain tab) to see and build on the lands it holds, or to reveal your own.</p>
+    </section>
 
-  <section id="reveal" class="panel" hidden style="margin-top:24px">
-    <h2>Your own land</h2>
-    <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
-      Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
-      common land until you give it a castle.</p>
-    <button id="reveal-go" class="ov-btn spend" type="button">Reveal my land: pay 0.0004 ETH</button>
-    <div id="reveal-status" class="status" aria-live="polite"></div>
-  </section>
+    <section>
+      <h2>Any land</h2>
+      <p>Anyone may pay for a castle upgrade on any land, as a gift. Only a land's holder can flip it.</p>
+      <input id="search" class="field" type="search" placeholder="A land's name or coordinates, such as 12:-3"
+        autocomplete="off" aria-label="Find a land">
+      <ul id="results"></ul>
+      <div class="lands" id="found"></div>
+    </section>
+  </div>
 
-  <section id="mine" hidden>
-    <h2>Your lands</h2>
-    <div class="lands" id="my-lands"></div>
-    <p id="none" class="quiet" hidden>This wallet holds no Orthoverse lands. You can still mine and build on the
-      crofts in the game, or give someone a land or a castle upgrade below.</p>
-    <p id="nowallet" class="quiet" hidden>Lands belong to Ethereum wallets. Link a wallet to your character (above)
-      to see and build on the lands it holds, or to reveal your own.</p>
-  </section>
+  <div class="tabpanel" role="tabpanel" id="panel-blockchain" aria-labelledby="tab-blockchain" tabindex="0" hidden>
+    <p class="quiet">Payments go to the Orthoverse contract from your own wallet; this site never holds your keys
+      or your ETH.</p>
 
-  <section>
-    <h2>Any land</h2>
-    <p>Anyone may pay for a castle upgrade on any land, as a gift. Only a land's holder can flip it.</p>
-    <input id="search" class="field" type="search" placeholder="A land's name or coordinates, such as 12:-3"
-      autocomplete="off" aria-label="Find a land">
-    <ul id="results"></ul>
-    <div class="lands" id="found"></div>
-  </section>
+    <section id="wallet" class="panel" hidden>
+      <h2>Your wallet</h2>
+      <p id="char-wallet" class="quiet"></p>
+      <div id="char-link" hidden>
+        <button id="link-go" class="ov-btn" type="button">Link a wallet</button>
+        <div id="link-status" class="status" aria-live="polite"></div>
+      </div>
+    </section>
 
-  <section>
-    <h2>Give someone a land</h2>
-    <p>Reveal the land of any Ethereum address, as a present: it becomes theirs, placed in the world within a
-      few minutes.</p>
-    <input id="give-to" class="field" type="text" placeholder="Their address, 0x…" autocomplete="off"
-      spellcheck="false" aria-label="The address to give a land to">
-    <div style="margin-top:12px"><button id="give-go" class="ov-btn spend" type="button">Give a land: pay 0.0004 ETH</button></div>
-    <div id="give-status" class="status" aria-live="polite"></div>
-  </section>
+    <section id="net" class="panel" hidden>
+      <p>Your wallet is on another network. Lands live on Ethereum mainnet.</p>
+      <button id="switch" class="ov-btn" type="button">Switch to Ethereum mainnet</button>
+    </section>
+
+    <section id="reveal" class="panel" hidden>
+      <h2>Your own land</h2>
+      <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
+        Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
+        common land until you give it a castle.</p>
+      <button id="reveal-go" class="ov-btn spend" type="button">Reveal my land: pay 0.0004 ETH</button>
+      <div id="reveal-status" class="status" aria-live="polite"></div>
+    </section>
+
+    <section id="placing" class="panel" hidden>
+      <h2>Your land is on its way</h2>
+      <p>Your address's land has been revealed on the chain, and is being placed in the world. This usually
+        takes a minute or two; it will appear on the Lands tab.</p>
+      <div id="placing-status" class="status" aria-live="polite"></div>
+    </section>
+
+    <section>
+      <h2>Give someone a land</h2>
+      <p>Reveal the land of any Ethereum address, as a present: it becomes theirs, placed in the world within a
+        few minutes.</p>
+      <input id="give-to" class="field" type="text" placeholder="Their address, 0x…" autocomplete="off"
+        spellcheck="false" aria-label="The address to give a land to">
+      <div style="margin-top:12px"><button id="give-go" class="ov-btn spend" type="button">Give a land: pay 0.0004 ETH</button></div>
+      <div id="give-status" class="status" aria-live="polite"></div>
+    </section>
+
+    <section>
+      <h2>The contract</h2>
+      <p>The Orthoverse lands are tokens of one contract on Ethereum mainnet:
+        <code id="contract-address"></code>.</p>
+      <p><a id="contract-etherscan" target="_blank" rel="noopener">The contract on Etherscan</a></p>
+    </section>
+  </div>
 </main>
 
 <div id="ov-footer"></div>
@@ -269,6 +309,7 @@
   function showCharacter() {
     const signedIn = me && me.signedIn && me.name;
     $('character').hidden = !signedIn;
+    $('wallet').hidden = !signedIn;
     if (!signedIn) return;
     $('char-name').textContent = 'You are ' + me.name + ' in the game, signed in here with ' +
       (me.signedInWith === 'wallet' ? 'your wallet.' : 'your password.');
@@ -506,9 +547,42 @@
     };
     if (window.ethereum && window.ethereum.on) window.ethereum.on('chainChanged', () => show());
     OV.on(m => { me = m; show(); });
+    // The tabs: Character, Lands, Blockchain (#character, #lands, #blockchain;
+    // a land's coordinates, #12:-3, open Lands with that land)
+    const TABS = ['character', 'lands', 'blockchain'];
+    const showTab = (name, focus) => {
+      for (const t of TABS) {
+        const on = t === name;
+        const tab = $('tab-' + t);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        tab.tabIndex = on ? 0 : -1;
+        $('panel-' + t).hidden = !on;
+        if (on && focus) tab.focus();
+      }
+    };
+    for (const t of TABS) {
+      $('tab-' + t).addEventListener('click', () => {
+        showTab(t);
+        history.replaceState(null, '', '#' + t);
+      });
+      $('tab-' + t).addEventListener('keydown', e => {
+        const i = TABS.indexOf(t);
+        const to = e.key === 'ArrowRight' ? TABS[(i + 1) % 3] : e.key === 'ArrowLeft' ? TABS[(i + 2) % 3]
+          : e.key === 'Home' ? TABS[0] : e.key === 'End' ? TABS[2] : null;
+        if (!to) return;
+        e.preventDefault();
+        showTab(to, true);
+        history.replaceState(null, '', '#' + to);
+      });
+    }
+    const contract = OV.CONTRACT.toLowerCase();
+    $('contract-address').textContent = OV.CONTRACT;
+    $('contract-etherscan').href = 'https://etherscan.io/address/' + contract;
     const fromHash = () => {
       const hash = decodeURIComponent(location.hash.slice(1));
-      if (/^-?\d+:-?\d+$/.test(hash)) pick(hash);
+      if (/^-?\d+:-?\d+$/.test(hash)) { showTab('lands'); pick(hash); }
+      else if (TABS.includes(hash)) showTab(hash);
+      else showTab('character');
     };
     window.addEventListener('hashchange', fromHash);
     fromHash();
