@@ -7,8 +7,9 @@
 --   g.info                 -- what goes in adventures/wyrm_below.json
 --
 -- Coordinates are relative to the origin: x east, z north, y up. The land's
--- ground is y = 72 (players stand at y = 73); everything is below it, down to
--- the template's floor at y = 0.
+-- ground is y = 72 (players stand at y = 73); the dungeon is all below it,
+-- down to the template's floor at y = 0. Above it: Karn Dolm, and round it
+-- rocky hills and woods, so the land does not look like an open field.
 --
 --   Karn Dolm (on the ground, outside the dungeon): the ruin of a hold, its
 --     old stair under a steel grate, the gate, the board and one sign.
@@ -30,7 +31,7 @@
 
 local g = {}
 
-local SX, SY, SZ = 80, 80, 80
+local SX, SY, SZ = 80, 100, 80   -- up to 27 above the ground, for the hills
 local NG, NF = 72, 73       -- the land's ground, and where players stand on it
 local F1 = 60               -- the upper halls' floor (players stand at 61)
 local F2 = 47               -- the delvings' floor
@@ -104,7 +105,7 @@ local function set(x, y, z, name, param2)
 	p2grid[i] = param2 or 0
 end
 
-local function get(x, y, z) return grid[idx(x, y, z)] end
+local function get(x, y, z) return grid[idx(x, y, z)] or "air" end
 
 local function box(x1, y1, z1, x2, y2, z2, name, param2)
 	for z = z1, z2 do for y = y1, y2 do for x = x1, x2 do set(x, y, z, name, param2) end end end
@@ -181,6 +182,103 @@ local function ground()
 	end
 	box(0, NG - 3, 0, SX - 1, NG - 1, SZ - 1, "default:dirt")
 	box(0, NG, 0, SX - 1, NG, SZ - 1, "default:dirt_with_grass")
+end
+
+------------------------------------------------------------------------------
+-- The hills and woods round Karn Dolm: crags in three corners (bare rock up
+-- high, grass on their lower slopes, scree at their feet), a lower ridge in
+-- the fourth, and trees (pines up the slopes, broadleaves below). The ruin,
+-- the way to it from the south and the land's edges stay clear.
+
+local PEAKS = {
+	{x = 12, z = 62, h = 24, r = 15}, {x = 64, z = 66, h = 19, r = 13},
+	{x = 68, z = 30, h = 13, r = 11}, {x = 14, z = 36, h = 8, r = 9},
+	{x = 40, z = 70, h = 9, r = 10},
+}
+local function clear_ground(x, z)
+	-- the ruin and its approach from the south, and the arrival
+	return (x >= 24 and x <= 56 and z <= 26) or x < 3 or x > SX - 4 or z < 3 or z > SZ - 4
+end
+local function hill_height(x, z)
+	if clear_ground(x, z) then return 0 end
+	local h = 0
+	for _, p in ipairs(PEAKS) do
+		local d = math.sqrt((x - p.x) ^ 2 + (z - p.z) ^ 2) / p.r
+		if d < 1.6 then h = math.max(h, p.h * math.exp(-d * d * 1.8)) end
+	end
+	if h < 0.6 then return 0 end   -- the open ground stays flat
+	h = h * (0.8 + 0.4 * noise(x, 0, z, 5)) + (noise(x, 3, z, 2) - 0.5) * 2
+	-- low near the clear ground, so nothing hangs over it
+	for dz = -3, 3 do for dx = -3, 3 do
+		if clear_ground(x + dx, z + dz) then h = math.min(h, math.max(math.abs(dx), math.abs(dz)) * 1.5) end
+	end end
+	return math.max(0, math.floor(h + 0.5))
+end
+
+local function tree(x, y, z)
+	local t = 4 + rnd(2)
+	for k = 1, t do set(x, y + k, z, LOG) end
+	for dy = t - 1, t + 1 do for dz = -2, 2 do for dx = -2, 2 do
+		local r = math.abs(dx) + math.abs(dz) + math.max(0, dy - t) * 2
+		if r <= 3 and (dx ~= 0 or dz ~= 0 or dy > t) and get(x + dx, y + dy, z + dz) == "air" then
+			set(x + dx, y + dy, z + dz, (rnd(70) == 0) and "default:apple" or "default:leaves")
+		end
+	end end end
+end
+local function pine(x, y, z)
+	local t = 6 + rnd(3)
+	for k = 1, t do set(x, y + k, z, "default:pine_tree") end
+	for k = 2, t + 1 do
+		local r = math.max(0, math.floor((t + 1 - k) / 2.5))
+		for dz = -r, r do for dx = -r, r do
+			if (dx ~= 0 or dz ~= 0 or k > t) and math.abs(dx) + math.abs(dz) <= r + 1
+					and inside(x + dx, y + k, z + dz) and get(x + dx, y + k, z + dz) == "air" then
+				set(x + dx, y + k, z + dz, "default:pine_needles")
+			end
+		end end
+	end
+end
+
+local function hills()
+	local hs = {}
+	for z = 0, SZ - 1 do for x = 0, SX - 1 do hs[x + z * SX] = hill_height(x, z) end end
+	local function hh(x, z) return hs[math.max(0, math.min(SX - 1, x)) + math.max(0, math.min(SZ - 1, z)) * SX] end
+	for z = 0, SZ - 1 do for x = 0, SX - 1 do
+		local h = hh(x, z)
+		if h > 0 then
+			local steep = math.max(math.abs(hh(x + 1, z) - h), math.abs(hh(x - 1, z) - h),
+				math.abs(hh(x, z + 1) - h), math.abs(hh(x, z - 1) - h))
+			for y = NG, NG + h - 1 do set(x, y, z, y >= NG + h - 3 and h < 14 and "default:dirt" or ROCK) end
+			local top
+			if h >= 14 or steep >= 3 then top = (h >= 20 and rnd(3) > 0) and "default:snowblock" or ROCK
+			elseif steep >= 2 then top = rnd(2) == 0 and GRAVEL or ROCK
+			else top = "default:dirt_with_grass" end
+			set(x, NG + h, z, top)
+		end
+	end end
+	-- trees on gentle ground: pines up the slopes, broadleaves below
+	for _ = 1, 320 do
+		local x, z = 3 + rnd(SX - 6), 3 + rnd(SZ - 6)
+		local h = hh(x, z)
+		local y = NG + h
+		local gentle = math.abs(hh(x + 1, z) - h) <= 1 and math.abs(hh(x - 1, z) - h) <= 1
+			and math.abs(hh(x, z + 1) - h) <= 1 and math.abs(hh(x, z - 1) - h) <= 1
+		local near_ruin = x >= 20 and x <= 60 and z <= 30
+		if gentle and not near_ruin and get(x, y, z) == "default:dirt_with_grass" and get(x, y + 1, z) == "air"
+				and y + 10 < SY then
+			if h >= 5 then pine(x, y, z) elseif h <= 3 and rnd(3) > 0 then tree(x, y, z) end
+		end
+	end
+	-- grass and flowers in the open
+	for z = 3, SZ - 4 do for x = 3, SX - 4 do
+		local y = NG + hh(x, z)
+		if get(x, y, z) == "default:dirt_with_grass" and get(x, y + 1, z) == "air" and not clear_ground(x, z) then
+			local r = rnd(30)
+			if r < 3 then set(x, y + 1, z, "default:grass_" .. (1 + rnd(5)))
+			elseif r == 3 then set(x, y + 1, z, "flowers:dandelion_yellow")
+			elseif r == 4 then set(x, y + 1, z, "default:fern_1") end
+		end
+	end end
 end
 
 ------------------------------------------------------------------------------
@@ -596,6 +694,7 @@ function g.build(origin)
 	lights = {}
 	seed = 4242
 	ground()
+	hills()
 	ruin()
 	upper()
 	delvings()
