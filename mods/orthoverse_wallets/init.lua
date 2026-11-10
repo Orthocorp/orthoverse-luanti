@@ -5,7 +5,8 @@
 --     service (web/auth), which writes registry.json;
 --   * password characters: made on the website with a name and password, in
 --     registry.json without a wallet until they link one;
---   * guests: named Guest-XXXXXX (six hexadecimal digits) by the play page.
+--   * guests: named Guest-XXXXXX (six hexadecimal digits) by the play page,
+--     new each visit, and deleted when they leave (nothing of theirs is kept).
 -- Anyone else is turned away.
 --
 -- Building: a wallet player may dig and build on the lands whose token their
@@ -160,6 +161,33 @@ local function enforce()
 		end
 	end
 end
+
+-- Guests are not kept: when a guest leaves, its game account and player data
+-- (what it carried, where it stood) are deleted, and so is what this mod kept
+-- about it. Guests still in the game when the server stopped go when it
+-- starts again.
+local function forget_guest(name)
+	if not is_guest_name(name) or core.get_player_by_name(name) then return end
+	core.remove_player(name)
+	if core.get_auth_handler().get_auth(name) then core.remove_player_auth(name) end
+	for _, k in ipairs({"played:", "entered:", "visit:"}) do storage:set_string(k .. name, "") end
+end
+
+core.register_on_leaveplayer(function(player)
+	local name = player:get_player_name()
+	if is_guest_name(name) then core.after(1, forget_guest, name) end
+end)
+
+core.after(3, function()
+	local auth = core.get_auth_handler()
+	if not auth.iterate then return end
+	local old = {}
+	for name in auth.iterate() do
+		if is_guest_name(name) and not core.get_player_by_name(name) then old[#old + 1] = name end
+	end
+	for _, name in ipairs(old) do forget_guest(name) end
+	if #old > 0 then core.log("action", "[orthoverse_wallets] " .. #old .. " guests left from before removed") end
+end)
 
 local timer = 0
 core.register_globalstep(function(dtime)
@@ -367,8 +395,9 @@ core.register_on_joinplayer(function(player)
 		if not core.get_player_by_name(name) then return end
 		if is_guest(name) then
 			core.chat_send_player(name, "Welcome, " .. name .. ". As a guest you can explore, ride and " ..
-				"travel by the henges. Make a character or sign in at " .. PLAY_URL ..
-				" to keep your progress and build on crofts, the common lands.")
+				"travel by the henges, but not build. Nothing is kept: when you leave, this guest and everything " ..
+				"it carries are gone. Make a character or sign in at " .. PLAY_URL ..
+				" to keep what you find and build on crofts, the common lands.")
 		elseif without_wallet(name) then
 			local wait = croft_wait(name)
 			core.chat_send_player(name, "Welcome, " .. name .. ". " .. (wait == 0

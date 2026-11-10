@@ -1046,7 +1046,6 @@ const routes = {
 		send(res, 200, { signedIn: false }, { 'set-cookie': sessionCookie(req, '', 0) });
 	},
 
-	// Whether a game account exists (the page uses it for guests: log in or register)
 	// Read one land's castle level from the contract now (after an upgrade or
 	// a flip) and hand it to the game. Anyone may ask; one look per land every
 	// 15 seconds.
@@ -1169,13 +1168,6 @@ const routes = {
 		visits.visits[name.toLowerCase()] = { name, x, z, at: new Date().toISOString(), t: Math.floor(Date.now() / 1000) };
 		writeJsonAtomic(VISITS_FILE, visits);
 		return send(res, 200, { name, x, z });
-	},
-
-	'GET /auth/exists': async (req, res, url) => {
-		if (limited(req, 60)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
-		const name = url.searchParams.get('name') || '';
-		if (!/^[A-Za-z0-9_-]{1,19}$/.test(name)) return send(res, 400, { error: 'Not a player name.' });
-		send(res, 200, { exists: accountExistsExact(name) });
 	},
 
 	// For the operator: is ownership data current?

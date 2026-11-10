@@ -61,7 +61,10 @@ The play page offers two ways in.
   service makes a fresh game password for that one entry, which the page hands
   to the game; players never see or type it, and the game lets each in once.
 - **Play as a guest.** The page makes up a name like `Guest-7F3A9C` and a random
-  password, kept in that browser so the guest comes back as the same player.
+  password, new each visit. Nothing of a guest is kept: when it leaves, the game
+  deletes its account and player data (what it carried, where it stood), and
+  guests still in the game when the server stops are deleted when it starts.
+  Guests are told so on the play page and when they join.
 
 Old name-and-password accounts can no longer join: the game turns away any name
 that is neither a guest nor bound to a wallet.

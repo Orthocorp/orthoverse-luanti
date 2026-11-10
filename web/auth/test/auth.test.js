@@ -293,11 +293,9 @@ try {
 	r = await call('GET', '/auth/me', null, { cookie: forged });
 	check(r.body.signedIn === false, 'a tampered session cookie is ignored');
 
-	// Guests: whether their account exists
+	// Guests are new each visit: nothing tells whether a name has a game account
 	r = await call('GET', '/auth/exists?name=Keirtest');
-	check(r.body.exists === true, 'exists: an existing account');
-	r = await call('GET', '/auth/exists?name=Guest-ABC123');
-	check(r.body.exists === false, 'exists: a new guest');
+	check(r.status === 404, 'exists: no longer answered');
 
 	r = await call('POST', '/auth/logout', {});
 	check(/Max-Age=0/.test(r.setCookie), 'signing out clears the cookie');

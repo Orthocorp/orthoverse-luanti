@@ -109,7 +109,8 @@
   <!-- Guests -->
   <section class="panel" aria-labelledby="guest-title">
     <h2 id="guest-title">Play as a guest</h2>
-    <p>Explore, ride and travel by the henges. Guests cannot build.</p>
+    <p>Explore, ride and travel by the henges. Guests cannot build, and nothing is kept: when you leave, the guest
+      and everything it carries are gone. Make a character to keep what you find.</p>
     <button id="guest-play" class="go" type="button" disabled>Loading…</button>
     <div class="who" id="guest-who"></div>
   </section>
@@ -134,7 +135,6 @@
   const SERVER_PORT = 30000;
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
   const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
-  const GUEST_KEY = 'orthoverse.guest';   // localStorage: this browser's guest
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
@@ -204,7 +204,7 @@
       [/not linked to a wallet/i, () => ['This player cannot join',
         'Only wallet players and guests can join now. Sign in with your wallet, or play as a guest.', null]],
       [/Invalid password/i, () => kind === 'guest'
-        ? ['This guest could not log in', 'The guest saved in this browser no longer matches the game. Start again as a new guest.', newGuest]
+        ? ['This guest could not join', 'Start again as a new guest.', newGuest]
         : ['Could not log in', 'The game did not accept this player. Reload the page and press Enter again.', null]],
       [/press Enter again|Enter the game from/i, () => ['Could not log in',
         'Each entry into the game is let in once. Reload the page and press Enter again.', null]],
@@ -277,13 +277,12 @@
   }
 
   // ------------------------------------------------------------------
-  // Guests: a name and password kept in this browser
+  // Guests: a new one each visit (the game deletes a guest when it leaves)
 
   function makeGuest() {
     const bytes = crypto.getRandomValues(new Uint8Array(3 + 16));
     const h = (a) => Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
     guest = { name: 'Guest-' + h(bytes.slice(0, 3)).toUpperCase(), password: h(bytes.slice(3)) };
-    guest.kept = save('local', GUEST_KEY, guest);
     return guest;
   }
 
@@ -292,7 +291,7 @@
     btn.disabled = !ready;
     btn.textContent = ready ? 'Play as guest' : 'Loading the game…';
     $('guest-who').textContent = guest
-      ? 'You will play as ' + guest.name + (guest.kept === false ? ' (this browser cannot keep it for next time).' : '.')
+      ? 'You will play as ' + guest.name + '.'
       : '';
     if (quest && quest.open) {
       $('guest-who').append(' Guests start at the henges: to reach ' + quest.name + ', type /adventure go ' +
@@ -385,7 +384,8 @@
       } else {
         if (!guest) makeGuest();
         name = guest.name; password = guest.password;
-        exists = (await api('GET', '/auth/exists?name=' + encodeURIComponent(name))).exists;
+        exists = false;
+        guest = null;   // the next visit is a new guest
       }
     } catch (e) {
       return showProblem('Could not reach the Orthoverse', e.message, null, '');
@@ -398,7 +398,7 @@
     args.name = name;
     args.password = password;
     args.go = true;
-    // A guest's first visit creates the player in the game; later ones log in
+    // A guest is made in the game as it joins; a character logs in
     args.extra = [exists ? '--login' : '--register'];
 
     mtl.setProxy(PROXY_URL);
@@ -430,8 +430,8 @@
   $('wallet-play').addEventListener('click', () => enter('wallet'));
   $('guest-play').addEventListener('click', () => enter('guest'));
 
-  guest = load('local', GUEST_KEY);
-  if (guest && !(guest.name && /^Guest-[0-9A-F]{6}$/.test(guest.name) && guest.password)) guest = null;
+  try { localStorage.removeItem('orthoverse.guest'); } catch (e) { /* not kept anyway */ }
+  makeGuest();
   showWallet();
   showGuest();
 
