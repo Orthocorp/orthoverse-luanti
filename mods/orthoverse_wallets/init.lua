@@ -166,8 +166,18 @@ end
 -- (what it carried, where it stood) are deleted, and so is what this mod kept
 -- about it. Guests still in the game when the server stopped go when it
 -- starts again.
+-- A guest on its way in (between the engine asking and the player being in
+-- the game, its account is there but its player is not): never removed then,
+-- or the engine finds no account when the player arrives, and stops
+local arriving = {}   -- name -> when it asked to join
+core.register_on_prejoinplayer(function(name)
+	if is_guest_name(name) then arriving[name] = core.get_us_time() / 1e6 end
+end)
+core.register_on_joinplayer(function(player) arriving[player:get_player_name()] = nil end)
+
 local function forget_guest(name)
 	if not is_guest_name(name) or core.get_player_by_name(name) then return end
+	if arriving[name] and core.get_us_time() / 1e6 - arriving[name] < 60 then return end
 	core.remove_player(name)
 	if core.get_auth_handler().get_auth(name) then core.remove_player_auth(name) end
 	for _, k in ipairs({"played:", "entered:", "visit:"}) do storage:set_string(k .. name, "") end
