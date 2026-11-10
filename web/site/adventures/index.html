@@ -38,7 +38,7 @@
   th { color: var(--quiet); font-weight: normal; }
   td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
   .none { margin-top: 32px; }
-  .go { margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
+  .go { margin: 0 0 14px; font-size: 15px; color: var(--quiet); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
   .go code { font-family: "Midnight", monospace; color: var(--gold); background: var(--night); padding: 2px 6px;
     border: 1px solid var(--line); user-select: all; }
   @media (max-width: 640px) { th.when, td.when { display: none; } }
@@ -92,7 +92,9 @@
       el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
       a.line ? el('div', { class: 'line' }, a.line) : null,
       facts,
-      a.open ? el('div', { class: 'go' }, 'To go there in the game, type ', el('code', {}, '/adventure go ' + (a.name || a.key))) : null,
+      a.open ? el('div', { class: 'go' },
+        el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play this adventure'),
+        el('span', {}, 'Already in the game? Type ', el('code', {}, '/adventure go ' + (a.name || a.key)))) : null,
       rows.length ? el('table', {},
         el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
         el('tbody', {}, ...rows)) : null);

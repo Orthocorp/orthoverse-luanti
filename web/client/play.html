@@ -121,7 +121,7 @@
       downloads the game engine (tens of megabytes); later visits load it from your browser.</li>
     <li>Walk with W A S D, jump with space, open your inventory with I, chat with T.
       <code>/whereami</code> tells you whose land you are on, <code>/mylands</code> lists yours.</li>
-    <li><code>/home</code> takes you to your own land.</li>
+    <li><code>/home</code> takes you to your own land, <code>/adventure go</code> to an adventure.</li>
   </ul>
 </main>
 <div id="ov-footer"></div>
@@ -164,6 +164,21 @@
     const v = m && m.match(/^(-?\d+),(-?\d+)$/);
     return v ? { x: +v[1], z: +v[2] } : null;
   })();
+
+  // From the Adventures page: /play/?adventure=x:z (any character arrives at
+  // its entrance; the name comes from /api/adventures)
+  const quest = (() => {
+    const k = new URLSearchParams(location.search).get('adventure');
+    return k && /^-?\d{1,3}:-?\d{1,3}$/.test(k) ? { key: k, name: null, open: false } : null;
+  })();
+  if (quest) {
+    fetch('/api/adventures', { cache: 'no-store' }).then(r => r.json()).then(data => {
+      const a = (data.adventures || []).find(x => x && x.key === quest.key);
+      if (a) { quest.name = a.name; quest.open = a.open === true; }
+      showWallet();
+      showGuest();
+    }).catch(() => {});
+  }
 
   // ------------------------------------------------------------------
   // Explaining what went wrong
@@ -246,8 +261,12 @@
       if (me.address) who.append('Wallet ' + me.address.slice(0, 6) + '…' + me.address.slice(-4) + ' · ');
       who.append(held);
       const v = $('visit');
-      v.hidden = !visit;
-      if (visit) {
+      v.hidden = !visit && !quest;
+      if (quest) {
+        v.className = 'visit' + (quest.open ? '' : ' no');
+        v.textContent = quest.open ? `You will arrive at the entrance to ${quest.name}.`
+          : (quest.name ? `${quest.name} is closed just now; you will arrive where you left off.` : '');
+      } else if (visit) {
         v.className = 'visit' + (me.canVisit ? '' : ' no');
         v.textContent = me.canVisit ? `You will arrive at ${visit.x}, ${visit.z}, the spot you chose on the map.`
           : 'Arriving where you click on the map is for holders of a level 7 land; you will arrive where you left off.';
@@ -273,6 +292,10 @@
     $('guest-who').textContent = guest
       ? 'You will play as ' + guest.name + (guest.kept === false ? ' (this browser cannot keep it for next time).' : '.')
       : '';
+    if (quest && quest.open) {
+      $('guest-who').append(' Guests start at the henges: to reach ' + quest.name + ', type /adventure go ' +
+        quest.name + ' in the game (T opens the chat).');
+    }
   }
 
   // ------------------------------------------------------------------
@@ -350,7 +373,9 @@
         me = await api('GET', '/auth/me');   // fresh password and account state
         if (!me.signedIn || !me.name) { OV.set(me); return; }
         name = me.name; password = me.password; exists = me.exists;
-        if (visit && me.canVisit) await api('POST', '/auth/visit', visit);
+        if (quest && quest.open) {
+          try { await api('POST', '/auth/visit', { adventure: quest.key }); } catch (e) { /* arrive where they left off */ }
+        } else if (visit && me.canVisit) await api('POST', '/auth/visit', visit);
       } else {
         if (!guest) makeGuest();
         name = guest.name; password = guest.password;

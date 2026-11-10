@@ -111,6 +111,7 @@ const svc = spawn(process.execPath, ['server.js'], {
 		OV_TURNSTILE_SITEKEY: 'ts-site', OV_TURNSTILE_SECRET: 'ts-secret',
 		OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
 		OV_REGISTER_PER_DAY: '3',
+		OV_ADVENTURES: join(dir, 'adventures.json'),
 		NODE_NO_WARNINGS: '1',
 	},
 	stdio: ['ignore', 'pipe', 'pipe'],
@@ -208,6 +209,21 @@ try {
 	check(r.body.canVisit === false, 'visit: not for a holder without a level 7 land');
 	r = await call('POST', '/auth/visit', { x: 100, z: -50 });
 	check(r.status === 403, 'visit refused for them');
+	// ...but any character may arrive at an open adventure's entrance
+	writeFileSync(join(dir, 'adventures.json'), JSON.stringify({ adventures: [
+		{ key: '0:1', name: "St Morwen's", open: true }, { key: '2:2', name: 'Shut', open: false }] }));
+	r = await call('POST', '/auth/visit', { adventure: '0:1' });
+	check(r.status === 200 && r.body.adventure === '0:1', 'adventure visit recorded without a level 7 land');
+	const av = JSON.parse(readFileSync(join(dir, 'data', 'visits.json'), 'utf8')).visits.alice_1;
+	check(av && av.adventure === '0:1' && av.x === undefined && Number.isInteger(av.t), 'visits.json: the adventure, no spot');
+	r = await call('POST', '/auth/visit', { adventure: '2:2' });
+	check(r.status === 404, 'a closed adventure is refused');
+	r = await call('POST', '/auth/visit', { adventure: '9:9' });
+	check(r.status === 404, 'a land with no adventure is refused');
+	r = await call('POST', '/auth/visit', { adventure: '../x' });
+	check(r.status === 400, 'a key that is not a land key is refused');
+	r = await call('POST', '/auth/visit', { adventure: { toString: 1 } });
+	check(r.status === 400, 'a key that is not a string is refused');
 	castle['0xa2'] = 7n;
 	await call('POST', '/api/levels/check', { key: '3:4' });
 	r = await call('GET', '/auth/me');

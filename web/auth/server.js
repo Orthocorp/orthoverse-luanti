@@ -964,18 +964,33 @@ const routes = {
 	},
 
 	// Arrive at a spot on the map when you next join the game (the admin and
-	// level 7 holders). Kept for 10 minutes; the game checks who may.
+	// level 7 holders), or at the entrance of an open adventure chosen on the
+	// Adventures page (any character: { adventure: "x:z" }, its land's key).
+	// Kept for 10 minutes; the game checks again.
 	'POST /auth/visit': async (req, res) => {
 		if (limited(req)) return send(res, 429, { error: 'Too many requests; wait a minute.' });
 		const sess = readSession(req);
 		if (!sess) return send(res, 401, { error: 'Sign in first.' });
 		const { address, name } = sess;
 		if (!name) return send(res, 400, { error: 'Choose a player name first.' });
+		let body;
+		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
+		if (body && typeof body === 'object' && !Array.isArray(body) && Object.hasOwn(body, 'adventure')) {
+			const key = String(body.adventure);
+			if (!/^-?\d{1,3}:-?\d{1,3}$/.test(key)) return send(res, 400, { error: 'Not an adventure.' });
+			let open = false;
+			try {
+				const data = JSON.parse(readFileSync(ADVENTURES_FILE, 'utf8'));
+				open = Array.isArray(data.adventures) && data.adventures.some(a => a && a.key === key && a.open === true);
+			} catch (e) { /* none open */ }
+			if (!open) return send(res, 404, { error: 'That adventure is not open.' });
+			visits.visits[name.toLowerCase()] = { name, adventure: key, at: new Date().toISOString(), t: Math.floor(Date.now() / 1000) };
+			writeJsonAtomic(VISITS_FILE, visits);
+			return send(res, 200, { name, adventure: key });
+		}
 		if (!mayVisit(address, name)) {
 			return send(res, 403, { error: 'Arriving anywhere is for holders of a level 7 land.' });
 		}
-		let body;
-		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
 		const x = Math.round(Number(body && body.x)), z = Math.round(Number(body && body.z));
 		const EDGE = 58 * 96 + 47;
 		if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > EDGE || Math.abs(z) > EDGE) {

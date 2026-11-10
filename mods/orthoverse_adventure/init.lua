@@ -1221,6 +1221,37 @@ local function ranks_of(def)
 	return ("ranks %d to %d"):format(def.rank_min or RANK_MIN_DEFAULT, def.rank_max or RANK_MAX_DEFAULT)
 end
 
+-- Take `name` to the entrance of the open adventure on land `key`. Used by
+-- /adventure go and by the website (a player who chose an adventure on the
+-- Adventures page arrives there on joining: orthoverse_wallets).
+local function travel(name, key)
+	local def = adventures[key]
+	if not (def and def.open and def.arrival) then return false, "That adventure is not open." end
+	for _, run in pairs(runs) do
+		if run.members[name] then return false, "Not during a run: /adventure leave first." end
+	end
+	local at = vec(def.arrival)
+	core.emerge_area(vector.subtract(at, 16), vector.add(at, 16), function(_, _, remaining)
+		if remaining > 0 then return end
+		local p = core.get_player_by_name(name)
+		if not p or p:get_hp() <= 0 then return end
+		for _, run in pairs(runs) do
+			if run.members[name] then return end   -- went through a gate meanwhile
+		end
+		p:set_pos(at)
+		if def.start then
+			local d = vector.subtract(vec(def.start), at)
+			p:set_look_horizontal(math.atan2(-d.x, d.z))
+		end
+		local land = orthoverse.lands[key]
+		core.chat_send_player(name, ("Welcome to %s%s: %s. %s Right-click the gate to go in."):format(def.name,
+			land and (", on " .. land.name) or "", ranks_of(def), def.line or ""))
+	end)
+	core.log("action", ("[orthoverse_adventure] %s goes to %s (%s)"):format(name, def.name, key))
+	return true, "Going to " .. def.name .. "..."
+end
+orthoverse.adventure.travel = travel
+
 local function go(name, player, rest)
 	local open = {}
 	for key, def in pairs(adventures) do
@@ -1259,28 +1290,8 @@ local function go(name, player, rest)
 		return false, ("Wait %d seconds before going again."):format(GO_EVERY - (t - went[name]))
 	end
 	went[name] = t
-	local key, def = found[1].key, found[1].def
-	local at = vec(def.arrival)
-	core.emerge_area(vector.subtract(at, 16), vector.add(at, 16), function(_, _, remaining)
-		if remaining > 0 then return end
-		local p = core.get_player_by_name(name)
-		if not p or p:get_hp() <= 0 then return end
-		for _, run in pairs(runs) do
-			if run.members[name] then return end   -- went through a gate meanwhile
-		end
-		p:set_pos(at)
-		if def.start then
-			local d = vector.subtract(vec(def.start), at)
-			p:set_look_horizontal(math.atan2(-d.x, d.z))
-		end
-		local land = orthoverse.lands[key]
-		core.chat_send_player(name, ("Welcome to %s%s: %s. %s Right-click the gate to go in."):format(def.name,
-			land and (", on " .. land.name) or "", ranks_of(def), def.line or ""))
-	end)
-	core.log("action", ("[orthoverse_adventure] %s goes to %s (%s)"):format(name, def.name, key))
-	return true, "Going to " .. def.name .. "..."
+	return travel(name, found[1].key)
 end
-
 core.register_on_leaveplayer(function(player) went[player:get_player_name()] = nil end)
 
 ------------------------------------------------------------------------------

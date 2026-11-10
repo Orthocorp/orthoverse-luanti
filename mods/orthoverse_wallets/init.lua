@@ -347,6 +347,9 @@ core.register_chatcommand("mylands", {
 -- the admin and holders of a level 7 land) writes visits.json; on joining
 -- within 10 minutes the player is put there. Checked again here: the
 -- teleport privilege, or a land at castle level 7 (either realm) held now.
+-- Or at an adventure chosen on the Adventures page (any character): a visit
+-- with "adventure" (a land key) instead of x and z puts the player at its
+-- entrance, if it is open (orthoverse.adventure.travel).
 
 local VISIT_FOR = 600   -- seconds a visit waits for the player to join
 
@@ -376,9 +379,21 @@ core.register_on_joinplayer(function(player)
 	local raw = read_file("visits.json")
 	local data = raw and core.parse_json(raw)
 	local v = type(data) == "table" and type(data.visits) == "table" and data.visits[name:lower()]
-	if type(v) ~= "table" or v.name ~= name or not tonumber(v.x) or not tonumber(v.z) or not tonumber(v.t) then return end
+	if type(v) ~= "table" or v.name ~= name or not tonumber(v.t) then return end
 	if os.time() - tonumber(v.t) > VISIT_FOR then return end
 	if storage:get_string("visit:" .. name) == tostring(v.at) then return end   -- already taken
+	if type(v.adventure) == "string" then
+		storage:set_string("visit:" .. name, tostring(v.at))
+		local key = v.adventure
+		core.after(1, function()
+			local ad = orthoverse.adventure
+			if not (ad and ad.travel and core.get_player_by_name(name)) then return end
+			local ok, msg = ad.travel(name, key)
+			if not ok then core.chat_send_player(name, msg) end
+		end)
+		return
+	end
+	if not tonumber(v.x) or not tonumber(v.z) then return end
 	storage:set_string("visit:" .. name, tostring(v.at))
 	if not may_visit(name) then return end
 	local x, z = math.floor(tonumber(v.x)), math.floor(tonumber(v.z))
