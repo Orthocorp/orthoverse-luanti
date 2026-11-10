@@ -38,13 +38,24 @@
   th { color: var(--quiet); font-weight: normal; }
   td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
   .none { margin-top: 32px; }
-  .adv .top { display: flex; gap: 20px; align-items: flex-start; }
+  /* The land's picture beside the text, square, as tall as the text beside it
+     (its size is set from the text's height by the script) */
+  .adv .top { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 16px; }
   .adv .about { flex: 1; min-width: 0; }
-  .adv .token { flex: 0 0 auto; width: 160px; max-width: 32%; display: block; border: 3px solid var(--outline);
-    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35); line-height: 0; }
-  .adv .token img { width: 100%; height: auto; image-rendering: pixelated; }
+  .adv .token { flex: 0 0 auto; width: 180px; height: 180px; display: block; border: 3px solid var(--outline);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35); line-height: 0; background: var(--night-3); }
+  .adv .token img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+  @media (max-width: 640px) {
+    .adv .top { flex-direction: column; align-items: stretch; }
+    .adv .go code { white-space: normal; word-break: break-word; }
+    .adv .token { width: 100% !important; height: auto !important; max-width: 320px; aspect-ratio: 1; }
+    .adv { padding: 14px; min-width: 0; }
+    .adv th, .adv td { padding: 6px 6px; }
+  }
   .adv .token:hover, .adv .token:focus-visible { border-color: var(--gold); }
-  .go { margin: 0 0 14px; font-size: 15px; color: var(--quiet); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .go { margin: 0; font-size: 15px; color: var(--quiet); }
+  .go .hint { margin-top: 10px; }
+  .go code { white-space: nowrap; }
   .go code { font-family: "Midnight", monospace; color: var(--gold); background: var(--night); padding: 2px 6px;
     border: 1px solid var(--line); user-select: all; }
   @media (max-width: 640px) { th.when, td.when { display: none; } }
@@ -94,6 +105,7 @@
       el('span', {}, 'Time limit ', el('b', {}, (a.limit || 60) + ' minutes')),
       el('span', {}, 'Version ', el('b', {}, String(a.version))));
     // The land's token picture, linking to the token on OpenSea
+    // (sized to the text beside it, below)
     const okImage = typeof a.image === 'string' && /^\/(map\/cards|api\/metadata\/classic)\/[-\w.]+\.png$/.test(a.image);
     const okToken = typeof a.token === 'string' && /^0x[0-9a-f]{40}$/.test(a.token);
     const picture = okImage ? el('img', { src: a.image, alt: 'The token of ' + (a.land || 'its land'), loading: 'lazy' }) : null;
@@ -107,11 +119,11 @@
           el('h2', {}, a.name || 'Adventure', el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed')),
           el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
           a.line ? el('div', { class: 'line' }, a.line) : null,
-          facts),
+          facts,
+          a.open ? el('div', { class: 'go' },
+            el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play this adventure'),
+            el('div', { class: 'hint' }, 'Already in the game? Type ', el('code', {}, '/adventure go ' + (a.name || a.key)))) : null),
         token),
-      a.open ? el('div', { class: 'go' },
-        el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play this adventure'),
-        el('span', {}, 'Already in the game? Type ', el('code', {}, '/adventure go ' + (a.name || a.key)))) : null,
       rows.length ? el('table', {},
         el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
         el('tbody', {}, ...rows)) : null);
@@ -123,6 +135,23 @@
     const list = (data.adventures || []).filter(a => a.open || a.completions > 0)
       .sort((x, y) => (y.open - x.open) || (y.completions - x.completions));
     $('list').append(...list.map(card));
+    // Each land picture square, as tall as the text beside it (to the top of
+    // the table), but no wider than 40% of the card; on a phone it goes below
+    const fit = () => {
+      for (const top of document.querySelectorAll('.adv .top')) {
+        const about = top.querySelector('.about'), token = top.querySelector('.token');
+        if (!token) continue;
+        if (getComputedStyle(top).flexDirection === 'column') { token.style.width = token.style.height = ''; continue; }
+        const side = Math.max(140, Math.min(about.offsetHeight, top.clientWidth * 0.4));
+        token.style.width = token.style.height = side + 'px';
+      }
+    };
+    fit();
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => requestAnimationFrame(fit));
+      for (const about of document.querySelectorAll('.adv .about')) ro.observe(about);
+    } else window.addEventListener('resize', fit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
     $('none').hidden = list.length > 0;
   })();
 </script>
