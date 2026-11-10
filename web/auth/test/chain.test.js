@@ -269,7 +269,7 @@ try {
 		OV_CHAIN_TOKENS: join(dir, 'chain', 'tokens.json'),
 	}, 2500);
 	const owners = JSON.parse(readFileSync(join(dir, 'auth', 'owners.json'), 'utf8'));
-	check(/2 of 2 held as the chain index \(block \d+\) says/.test(r.out), 'auth: holders come from the chain index');
+	check(/0 lands held by player wallets \(checked with 0 requests\), the rest as the chain index says \(block \d+\)/.test(r.out), 'auth: holders come from the chain index, nothing asked of the RPC without players');
 	check(owners.owners[alice] === dave && owners.owners[bob] === carol, 'auth: owners.json has the current holders');
 	// Alchemy: the transfers API, a page at a time, from before V2
 	r = await runNode(['chain.js', '--once'], { OV_CHAIN_FROM_BLOCK: '', OV_CHAIN_METHOD: 'transfers', OV_CHAIN_DIR: join(dir, 'chain4') });

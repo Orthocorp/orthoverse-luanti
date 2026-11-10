@@ -77,7 +77,7 @@ docker compose run --rm --build map
 A token revealed after the world's lands were fixed gets a land of its own,
 by itself:
 
-1. The `chain` service, in its daily run, gives it the next free cell in the
+1. The `chain` service, in its hourly run, gives it the next free cell in the
    order the old toolchain used (`generate-map-from-db-sqlite.js`): a square
    spiral round each of the nine henge centres, all nine growing together,
    skipping lands and the planned seas and lakes (`seas` in

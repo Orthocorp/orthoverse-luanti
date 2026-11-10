@@ -1,6 +1,6 @@
 // Orthoverse chain indexer: every token of the Orthoverse contract, who holds
 // it, its castle level and realm, kept in a SQLite database and refreshed
-// daily. It does what scrape-tokenids-and-levels.js in orthoverse-contracts
+// hourly. It does what scrape-tokenids-and-levels.js in orthoverse-contracts
 // did, but incrementally, through a public RPC endpoint.
 //
 // The contract is an ERC-1155 with one token per land; a token's ID is the
@@ -20,7 +20,7 @@
 //                            were fixed: { updated, lands: { "x:z": land } }, read by
 //                            the game, the auth service and the web map
 //
-//   node chain.js           index now, then again every OV_CHAIN_EVERY_HOURS (24)
+//   node chain.js           index now, then again every OV_CHAIN_EVERY_HOURS (1)
 //   node chain.js --once    index now and exit
 
 'use strict';
@@ -56,7 +56,7 @@ const METHOD = env.OV_CHAIN_METHOD ||
 	(/(^|\.)alchemy\.com$/.test((() => { try { return new URL(RPC_URL).hostname; } catch (e) { return ''; } })()) ? 'transfers' : 'logs');
 // With the transfers API, everything since before V2 was deployed
 const FROM_BLOCK = parseInt(env.OV_CHAIN_FROM_BLOCK || (METHOD === 'transfers' ? '14000000' : String(MERGE_BLOCK)), 10);
-const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '24') * 3600 * 1000;
+const EVERY_MS = parseFloat(env.OV_CHAIN_EVERY_HOURS || '1') * 3600 * 1000;
 // Stay this far behind the chain head, in case the newest blocks are
 // rewritten. Since the Merge, rewrites deeper than a block or two do not
 // happen in practice; 16 blocks is about three minutes.
@@ -601,7 +601,7 @@ log(`Orthoverse chain indexer: contract ${CONTRACT} via ${RPC_SHOWN} (${METHOD =
 
 // Asked to index now: the auth service writes this file ("<time> <address>")
 // when someone has just revealed a token, so the land is placed within a few
-// minutes rather than at the next daily run. Looked for every 15 seconds. The
+// minutes rather than at the next hourly run. Looked for every 15 seconds. The
 // newest blocks are only read once CONFIRMATIONS have passed, so until the
 // revealed token turns up it runs again every minute, for up to 20 minutes.
 const REQUEST_FILE = env.OV_CHAIN_REQUEST || '/requests/index-now';
@@ -630,7 +630,7 @@ for (;;) {
 	}
 	if (once) break;
 	if (waiting && (!waiting.token || known(waiting.token) || Date.now() > waiting.until)) {
-		if (waiting.token && !known(waiting.token)) log(`revealed token ${waiting.token} still not seen; the daily run will pick it up`);
+		if (waiting.token && !known(waiting.token)) log(`revealed token ${waiting.token} still not seen; the next run will pick it up`);
 		waiting = null;
 	}
 	const until = Date.now() + wait;

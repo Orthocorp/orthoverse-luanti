@@ -119,7 +119,7 @@ services:
     environment:
       OV_ETH_RPC: ${OV_ETH_RPC:-https://ethereum-rpc.publicnode.com}
       OV_CONTRACT: ${OV_CONTRACT:-0x118aeD2606D02C2545C6D7D2d1021e567cc08922}
-      OV_CHAIN_EVERY_HOURS: ${OV_CHAIN_EVERY_HOURS:-24}
+      OV_CHAIN_EVERY_HOURS: ${OV_CHAIN_EVERY_HOURS:-1}
     volumes:
       - ${OV_DATA}/chain:/chain
       # The auth service asks for an index now (index-now) after a reveal

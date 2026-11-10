@@ -253,7 +253,7 @@ addNewLands();
 
 // Castle levels read from the contract just after a holder upgraded or flipped
 // a land on the lands page (POST /api/levels/check), so the game remakes it
-// within a minute rather than after the chain service's next daily run. The
+// within a minute rather than after the chain service's next hourly run. The
 // game takes these over land-levels.json when they were checked later.
 const LEVELS_FILE = join(DATA_DIR, 'levels.json');
 const freshLevels = readJson(LEVELS_FILE, { format: 1, levels: {} });
@@ -267,7 +267,7 @@ let ownersError = null;
 // the address that revealed it. ERC-1155 cannot say who holds a token, only
 // whether a given wallet does (balanceOf, here always 0 or 1). So for every
 // land we ask about the wallets that matter: every signed-up player's wallet,
-// and the land's known holder: from the daily chain index (chain.js,
+// and the land's known holder: from the hourly chain index (chain.js,
 // tokens.json) when there is one, otherwise the owner in the April 2023
 // snapshot. That also shows at a glance that the contract and token IDs are
 // right. A land held by anyone else is recorded as null.
@@ -328,18 +328,58 @@ async function balances(pairs) {
 // who has not chosen a name yet
 const watched = new Set(Object.values(registry.players).filter(p => p.address).map(p => p.address.toLowerCase()));
 
-// The holder of each token according to the daily chain index, if it has run
+// The holder of each token according to the chain index (the chain service,
+// hourly), if it has run, and when it was written
 function indexedHolders() {
 	const data = readJson(CHAIN_TOKENS, null);
-	if (!data || !data.tokens) return { holders: null, block: null };
+	if (!data || !data.tokens) return { holders: null, block: null, at: 0 };
 	const holders = new Map();
 	for (const [id, t] of Object.entries(data.tokens)) {
 		if (t && typeof t.holder === 'string') holders.set(id.toLowerCase(), t.holder.toLowerCase());
 	}
-	return { holders, block: data.block };
+	const at = Date.parse(data.updated || '') || 0;
+	return { holders, block: data.block, at };
 }
 
+// Lands a player's wallet was found holding on signing in (refreshWallet),
+// newer than the chain index: token -> { address, at }
+const freshHolds = new Map();
+
+// Who holds each land. The chain index (replaying every transfer, hourly)
+// says who holds every land as of its block. Building rights rest only on the
+// lands it says players' wallets hold, so only those are checked against the
+// contract now, every OWNERS_EVERY_MS, and the lands a player was found
+// holding on signing in since the index was written: usually a single
+// request, however many players there are. Before the index's first run,
+// every land is checked against its 2023 holder and every player's wallet
+// (refreshOwnersByAsking), as before.
 async function refreshOwners() {
+	addNewLands();
+	const index = indexedHolders();
+	if (!index.holders) return refreshOwnersByAsking();
+	for (const [t, f] of freshHolds) if (f.at <= index.at) freshHolds.delete(t);
+	const result = {};
+	const pairs = [];
+	for (const l of lands) {
+		const fresh = freshHolds.get(l.token);
+		const h = fresh ? fresh.address : (index.holders.get(l.token) || null);
+		result[l.token] = h;
+		if (h && watched.has(h)) pairs.push([h, l.token]);
+	}
+	const held = pairs.length ? await balances(pairs) : [];
+	let gone = 0;
+	pairs.forEach(([, token], i) => {
+		if (!held[i]) { result[token] = null; freshHolds.delete(token); gone++; }
+	})
+	owners = { updated: new Date().toISOString(), contract: CONTRACT, owners: result };
+	writeJsonAtomic(OWNERS_FILE, owners);
+	ownersError = null;
+	log(`owners updated: ${pairs.length - gone} lands held by player wallets (checked with ${Math.ceil(pairs.length / PAIRS_PER_CALL)} ` +
+		`request${Math.ceil(pairs.length / PAIRS_PER_CALL) === 1 ? '' : 's'}${gone ? `; ${gone} no longer held` : ''}), ` +
+		`the rest as the chain index says (block ${index.block})`);
+}
+
+async function refreshOwnersByAsking() {
 	addNewLands();
 	const wallets = [...watched];
 	const index = indexedHolders();
@@ -375,9 +415,10 @@ async function refreshOwners() {
 async function refreshWallet(address) {
 	if (!owners) return;
 	const held = await balances(lands.map(l => [address, l.token]));
+	const now = Date.now();
 	lands.forEach((l, i) => {
-		if (held[i]) owners.owners[l.token] = address;
-		else if (owners.owners[l.token] === address) owners.owners[l.token] = null;
+		if (held[i]) { owners.owners[l.token] = address; freshHolds.set(l.token, { address, at: now }); }
+		else if (owners.owners[l.token] === address) { owners.owners[l.token] = null; freshHolds.delete(l.token); }
 	});
 	writeJsonAtomic(OWNERS_FILE, owners);
 }

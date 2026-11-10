@@ -51,7 +51,7 @@ db.prepare('INSERT INTO auth (name, password, last_login) VALUES (?, ?, 0)').run
 db.close();
 
 // Stand-in Ethereum JSON-RPC endpoint: an ERC-1155 answering balanceOfBatch
-let rpcCalls = 0;
+let rpcCalls = 0, balanceCalls = 0;
 const rpc = http.createServer((req, res) => {
 	let body = '';
 	req.on('data', c => body += c);
@@ -70,6 +70,7 @@ const rpc = http.createServer((req, res) => {
 			if (tx.name === 'supportsInterface') {
 				return { jsonrpc: '2.0', id: r.id, result: erc1155.encodeFunctionResult('supportsInterface', [true]) };
 			}
+			balanceCalls++;
 			const [accounts, ids] = tx.args;
 			const bal = accounts.map((a, i) =>
 				(holder['0x' + ids[i].toString(16)] || '').toLowerCase() === a.toLowerCase() ? 1n : 0n);
@@ -95,26 +96,26 @@ await new Promise(r => turnstile.listen(0, '127.0.0.1', r));
 
 // The service
 const PORT = 18090;
+const svcEnv = {
+	OV_AUTH_PORT: String(PORT), OV_AUTH_HOST: '127.0.0.1',
+	OV_AUTH_SECRET: 'x'.repeat(40),
+	OV_AUTH_RATE: '200',
+	OV_DATA_DIR: join(dir, 'data'),
+	OV_AUTH_DB: join(dir, 'auth.sqlite'),
+	OV_LANDS: join(dir, 'lands.json'),
+	OV_CHAIN_TOKENS: join(dir, 'no-chain-index.json'),
+	OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
+	OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
+	OV_TURNSTILE_SITEKEY: 'ts-site', OV_TURNSTILE_SECRET: 'ts-secret',
+	OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
+	OV_REGISTER_PER_DAY: '3',
+	OV_ADVENTURES: join(dir, 'adventures.json'),
+	OV_ADMIN: 'Bossy',
+	NODE_NO_WARNINGS: '1',
+};
 const svc = spawn(process.execPath, ['server.js'], {
 	cwd: new URL('..', import.meta.url).pathname,
-	env: {
-		...process.env,
-		OV_AUTH_PORT: String(PORT), OV_AUTH_HOST: '127.0.0.1',
-		OV_AUTH_SECRET: 'x'.repeat(40),
-		OV_AUTH_RATE: '200',
-		OV_DATA_DIR: join(dir, 'data'),
-		OV_AUTH_DB: join(dir, 'auth.sqlite'),
-		OV_LANDS: join(dir, 'lands.json'),
-		OV_CHAIN_TOKENS: join(dir, 'no-chain-index.json'),
-		OV_CHAIN_NEW_LANDS: join(dir, 'new-lands.json'),
-		OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
-		OV_TURNSTILE_SITEKEY: 'ts-site', OV_TURNSTILE_SECRET: 'ts-secret',
-		OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
-		OV_REGISTER_PER_DAY: '3',
-		OV_ADVENTURES: join(dir, 'adventures.json'),
-		OV_ADMIN: 'Bossy',
-		NODE_NO_WARNINGS: '1',
-	},
+	env: { ...process.env, ...svcEnv },
 	stdio: ['ignore', 'pipe', 'pipe'],
 });
 let svcLog = '';
@@ -455,6 +456,42 @@ try {
 	for (let i = 0; i < 10; i++) await call('POST', '/auth/login', { name: 'Quin', password: 'nope nope' + i });
 	r = await call('POST', '/auth/login', { name: 'Quin', password: 'quin password' });
 	check(r.status === 429, 'login: after 10 wrong passwords the name rests, even for the right one');
+
+	// With a chain index: holders come from it, and only the lands it says a
+	// player's wallet holds are asked about. Alicemark has gone to Bob since
+	// the index was written.
+	svc.kill();
+	await new Promise(r => setTimeout(r, 300));
+	holder['0xa2'] = bob.address;
+	writeFileSync(join(dir, 'chain-index.json'), JSON.stringify({
+		updated: new Date().toISOString(), block: 23000000, tokens: {
+			'0x00000000000000000000000000000000000000a1': { holder: alice.address },
+			'0x00000000000000000000000000000000000000a2': { holder: alice.address },
+			'0x00000000000000000000000000000000000000b1': { holder: bob.address },
+			'0x00000000000000000000000000000000000000c1': { holder: carol.address },
+		},
+	}));
+	const idxBefore = balanceCalls;
+	let log2 = '';
+	const svc2 = spawn(process.execPath, ['server.js'], {
+		cwd: new URL('..', import.meta.url).pathname,
+		env: { ...process.env, ...svcEnv, OV_AUTH_PORT: String(PORT + 5), OV_CHAIN_TOKENS: join(dir, 'chain-index.json') },
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	svc2.stdout.on('data', d => log2 += d);
+	svc2.stderr.on('data', d => log2 += d);
+	await new Promise(r => setTimeout(r, 1500));
+	svc2.kill();
+	const o2 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8')).owners;
+	const lc = a => a.toLowerCase();
+	check(o2['0x00000000000000000000000000000000000000a1'] === lc(alice.address) &&
+		o2['0x00000000000000000000000000000000000000a2'] === null &&
+		o2['0x00000000000000000000000000000000000000b1'] === lc(bob.address) &&
+		o2['0x00000000000000000000000000000000000000c1'] === lc(carol.address),
+		'chain index: holders from it, a player\'s land sold since then caught');
+	check(/1 lands held by player wallets \(checked with 1 request; 1 no longer held\)/.test(log2) && balanceCalls - idxBefore === 1,
+		`chain index: one request for the player's two lands, none for the rest (${balanceCalls - idxBefore})`);
+	if (failures.length) svcLog += '\n--- with the chain index:\n' + log2;
 
 } catch (e) {
 	failures.push('exception: ' + e.stack);

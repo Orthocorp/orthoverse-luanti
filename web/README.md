@@ -14,7 +14,7 @@ Everything served at orthoverse.land:
 | `/api/metadata/` | Token and collection metadata, for the contract's `uri()` and `contractURI()` (the auth service) |
 | `/auth/visit` | POST `{x, z}`: arrive at that spot when you next join the game, within 10 minutes ("Visit this spot" on the map: the admin, `OV_ADMIN`, and holders of a level 7 land; the game checks again) |
 | `/api/reveal/check`, `/api/reveal/status` | POST `{address}` after a reveal or gift: checks on the contract that the token is revealed and asks the chain service to index now (`index-now` in the auth data, which the chain service watches), so the land is placed within a minute or two; GET `?address=` says whether its land has been placed, and where |
-| `/api/levels/check` | POST `{key}`: read one land's castle level from the contract now and hand it to the game (`levels.json` in the auth data), so an upgrade or flip is built within a minute instead of after the daily chain run |
+| `/api/levels/check` | POST `{key}`: read one land's castle level from the contract now and hand it to the game (`levels.json` in the auth data), so an upgrade or flip is built within a minute instead of after the next hourly chain run |
 | `/map/lands/` | Each land from above, 384 pixels square (drawn with the map) |
 | `/map/cards/` | The token pictures (drawn with the map) |
 
@@ -33,7 +33,7 @@ need no port forwarding on the router.
 | Directory | Contents | Image |
 | --- | --- | --- |
 | `web/proxy/` | The web proxy (Node, one dependency: `ws`), and `test/handshake.js` | `proxy` |
-| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`, `pngjs`); `metadata.js`, the token metadata; `classic.js` and `classic/`, the classic pictures; `chain.js`, the daily chain index; tests in `test/` | `auth`, `chain` |
+| `web/auth/` | Wallet sign-in, player names and land ownership (Node, `ethers`, `pngjs`); `metadata.js`, the token metadata; `classic.js` and `classic/`, the classic pictures; `chain.js`, the hourly chain index; tests in `test/` | `auth`, `chain` |
 | `web/heraldry/` | The crests (from orthoverse-offline) | `auth`, `chain` |
 | `web/site/` | Landing page and map page (Leaflet 1.9.4, vendored) | `web` |
 | `web/map/make_tiles.py`, `cards.py` | Map tiles, land pictures, token pictures and the land list, from the world database | `map`, `mapwatch` |
@@ -75,16 +75,19 @@ your lands and `/whereami` says whose land you are on.
 Ownership comes from the Orthoverse contract on Ethereum mainnet (`OV_CONTRACT`,
 `0x118aeD2606D02C2545C6D7D2d1021e567cc08922`). It is an ERC-1155 with one token per
 land, whose ID is the address that revealed it. An ERC-1155 cannot say who holds a
-token, only whether a given wallet does (`balanceOf`, here always 0 or 1). So every
-10 minutes the auth service asks, with `balanceOfBatch` through a public RPC
-endpoint (`OV_ETH_RPC`), whether each player's wallet holds each land, and whether
-each land's known holder still does, and writes `owners.json`. The known holder
-comes from the daily chain index (`web/auth/chain.js`, the `chain` service, which
-replays the contract's TransferSingle and TransferBatch events and reads every
-`castleLevel`), or before its first run from the 2023 snapshot (`owner_snapshot`
-in the lands file). A land held by anyone else is "not held by a player here", and nobody
-can build on it. A sale moves building rights within 10 minutes, and a wallet's
-lands are looked up at once when it signs in. If the endpoint is down, the last
+token, only whether a given wallet does (`balanceOf`, here always 0 or 1). So the
+chain service (`web/auth/chain.js`, the `chain` service) replays the contract's
+TransferSingle and TransferBatch events every hour (`OV_CHAIN_EVERY_HOURS`) and
+reads every `castleLevel`, which gives the holder of every land; the auth service
+takes the holders from it, and every 10 minutes checks with `balanceOfBatch`
+(through `OV_ETH_RPC`) only the lands it says players' wallets hold, plus any land
+a player was found holding on signing in since: usually one request, however
+many players there are. Before the chain index has run, every land is checked
+against its 2023 holder (`owner_snapshot` in the lands file) and every player's
+wallet instead. A land held by anyone else is "not held by a player here", and
+nobody can build on it. A sale moves building rights within the hour (a sale by a
+player within 10 minutes), and a wallet's lands are looked up at once when it
+signs in. If the endpoint is down, the last
 good list is kept. Check it with `./status.sh` on the server (the status page
 answers only there, not through Cloudflare).
 
