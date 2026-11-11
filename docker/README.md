@@ -65,8 +65,14 @@ Anything built in the world is lost; accounts are kept. The old map goes to back
 
 ```
 docker compose stop luanti
-mv /mnt/ethereum/orthoverse/luanti/worlds/orthoverse/map.sqlite \
-   /mnt/ethereum/orthoverse/backups/map-$(date +%Y%m%d-%H%M).sqlite
+cd /mnt/ethereum/orthoverse/luanti/worlds/orthoverse
+when=$(date +%Y%m%d-%H%M)
+mv map.sqlite /mnt/ethereum/orthoverse/backups/map-$when.sqlite
+# (the game keeps its databases in WAL mode: a map.sqlite-wal left after a
+# crash belongs with the old map)
+[ -f map.sqlite-wal ] && mv map.sqlite-wal /mnt/ethereum/orthoverse/backups/map-$when.sqlite-wal
+rm -f map.sqlite-shm
+cd -
 docker compose run --rm luanti pregen          # about 25 minutes; pregen 3 0,0 for a quick test
 docker compose start luanti
 docker compose run --rm --build map

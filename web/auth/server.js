@@ -30,7 +30,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { createHmac, createHash, randomBytes, timingSafeEqual, scrypt } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { verifyMessage, getAddress, isAddress, Interface } from 'ethers';
@@ -184,12 +184,31 @@ function withSrp(entry) {
 	if (added) { saveRegistry(); log(`game password records added for ${added} characters`); }
 }
 
+// The game's accounts, read only. The game keeps its databases in WAL mode
+// (docker/luanti/entrypoint.sh), which a reader without write access can open
+// only while the game has it open; when the game is stopped, nothing writes
+// it, and it is opened as unchanging.
+function openAuthDb() {
+	let db;
+	try {
+		db = new DatabaseSync(AUTH_DB, { readOnly: true });
+		db.prepare('SELECT 1 FROM sqlite_master LIMIT 1').all();   // (the opening happens here)
+		return db;
+	} catch (e) {
+		try { db && db.close(); } catch (e2) { /* closed */ }
+		if (existsSync(AUTH_DB + '-shm')) throw e;
+		const url = pathToFileURL(AUTH_DB);
+		url.searchParams.set('immutable', '1');
+		return new DatabaseSync(url, { readOnly: true });
+	}
+}
+
 // Whether the game already has an account with this name (any capitals)
 function accountExists(name) {
 	if (!existsSync(AUTH_DB)) return false;
 	let db;
 	try {
-		db = new DatabaseSync(AUTH_DB, { readOnly: true });
+		db = openAuthDb();
 		const row = db.prepare('SELECT name FROM auth WHERE lower(name) = lower(?) LIMIT 1').get(name);
 		return !!row;
 	} catch (e) {
@@ -204,7 +223,7 @@ function accountExistsExact(name) {
 	if (!existsSync(AUTH_DB)) return false;
 	let db;
 	try {
-		db = new DatabaseSync(AUTH_DB, { readOnly: true });
+		db = openAuthDb();
 		return !!db.prepare('SELECT name FROM auth WHERE name = ? LIMIT 1').get(name);
 	} catch (e) {
 		log('auth.sqlite read failed:', e.message);
@@ -1272,7 +1291,7 @@ function lastLogins() {
 	if (!existsSync(AUTH_DB)) return out;
 	let db;
 	try {
-		db = new DatabaseSync(AUTH_DB, { readOnly: true });
+		db = openAuthDb();
 		for (const r of db.prepare('SELECT name, last_login FROM auth').all()) out.set(r.name, r.last_login);
 	} catch (e) {
 		log('auth.sqlite read failed:', e.message);

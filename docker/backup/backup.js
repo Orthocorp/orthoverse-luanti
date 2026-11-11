@@ -31,6 +31,7 @@ import { DatabaseSync, backup } from 'node:sqlite';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { readdir, stat, mkdir, rename, rm, copyFile, writeFile, readFile, unlink, open } from 'node:fs/promises';
 import { join, dirname, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { pipeline } from 'node:stream/promises';
 import { createZstdCompress, createZstdDecompress, constants as Z } from 'node:zlib';
 import { env, argv, exit } from 'node:process';
@@ -69,12 +70,34 @@ async function compress(from, to) {
 		createWriteStream(to));
 }
 
-// A live SQLite database, a page range at a time; if the game keeps changing
-// it so that the copy keeps starting again, in one go instead
-async function copyDatabase(from, to) {
-	const src = new DatabaseSync(from, { readOnly: true, timeout: 30000 });
+// A database of the game's, read only. The game keeps its databases in WAL
+// mode (docker/luanti/entrypoint.sh), which a reader without write access
+// can open only while the game has it open (its -shm file is there); when
+// the game is stopped, nothing writes it, and it is opened as unchanging.
+function openReadOnly(path, timeout = 30000) {
+	let db;
 	try {
-		let rate = RATE, tries = 0;
+		db = new DatabaseSync(path, { readOnly: true, timeout });
+		db.prepare('SELECT 1 FROM sqlite_master LIMIT 1').all();   // (the opening happens here)
+		return db;
+	} catch (e) {
+		try { db && db.close(); } catch (e2) { /* closed */ }
+		if (existsSync(path + '-shm')) throw e;
+		const url = pathToFileURL(path);
+		url.searchParams.set('immutable', '1');
+		return new DatabaseSync(url, { readOnly: true });
+	}
+}
+
+// A live SQLite database. In WAL mode, in one go: the copy reads the
+// database as it was when it began while the game goes on saving. Otherwise
+// a page range at a time; if the game keeps changing it so that the copy
+// keeps starting again, in one go instead (the game waits for that)
+async function copyDatabase(from, to) {
+	const src = openReadOnly(from);
+	try {
+		const wal = src.prepare('PRAGMA journal_mode').get().journal_mode === 'wal';
+		let rate = wal ? 1 << 30 : RATE, tries = 0;
 		for (;;) {
 			const tmp = to + '.tmp';
 			await rm(tmp, { force: true });
@@ -89,7 +112,7 @@ async function copyDatabase(from, to) {
 			const began = Date.now();
 			try {
 				await backup(src, tmp, { rate, progress });
-				if (rate !== RATE) log(`  ${from} copied in one go in ${((Date.now() - began) / 1000).toFixed(1)} s`);
+				if (rate !== RATE && !wal) log(`  ${from} copied in one go in ${((Date.now() - began) / 1000).toFixed(1)} s`);
 			} catch (e) {
 				if (restarts > MAX_RESTARTS && rate === RATE) {
 					log(`  ${from} kept changing during the copy; copying it in one go`);
@@ -110,6 +133,14 @@ async function copyDatabase(from, to) {
 		}
 	} finally {
 		src.close();
+	}
+	// The copy as an ordinary database, one file (the game puts it back in WAL
+	// mode when it starts on it)
+	const plain = new DatabaseSync(to);
+	try {
+		plain.exec('PRAGMA journal_mode = DELETE');
+	} finally {
+		plain.close();
 	}
 	const db = new DatabaseSync(to, { readOnly: true });
 	try {

@@ -97,6 +97,22 @@ def colour(name):
     return texture_colour(name) or UNKNOWN
 
 
+def open_world_db(path, timeout=30):
+    """The world's map, read only. The game keeps its databases in WAL mode
+    (docker/luanti/entrypoint.sh), which a reader without write access can
+    open only while the game has it open (its -shm file is there); when the
+    game is stopped, nothing writes it, and it is opened as unchanging."""
+    try:
+        con = sqlite3.connect(path, timeout=timeout)
+        con.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()
+        return con
+    except sqlite3.OperationalError:
+        if os.path.exists(path + "-shm"):
+            raise
+    from urllib.parse import quote
+    return sqlite3.connect("file:" + quote(os.path.abspath(path)) + "?immutable=1", uri=True)
+
+
 def decode(blob, dctx):
     if blob[0] < 29:
         raise SystemExit("map format %d not supported" % blob[0])
@@ -170,7 +186,7 @@ def render(db, step=1, quiet=False, heights=False, area=None):
     # Read in short queries: a long one holds a read lock on the database for
     # minutes, and a running server cannot save meanwhile ("database has been
     # locked ... giving up")
-    con = sqlite3.connect(db, timeout=30)
+    con = open_world_db(db)
     bylo, byhi = Y_LO >> 4, Y_HI >> 4
     if area:
         xmin, xmax, zmin, zmax = area

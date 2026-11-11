@@ -50,7 +50,7 @@ FROM ubuntu:22.04
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates libsqlite3-0 zlib1g libzstd1 libcurl4 libgmp10 libjsoncpp25 numactl \
+      ca-certificates libsqlite3-0 sqlite3 zlib1g libzstd1 libcurl4 libgmp10 libjsoncpp25 numactl \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /opt/luanti /opt/luanti

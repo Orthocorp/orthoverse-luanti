@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
-from render_map import voxels, Y_HI as Y_DRAWN  # noqa: E402
+from render_map import voxels, open_world_db, Y_HI as Y_DRAWN  # noqa: E402
 
 SIZE = 96            # nodes across a land
 CARD = 800           # card size, pixels
@@ -318,7 +318,7 @@ def make_cards(rgb, heights, x_left, z_top, lands, tokens, heraldry_dir, out_dir
     os.makedirs(out_dir, exist_ok=True)
     heraldry = Heraldry(heraldry_dir)
     h_img, w_img = heights.shape
-    con = sqlite3.connect(db, timeout=30) if db else None
+    con = open_world_db(db) if db else None
     index_path = os.path.join(out_dir, "index.json")
     old_index = {}
     if update and os.path.exists(index_path):

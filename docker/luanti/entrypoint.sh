@@ -30,6 +30,17 @@ mod_storage_backend = sqlite3
 EOF
 fi
 
+# The world's databases in WAL mode (once; it stays set in each file): the
+# backup, the map and the auth service then read them while the game saves,
+# without either waiting for the other. (In SQLite's default mode a long
+# read, such as the nightly backup's copy of the map, holds the game's saves
+# back, and after a while the game gives up and stops.)
+for db in "$WORLD"/*.sqlite; do
+	[ -f "$db" ] || continue
+	mode=$(sqlite3 -cmd ".timeout 10000" "$db" "PRAGMA journal_mode = WAL;" 2>&1) || true
+	[ "$mode" = wal ] || echo "Could not put $(basename "$db") in WAL mode ($mode); it stays as it was" >&2
+done
+
 cp "$CONF_SRC" "$CONF"
 # In the container the server listens on the private Compose network, which
 # only the web proxy can reach: publishing no port is what keeps it web only.
