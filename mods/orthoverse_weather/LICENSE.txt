@@ -1,0 +1,10 @@
+orthoverse_weather: code by the Orthoverse (see the repository's licence).
+Its rain and snow follow paramat's snowdrift mod (MIT); the media are snowdrift's:
+
+Textures (orthoverse_weather_raindrop.png, orthoverse_weather_snowflake1-12.png):
+  CC BY-SA 3.0, paramat (snowdrift, https://content.luanti.org/packages/paramat/snowdrift/)
+  https://creativecommons.org/licenses/by-sa/3.0/
+Sound (orthoverse_weather_rain.ogg):
+  CC BY 3.0, inchadney (http://freesound.org/people/inchadney/sounds/58835/)
+  https://creativecommons.org/licenses/by/3.0/
+(re-encoded to mono, 22 kHz, for a smaller download)
