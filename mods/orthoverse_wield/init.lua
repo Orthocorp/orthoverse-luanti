@@ -47,6 +47,8 @@ core.register_entity("orthoverse_wield:held", {
 local held = {}     -- name -> the object in their hand
 local showing = {}  -- name -> the item it shows ("" for none)
 local poses = {}    -- name -> {phase, till}
+local guarding = {} -- name -> the hud id of the shield picture, while the shield is up
+local GUARD = {x = d(215), y = 0, z = 0}   -- the sword arm while the shield is up
 
 local function item_of(player)
 	local name = player:get_wielded_item():get_name()
@@ -82,7 +84,11 @@ function orthoverse.wield.pose(player, phase, kind)
 	if obj and obj:get_pos() then obj:set_attach(player, "Arm_Right", HAND, along and GRIP_ALONG or GRIP) end
 	if phase == nil then
 		poses[name] = nil
-		player:set_bone_override("Arm_Right", {})
+		if guarding[name] ~= nil then
+			player:set_bone_override("Arm_Right", {rotation = {vec = GUARD, absolute = true, interpolation = 0.15}})
+		else
+			player:set_bone_override("Arm_Right", {})
+		end
 		return
 	end
 	poses[name] = {phase = phase, till = phase == "strike" and core.get_us_time() / 1e6 + SWING_FOR or nil}
@@ -91,13 +97,34 @@ function orthoverse.wield.pose(player, phase, kind)
 end
 
 -- The shield raised (the left arm across the front, forearm up), or lowered
--- again (orthoverse_combat's blocking)
+-- again (orthoverse_combat's blocking). While it is up the sword arm is held
+-- still at guard, forward and low: without that the engine plays its digging
+-- animation for the held right button, and the arm swings to and fro. The
+-- engine draws only the held item in the player's own first-person view, so
+-- the player sees the raised shield as a picture at the bottom left of the
+-- screen (in the third-person views too: the server cannot tell which view a
+-- player has chosen).
 local SHIELD_UP = {x = d(260), y = d(30), z = 0}
 function orthoverse.wield.shield(player, up)
+	local name = player:get_player_name()
 	if up then
 		player:set_bone_override("Arm_Left", {rotation = {vec = SHIELD_UP, absolute = true, interpolation = 0.15}})
+		if not poses[name] then
+			player:set_bone_override("Arm_Right", {rotation = {vec = GUARD, absolute = true, interpolation = 0.15}})
+		end
+		if not guarding[name] then
+			local material = orthoverse.armor and orthoverse.armor.shield(player) or "steel"
+			guarding[name] = player:hud_add({
+				type = "image", text = "shields_inv_shield_" .. material .. ".png^[opacity:230",
+				position = {x = 0.22, y = 1}, alignment = {x = 0, y = -1},
+				offset = {x = 0, y = 70}, scale = {x = 16, y = 16}, z_index = -50,
+			}) or false
+		end
 	else
 		player:set_bone_override("Arm_Left", {})
+		if not poses[name] then player:set_bone_override("Arm_Right", {}) end
+		if guarding[name] then player:hud_remove(guarding[name]) end
+		guarding[name] = nil
 	end
 end
 
@@ -122,5 +149,5 @@ end)
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	if held[name] and held[name]:get_pos() then held[name]:remove() end
-	held[name], showing[name], poses[name] = nil, nil, nil
+	held[name], showing[name], poses[name], guarding[name] = nil, nil, nil, nil
 end)
