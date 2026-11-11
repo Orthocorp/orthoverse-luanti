@@ -55,7 +55,7 @@ case "$cmd" in
 		if [ -z "$data" ]; then echo "OV_DATA is not set in .env" >&2; exit 1; fi
 		mkdir -p "$data/proxy" 2>/dev/null
 		file="$data/proxy/blocked.txt"
-		[ -f "$file" ] || : > "$file" 2>/dev/null
+		[ -f "$file" ] || { : > "$file"; } 2>/dev/null
 		if [ ! -w "$file" ]; then
 			echo "Cannot write $file (made by Docker?): sudo chown -R $(id -u):$(id -g) $data/proxy" >&2
 			exit 1
