@@ -326,14 +326,14 @@ try {
 	r = await call('POST', '/api/reveal/check', { address: dave.address });
 	check(r.body.revealed === true && existsSync(join(dir, 'data', 'index-now')), 'revealed: the chain service is asked to index now');
 	r = await call('GET', '/api/reveal/status?address=' + dave.address);
-	check(r.body.placed === null, 'status: no land yet');
+	check(r.body.placed === null && r.body.revealed === true, 'status: no land yet, but revealed');
 	writeFileSync(join(dir, 'new-lands.json'), JSON.stringify({ lands: { '9:9': { name: 'Daveholm', token: dave.address.toLowerCase(), level: 0 } } }));
 	r = await call('GET', '/api/reveal/status?address=' + dave.address);
 	check(r.body.placed && r.body.placed.key === '9:9' && r.body.placed.name === 'Daveholm', 'status: the land, once the chain service has placed it');
 	const own3 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
 	check(own3.owners[dave.address.toLowerCase()] === dave.address.toLowerCase(), 'and its holder noted at once (checked on the contract)');
 	r = await call('GET', '/api/reveal/status?address=' + carol.address);
-	check(r.body.placed === null, 'status for an address with no land: none');
+	check(r.body.placed === null && r.body.revealed === false, 'status for an address with no land: none, not revealed (the account page offers to reveal it)');
 
 	// Password characters
 	cookie = '';

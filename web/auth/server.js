@@ -1148,7 +1148,16 @@ const routes = {
 		const token = address.toLowerCase();
 		addNewLands();
 		const land = lands.find(l => l.token === token || l.token === '0x' + token.slice(2).padStart(40, '0'));
-		if (!land) return send(res, 200, { placed: null });
+		if (!land) {
+			// Not placed: revealed on the chain (and on its way), or not yet, so
+			// that the account page can offer to reveal it without a wallet to ask
+			let revealed = null;
+			try {
+				const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('revealedTokenIds', [BigInt(address)]) }]);
+				revealed = Boolean(erc1155.decodeFunctionResult('revealedTokenIds', r)[0]);
+			} catch (e) { /* cannot tell now */ }
+			return send(res, 200, { placed: null, revealed });
+		}
 		// A token just revealed is held by the address it was revealed for:
 		// checked on the contract and noted at once, so the game lets them
 		// build without waiting for the next full refresh
@@ -1159,7 +1168,7 @@ const routes = {
 				writeJsonAtomic(OWNERS_FILE, owners);
 			}
 		}
-		return send(res, 200, { placed: { key: land.key, name: land.name } });
+		return send(res, 200, { placed: { key: land.key, name: land.name }, revealed: true });
 	},
 
 	// Arrive at a spot on the map when you next join the game (the admin and
