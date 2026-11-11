@@ -251,3 +251,15 @@ core.register_on_player_hpchange(function(player, change, reason)
 	flash(player, "Missed")
 	return 0
 end, true)
+
+-- In creative mode the armour worn may come from the Creative tab. 3D Armor
+-- drops what a player wears when they die (with /killme, say, which creative
+-- mode does not stop), so that armour would lie on the ground for anyone to
+-- pick up, and creative mode would make free diamond armour. So a creative
+-- player's armour goes before 3D Armor sees it (this runs first), and is not
+-- dropped.
+table.insert(core.registered_on_dieplayers, 1, function(player)
+	if core.is_creative_enabled(player:get_player_name()) then
+		orthoverse.armor.set_worn(player, {})
+	end
+end)
