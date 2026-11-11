@@ -31,6 +31,7 @@ local SWEET = 0.25            -- seconds at full strength that count as the swee
 local DRAIN = 1.0             -- seconds for a tired arm to drop to half strength
 local AIM_CONE = math.rad(20)  -- how far off the look a blow still finds a monster
 local SWEET_BONUS = 2          -- damage, for a blow released in the sweet spot
+local SLOW_FOR = 2          -- seconds a blow to the legs slows a monster (to half speed)
 local ARMOUR_SOAK = 0.5        -- damage armour takes off a blow, per point of armour class over 10
                                -- (half as much against bashing weapons)
 
@@ -172,6 +173,7 @@ local function describe(blow)
 	if blow.result == "miss" then return blow.why end
 	local bits = {}
 	if blow.zone ~= "body" then bits[#bits + 1] = blow.zone end
+	if blow.slow then bits[#bits + 1] = "slowed" end
 	if blow.sweet then bits[#bits + 1] = "sweet" end
 	if blow.phase == "feeble" then bits[#bits + 1] = "feeble" end
 	if blow.phase == "tired" then bits[#bits + 1] = "tired" end
@@ -292,6 +294,8 @@ local function strike(player, w, held)
 		blow.damage = math.max(1, math.floor(dmg + 0.5))
 		blow.result = glance and "glance" or "hit"
 		blow.stun = blow.zone == "head" and s >= 1 and 1 or nil
+		-- A blow to the legs (any but a feeble one) slows the monster
+		blow.slow = blow.zone == "legs" and phase ~= "feeble" and SLOW_FOR or nil
 	end
 	blow.text = describe(blow)
 	blow_sound(blow.result == "miss" and "miss" or blow.result == "glance" and "glance"

@@ -223,6 +223,25 @@ end
 ------------------------------------------------------------------------------
 -- Blows from orthoverse_combat
 
+-- A blow to the legs: half speed for `secs` (another blow to the legs starts
+-- the time again; the speeds come back once it is over)
+local function slow(self, secs)
+	if type(self.walk_velocity) ~= "number" then return end
+	self._slow_until = now() + secs
+	if self._speeds then return end
+	self._speeds = {walk = self.walk_velocity, run = self.run_velocity}
+	self.walk_velocity = self.walk_velocity / 2
+	self.run_velocity = (self.run_velocity or self._speeds.walk) / 2
+	local function check()
+		if not self.object:get_pos() or not self._speeds then return end
+		local left = self._slow_until - now()
+		if left > 0 then core.after(left, check) return end
+		self.walk_velocity, self.run_velocity = self._speeds.walk, self._speeds.run
+		self._speeds = nil
+	end
+	core.after(secs, check)
+end
+
 local function on_blow(self, blow)
 	if self.state == "die" then return end
 	if blow.result == "miss" then
@@ -241,6 +260,7 @@ local function on_blow(self, blow)
 		end
 	end
 	self.health = self.health - blow.damage
+	if blow.slow then slow(self, blow.slow) end
 	if self._on_struck then self._on_struck(self, blow) end
 	local a = blow.attacker
 	if a and a:get_pos() then
@@ -312,6 +332,12 @@ local function monster(id, def)
 		custom_attack = (def.attack_type or "dogfight") == "dogfight" and begin_windup or nil,
 		do_punch = function() return false end,   -- only hold-and-release blows hurt
 		after_activate = function(self)
+			-- slowed when it was put away (the speeds are saved with it): back
+			-- to its own
+			if type(self._speeds) == "table" then
+				self.walk_velocity, self.run_velocity = self._speeds.walk, self._speeds.run
+				self._speeds = nil
+			end
 			self._weapon = def.weapon
 			core.after(0.1, function() if self.object:get_pos() then hold(self) end end)
 			if def.after_activate then def.after_activate(self) end

@@ -125,7 +125,7 @@ Decided (9 Nov 2026), after the first fights: getting into position is hard enou
 | --- | --- |
 | Released in the sweet spot | +2 damage |
 | Head (top of the box) | +50% damage, and a 1 s stun if the blow was at full strength |
-| Legs (bottom of the box) | slows the monster for 2 s (not built yet) |
+| Legs (bottom of the box) | half speed for 2 s (any blow but a feeble one; another blow to the legs starts the 2 s again) |
 | From the side | +1 damage |
 | From behind | +25% damage (daggers +50%) |
 | Glance (beyond best range) | half damage |
