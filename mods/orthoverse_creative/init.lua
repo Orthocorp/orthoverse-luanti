@@ -120,6 +120,9 @@ local function save_lists(player, which)
 		for i, stack in ipairs(inv:get_list(list) or {}) do items[i] = stack:to_string() end
 		out[list] = items
 	end
+	-- and the armour they wear (3D Armor): armour from the Creative tab stays
+	-- on the land with the rest
+	if orthoverse.armor then out.armor = orthoverse.armor.worn(player) end
 	player:get_meta():set_string(KEY .. which, core.serialize(out))
 end
 
@@ -132,6 +135,7 @@ local function load_lists(player, which)
 		for i = 1, size do items[i] = ItemStack((saved[list] or {})[i] or "") end
 		inv:set_list(list, items)
 	end
+	if orthoverse.armor then orthoverse.armor.set_worn(player, saved.armor or {}) end
 end
 
 local function refresh_inventory_page(player)

@@ -159,7 +159,15 @@ local function fit_hand(player)
 end
 
 local function apply(player)
-	player_api.set_textures(player, {current(player).texture})
+	local tex = current(player).texture
+	local name = player:get_player_name()
+	if rawget(_G, "armor") and armor.textures and armor.textures[name] then
+		-- 3D Armor draws the skin with the armour over it
+		armor.textures[name].skin = tex
+		armor:update_player_visuals(player)
+	else
+		player_api.set_textures(player, {tex})
+	end
 	fit_hand(player)
 end
 

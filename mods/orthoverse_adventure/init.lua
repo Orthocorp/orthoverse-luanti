@@ -440,6 +440,8 @@ local function leave_things_inside(player)
 		end
 		inv:set_list(list, {})
 	end
+	-- (armour worn inside stays inside too)
+	if orthoverse.armor then orthoverse.armor.set_worn(player, {}) end
 	meta:set_string(WON, "")
 	meta:set_string(KEPT, core.serialize(kept))
 end
@@ -463,6 +465,7 @@ local function give_back(player)
 			end
 		end
 	end
+	if orthoverse.armor and kept.armor then orthoverse.armor.set_worn(player, kept.armor) end
 	-- Treasure goes where there is room; with a full inventory, the rest is
 	-- left behind
 	local brought, lost = 0, 0
@@ -494,6 +497,11 @@ local function put_aside(player, def)
 		for i, st in ipairs(inv:get_list(list) or {}) do items[i] = st:to_string() end
 		out[list] = items
 		inv:set_list(list, {})
+	end
+	-- and the armour they wear (3D Armor)
+	if orthoverse.armor then
+		out.armor = orthoverse.armor.worn(player)
+		orthoverse.armor.set_worn(player, {})
 	end
 	local meta = player:get_meta()
 	meta:set_string(WON, "")
