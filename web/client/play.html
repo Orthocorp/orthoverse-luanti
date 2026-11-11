@@ -149,10 +149,15 @@
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
   const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
   const LOST_AFTER_MS = 90000;            // a time-out later than this after Enter: the connection was lost
+  const REJOIN_KEY = 'orthoverse.rejoins'; // sessionStorage: when the page last went back in by itself
+  const REJOIN_AFTER_S = 10;              // a lost character goes back in after this long
+  const REJOINS_MAX = 3;                  // at most this many times in REJOINS_WINDOW_MS (then the player decides)
+  const REJOINS_WINDOW_MS = 10 * 60000;
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
   let ready = false;        // the engine has loaded
+  let rejoin = null;        // going back in by itself, once the engine is ready
   let me = null;            // the signed-in wallet player, from /auth/me
   let guest = null;         // {name, password}
 
@@ -338,6 +343,7 @@
     statusEl.textContent = '';
     showWallet();
     showGuest();
+    if (rejoin) rejoin();
   };
   mtl.onerror = (err) => {
     ready = false;
@@ -460,10 +466,36 @@
     const [title, text, action] = retry.lost
       ? ['The connection to the Orthoverse was lost',
         'The game stopped hearing from the server. That happens when the internet connection at either end ' +
-        'drops for a moment, or the server restarts. Press Enter to go back in.', null]
+        'drops for a moment, when a browser puts a tab in the background to sleep, or when the server ' +
+        'restarts. Press Enter to go back in.', null]
       : explain(retry.reason, retry.kind);
     const known = !/^Could not join the Orthoverse$/.test(title);
     showProblem(title, text, action, known ? '' : retry.reason);
+    // A character whose connection was lost goes back in by itself, a few
+    // times (a guest cannot: it is a new one each visit)
+    const recent = (load('session', REJOIN_KEY) || []).filter(t => Date.now() - t < REJOINS_WINDOW_MS);
+    if (retry.lost && retry.kind === 'wallet' && recent.length < REJOINS_MAX) {
+      let left = REJOIN_AFTER_S, timer = null;
+      const stay = { label: 'Stay here', run: () => { clearInterval(timer); $('problem-action').hidden = true;
+        $('problem-text').textContent = text; } };
+      rejoin = () => {
+        const tick = () => {
+          if (left <= 0) {
+            clearInterval(timer);
+            save('session', REJOIN_KEY, [...recent, Date.now()]);
+            enter('wallet');
+            return;
+          }
+          $('problem-text').textContent = text.replace('Press Enter to go back in.',
+            'Going back in by itself in ' + left + ' s.');
+          left--;
+        };
+        showProblem(title, text, stay, '');
+        tick();
+        timer = setInterval(tick, 1000);
+      };
+      if (ready) rejoin();
+    }
   }
 
   // Who is signed in: from the site header (js/site.js)
