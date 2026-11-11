@@ -35,14 +35,74 @@ function orthoverse.armor.worn(player)
 	return out
 end
 
--- Dresses the player in `list` (as worn() gives it; an empty list takes
--- everything off), and shows it
+-- One slot for each kind of armour, always in this order: five slots, not
+-- 3D Armor's six (it has no sixth kind here), and the shield always last, so
+-- that it is drawn in front of the rest in the Armor tab's picture (3D Armor
+-- layers the pieces in slot order)
+local SLOT = {head = 1, torso = 2, legs = 3, feet = 4, shield = 5}
+local SLOTS = 5
+
+-- `stacks` (ItemStacks, in any order) in their slots; returns the slots and
+-- anything that has none (not armour, or a second piece of a kind)
+local function in_slots(stacks)
+	local slots, spare = {}, {}
+	for _, st in ipairs(stacks) do
+		if not st:is_empty() then
+			local element = armor:get_element(st:get_name())
+			local i = element and SLOT[element]
+			if i and not slots[i] then slots[i] = st else spare[#spare + 1] = st end
+		end
+	end
+	for i = 1, SLOTS do slots[i] = slots[i] or ItemStack("") end
+	return slots, spare
+end
+
+-- Anything with no slot goes back into the player's inventory (or at their
+-- feet if that is full)
+local function hand_back(player, spare)
+	local inv = player:get_inventory()
+	for _, st in ipairs(spare) do
+		local left = inv:add_item("main", st)
+		if not left:is_empty() then core.add_item(player:get_pos(), left) end
+	end
+end
+
+-- Puts what the player wears in its slots (when they join, and after every
+-- change: a piece put in the wrong slot moves to its own)
+local function tidy(player)
+	local inv = worn_inventory(player)
+	if not inv then return end
+	local list = inv:get_list("armor") or {}
+	local slots, spare = in_slots(list)
+	local same = #list == SLOTS and #spare == 0
+	for i = 1, SLOTS do
+		if same and list[i]:to_string() ~= slots[i]:to_string() then same = false end
+	end
+	if same then return end
+	inv:set_size("armor", SLOTS)
+	inv:set_list("armor", slots)
+	hand_back(player, spare)
+	armor:save_armor_inventory(player)
+	armor:set_player_armor(player)
+end
+
+-- (after 3D Armor's own join, which makes six slots and fills them)
+core.register_on_joinplayer(function(player) tidy(player) end)
+armor:register_on_update(function(player)
+	core.after(0, function() if player:is_player() and player:get_pos() then tidy(player) end end)
+end)
+
+-- Dresses the player in `list` (as worn() gives it, perhaps saved with six
+-- slots; an empty list takes everything off), and shows it
 function orthoverse.armor.set_worn(player, list)
 	local inv = worn_inventory(player)
 	if not inv then return end
-	local items = {}
-	for i = 1, inv:get_size("armor") do items[i] = ItemStack((list or {})[i] or "") end
-	inv:set_list("armor", items)
+	local stacks = {}
+	for _, it in pairs(list or {}) do stacks[#stacks + 1] = ItemStack(it) end
+	local slots, spare = in_slots(stacks)
+	inv:set_size("armor", SLOTS)
+	inv:set_list("armor", slots)
+	hand_back(player, spare)
 	armor:save_armor_inventory(player)
 	armor:set_player_armor(player)
 end
