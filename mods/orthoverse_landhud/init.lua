@@ -5,7 +5,9 @@
 -- crown at 7 (the contract's levels 8-15 are 0-7 with the futuristic style
 -- flag). A henge shows its name; the sea and the rim show nothing. On a land
 -- your wallet holds, the name is gold, with a line under it ("Your land, level
--- 4"; "Your land, open land").
+-- 4"; "Your land, open land"). On open land (a croft) someone else holds, the
+-- line says whose it is ("Open land", then "held by Alice"): anyone may build there,
+-- but the holder can claim it at any time.
 --
 -- Crests are single small PNGs in crests/ (cut from web/heraldry by
 -- tools/split_crests.py when the server image is built), sent embedded in the
@@ -137,17 +139,30 @@ local function yours(pname, land, key)
 	return "Your land, level " .. level
 end
 
+-- The line under the name on open land someone else holds
+local function open_land(pname, land, key)
+	local w = orthoverse.wallets
+	if not (w and w.is_croft(land, key)) then return nil end
+	local holder = w.owner_of(land)
+	if not holder then return "Open land" end
+	return "Open land\nheld by " .. w.name_of_wallet(holder)
+end
+
+-- The name, crest, headgear, the line under the name, and whether the land
+-- is the player's
 local function display_at(pos, pname)
 	local land, key = orthoverse.land_at(pos)
 	if not land then return nil end
 	local henge = orthoverse.henges[key]
 	if henge then return henge.name or land.name end
 	local line = yours(pname, land, key)
+	local mine = line ~= nil
+	line = line or open_land(pname, land, key)
 	local level = (tonumber(land.level) or 0) % 8
-	if level == 0 then return land.name, nil, nil, line end
+	if level == 0 then return land.name, nil, nil, line, mine end
 	local n = crest_number(land)
 	local crest = n and crest_texture(n)
-	return land.name, crest, crest and gear_texture(level), line
+	return land.name, crest, crest and gear_texture(level), line, mine
 end
 
 ------------------------------------------------------------------------------
@@ -186,22 +201,29 @@ local function show(player)
 	local pname = player:get_player_name()
 	local h = huds[pname]
 	if not h then return end
-	local name, crest, gear, line = display_at(player:get_pos(), pname)
-	local shown = table.concat({name or "", crest or "", gear or "", line or ""}, "|")
+	local name, crest, gear, line, mine = display_at(player:get_pos(), pname)
+	local shown = table.concat({name or "", crest or "", gear or "", line or "", mine and "1" or ""}, "|")
 	if shown == h.shown then return end
 	h.shown = shown
 	-- From the bottom edge up: the line (your land), the name, the crest, the
 	-- headgear
 	local y = -MARGIN
-	if name and line then
-		local texture, _, th = text_texture(line, QUIET)
-		set_image(player, h, "line", texture, 2, y)
-		y = y - th * 2 - LINE_GAP
-	else
-		set_image(player, h, "line", nil)
+	-- (one or two lines: "Open land" over "held by Alice", which would be too
+	-- wide for one beside the hotbar)
+	local lines = {}
+	if name and line then for l in line:gmatch("[^\n]+") do lines[#lines + 1] = l end end
+	for i, field in ipairs({"line", "line2"}) do
+		local l = lines[#lines + 1 - i]
+		if l then
+			local texture, _, th = text_texture(l, QUIET)
+			set_image(player, h, field, texture, 2, y)
+			y = y - th * 2 - LINE_GAP
+		else
+			set_image(player, h, field, nil)
+		end
 	end
 	if name then
-		local texture, w, th = text_texture(name, line and GOLD or nil)
+		local texture, w, th = text_texture(name, mine and GOLD or nil)
 		local scale = w * 3 <= NAME_WIDTH and 3 or 2
 		set_image(player, h, "name", texture, scale, y)
 		y = y - th * scale - GAP

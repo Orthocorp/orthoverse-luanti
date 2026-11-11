@@ -593,12 +593,31 @@ core.override_chatcommand("whereami", {
 })
 
 -- For other mods
+-- The name a wallet's holder goes by here: their character's name if they
+-- have one, else the address shortened (0x1234...abcd, plain ASCII for the
+-- land label's font). Nil for no holder.
+local name_of_wallet
+do
+	local by_wallet, built_from = {}, nil
+	name_of_wallet = function(address)
+		if type(address) ~= "string" then return nil end
+		if built_from ~= registry then
+			by_wallet, built_from = {}, registry
+			for _, p in pairs(registry) do
+				if p.address then by_wallet[p.address] = p.name end
+			end
+		end
+		return by_wallet[address:lower()] or (address:sub(1, 6) .. "..." .. address:sub(-4))
+	end
+end
+
 orthoverse.wallets = {
 	is_guest = is_guest,
 	is_registered = is_registered,
 	without_wallet = without_wallet,
 	wallet_of = wallet_of,
 	owner_of = owner_of,
+	name_of_wallet = name_of_wallet,
 	may_build = may_build,
 	is_croft = is_croft,
 	highest_level = highest_level,
