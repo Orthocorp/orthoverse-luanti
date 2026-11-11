@@ -1161,14 +1161,20 @@ const routes = {
 		// A token just revealed is held by the address it was revealed for:
 		// checked on the contract and noted at once, so the game lets them
 		// build without waiting for the next full refresh
-		if (owners && owners.owners[land.token] !== token) {
-			const [held] = await balances([[address, land.token]]);
-			if (held) {
-				owners.owners[land.token] = token;
-				writeJsonAtomic(OWNERS_FILE, owners);
-			}
+		// (and whether the address holds it still: it may have been given or
+		// sold since)
+		let holds = owners ? owners.owners[land.token] === token : null;
+		if (owners && !holds) {
+			try {
+				const [held] = await balances([[address, land.token]]);
+				holds = !!held;
+				if (held) {
+					owners.owners[land.token] = token;
+					writeJsonAtomic(OWNERS_FILE, owners);
+				}
+			} catch (e) { holds = null; }
 		}
-		return send(res, 200, { placed: { key: land.key, name: land.name }, revealed: true });
+		return send(res, 200, { placed: { key: land.key, name: land.name }, revealed: true, holds });
 	},
 
 	// Arrive at a spot on the map when you next join the game (the admin and

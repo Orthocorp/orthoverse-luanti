@@ -171,6 +171,7 @@
         <button id="reveal-go-lands" class="ov-btn spend" type="button">Reveal my land: pay 0.0004 ETH</button>
         <div id="reveal-status-lands" class="status" aria-live="polite"></div>
       </div>
+      <p id="elsewhere" class="quiet" hidden></p>
       <p id="nowallet" class="quiet" hidden>Lands belong to Ethereum wallets. Link a wallet to your character (on
         the Blockchain tab) to see and build on the lands it holds, or to reveal your own.</p>
     </section>
@@ -303,6 +304,7 @@
     $('net').hidden = !signedIn || !me.address || !W.present() || await W.onMainnet();
     $('reveal').hidden = true;
     $('reveal-lands').hidden = true;
+    $('elsewhere').hidden = true;
     $('placing').hidden = true;
     showCharacter();
     if (!signedIn) return;
@@ -310,15 +312,24 @@
     if (!me.address) { $('my-lands').innerHTML = ''; $('none').hidden = true; return; }
     // Whether your own address's land is revealed: the site asks the chain
     // (no wallet needed in this browser to know); from the wallet, if not
-    let revealed = null;
-    try { revealed = (await OV.api('GET', '/api/reveal/status?address=' + me.address)).revealed; } catch (e) { /* below */ }
+    let revealed = null, own = null;
+    try { own = await OV.api('GET', '/api/reveal/status?address=' + me.address); revealed = own.revealed; } catch (e) { /* below */ }
     if (typeof revealed !== 'boolean' && await ready()) {
       try { revealed = BigInt(await W.call(SEL.revealed + W.pad(me.address))) !== 0n; } catch (e) { /* cannot tell */ }
     }
     if (run !== showRun) return;
     $('reveal').hidden = revealed !== false;
     $('reveal-lands').hidden = revealed !== false || me.lands.length > 0;
-    if (revealed) awaitOwnLand();
+    if (own && own.placed && own.holds === false) {
+      // Your address's land, revealed, and given or sold since
+      const [x, z] = own.placed.key.split(':');
+      $('elsewhere').replaceChildren('Your address\'s land, ' + own.placed.name + ' (' + own.placed.key +
+        '), has been revealed and is now held by another wallet. ',
+        el('a', { href: '/map/#' + x + ':' + z }, 'See it on the map'), '.');
+      $('elsewhere').hidden = false;
+    } else if (revealed) {
+      awaitOwnLand();
+    }
     const panels = [];
     for (const l of me.lands) panels.push(await landPanel(l.key, true));
     if (run !== showRun) return;

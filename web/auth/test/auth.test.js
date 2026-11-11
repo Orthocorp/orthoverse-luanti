@@ -332,6 +332,16 @@ try {
 	check(r.body.placed && r.body.placed.key === '9:9' && r.body.placed.name === 'Daveholm', 'status: the land, once the chain service has placed it');
 	const own3 = JSON.parse(readFileSync(join(dir, 'data', 'owners.json'), 'utf8'));
 	check(own3.owners[dave.address.toLowerCase()] === dave.address.toLowerCase(), 'and its holder noted at once (checked on the contract)');
+	check(r.body.holds === true, 'and the status says the address holds it');
+	// An address whose land was revealed, and given away since
+	const gone = '0x00000000000000000000000000000000000e4140';
+	revealed.add(BigInt(gone));
+	holder['0x' + BigInt(gone).toString(16)] = carol.address;
+	writeFileSync(join(dir, 'new-lands.json'), JSON.stringify({ lands: {
+		'9:9': { name: 'Daveholm', token: dave.address.toLowerCase(), level: 0 },
+		'9:10': { name: 'Erinmoor', token: gone, level: 0 } } }));
+	r = await call('GET', '/api/reveal/status?address=' + gone);
+	check(r.body.placed && r.body.holds === false, 'given away since: the status says another wallet holds it');
 	r = await call('GET', '/api/reveal/status?address=' + carol.address);
 	check(r.body.placed === null && r.body.revealed === false, 'status for an address with no land: none, not revealed (the account page offers to reveal it)');
 
