@@ -95,7 +95,15 @@ Decided (8 Nov 2026): no charge bar or other marker. Players learn each weapon's
 | Steel | +6 | +2 | 7%; 2% | splint |
 | Diamond | +7 | +2 | 3%; 1% | plate, light |
 
-Each piece gives its share of a set: chestplate 40%, leggings 30%, helmet and boots 15% each (rounded to the nearest point at the end). Full steel and a steel shield: AC 18, 91% walking speed. The Armor tab shows the armour class and walking speed. Pieces wear out as they are struck (3D Armor's numbers: wood lasts about thirty blows a piece).
+Each piece gives its share of a set: chestplate 40%, leggings 30%, helmet and boots 15% each (rounded to the nearest point at the end). Full steel and a steel shield: AC 18, 91% walking speed. The Armor tab shows the armour class and walking speed. Only blows that land wear armour: a hit wears every piece worn by one blow, a glance by half a blow, a miss not at all. A blocked blow wears only the shield. Falls, fire, drowning and other damage that is not a blow wear nothing. Each piece lasts the same number of hits however many others are worn:
+
+| Material | Hits a piece lasts |
+|---|---|
+| Wood | 60 |
+| Gold | 120 |
+| Bronze | 150 |
+| Steel | 250 |
+| Diamond | 500 |
 
 A monster's blow against a player: d20 + the monster's attack bonus (3 + half its level: a kobold +3, an orc +5, a deep orc +7, the wyrm +9) against the AC. At or over: the blow hits in full. Up to 5 under: it glances off (half the damage, at least 1). Further under: a miss. A natural 20 always hits, a natural 1 always misses. "Glances off your armour" or "Missed" shows for a moment. Fire, breath and explosions are not blows: armour does not turn them. 3D Armor's own protection (a share off every blow) and its chance to heal a blow away are off.
 

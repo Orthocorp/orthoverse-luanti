@@ -179,6 +179,37 @@ local function flash(player, text)
 	end)
 end
 
+------------------------------------------------------------------------------
+-- Wear. Only blows that land wear armour, each piece as much as its
+-- material can take (LIFE: full hits a piece lasts, whatever else is worn):
+-- a hit wears every piece worn, a glance half as much, a miss nothing; a
+-- blocked blow wears only the shield. 3D Armor's own wear (every punch,
+-- falls and burns too, shared out among the pieces worn) is off. The wear
+-- bar shows on each piece, and the chat warns when one is nearly worn out.
+
+local LIFE = {wood = 60, gold = 120, bronze = 150, steel = 250, diamond = 500}
+orthoverse.armor.LIFE = LIFE
+
+armor.punch = function() end
+
+local function wear(player, share, shield_only)
+	local _, inv = armor:get_valid_player(player, "[orthoverse_armor wear]")
+	if not inv then return end
+	for i, stack in ipairs(inv:get_list("armor") or {}) do
+		if not stack:is_empty() then
+			local element = armor:get_element(stack:get_name())
+			local life = LIFE[stack:get_name():match("_(%a+)$") or ""]
+			if life and element and (not shield_only or element == "shield") then
+				-- (3D Armor shares the wear out among the pieces worn: undone)
+				local n = 0
+				for _ in pairs(armor:get_weared_armor_elements(player) or {}) do n = n + 1 end
+				armor:damage(player, i, stack, math.ceil(65535 / life * share) * math.max(1, n))
+			end
+		end
+	end
+end
+orthoverse.armor.wear = wear
+
 core.register_on_player_hpchange(function(player, change, reason)
 	if change >= 0 or unrolled_depth > 0 or not reason or reason.type ~= "punch" or not reason.object then
 		return change
@@ -197,6 +228,7 @@ core.register_on_player_hpchange(function(player, change, reason)
 		local shield = orthoverse.armor.shield(player)
 		core.sound_play(shield == "wood" and "default_dig_choppy" or "default_dig_cracky",
 			{to_player = player:get_player_name(), gain = 0.7, pitch = 0.8}, true)
+		wear(player, hit and 1 or 0.5, true)
 		if glance then
 			flash(player, "Blocked")
 			return 0
@@ -204,8 +236,12 @@ core.register_on_player_hpchange(function(player, change, reason)
 		flash(player, "Blocked: half the blow")
 		return math.min(-1, math.ceil(change / 2))
 	end
-	if hit then return change end
+	if hit then
+		wear(player, 1)
+		return change
+	end
 	if glance then
+		wear(player, 0.5)
 		flash(player, ac > 10 and "Glances off your armour" or "A glancing blow")
 		core.sound_play("default_dig_cracky", {to_player = player:get_player_name(), gain = 0.5, pitch = 1.3}, true)
 		return math.min(-1, math.ceil(change / 2))
