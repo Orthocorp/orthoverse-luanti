@@ -5,7 +5,7 @@
 -- crown at 7 (the contract's levels 8-15 are 0-7 with the futuristic style
 -- flag). A henge shows its name; the sea and the rim show nothing. On a land
 -- your wallet holds, the name is gold, with a line under it ("Your land, level
--- 4"; "Your land, open land"). On a land someone else holds, two lines say
+-- 4"; "Your land, open to others" at level 0). On a land someone else holds, two lines say
 -- what it is and whose ("Open land", then "held by Alice"; "Level 3", then
 -- "held by 0x1234...abcd"): on open land anyone may build, but the holder can
 -- claim it at any time.
@@ -135,7 +135,7 @@ local function yours(pname, land, key)
 	local wallet = w.wallet_of(pname)
 	if not wallet or wallet ~= w.owner_of(land) then return nil end
 	local level = (tonumber(land.level) or 0) % 8
-	if w.is_croft(land, key) then return "Your land, open land" end
+	if w.is_croft(land, key) then return "Your land, open to others" end
 	if level == 0 then return "Your land" end
 	return "Your land, level " .. level
 end

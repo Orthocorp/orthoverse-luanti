@@ -613,29 +613,41 @@ end
 
 ------------------------------------------------------------------------------
 -- Building on open land: the first time a player places or digs a block on
--- a level 0 land someone else holds, a notice says what that means (once for
--- each land: remembered in mod storage as "openland:<name>:<land key>")
+-- a level 0 land someone else holds, a notice says what that means; and the
+-- first time a holder builds on their own level 0 land, another says that
+-- others may build there too. Each once for each player (remembered in mod
+-- storage as "openland:<name>" and "openland_own:<name>").
 
-local function open_land_notice(player, land, key)
-	local name = player:get_player_name()
-	local holder = owner_of(land)
-	local who = holder and name_of_wallet(holder) or "its token holder"
+local function notice(name, title, text)
 	local esc = core.formspec_escape
-	local text = land.name .. " is open land, held by " .. who .. ".\n\n" ..
-		"You can build here, and so can anyone else who has signed in. But the land is not yours, " ..
-		"and it is not anyone's to claim: it belongs to its holder.\n\n" ..
-		"If " .. who .. " upgrades the land, you can no longer build here, and " ..
-		"everything built here becomes theirs, to keep, change or even knock down. That includes " ..
-		"what you build.\n\n" ..
-		"Build here for the fun of it. To keep what you build, build on a land your wallet holds."
 	-- (the same grey pane as an adventure's gate: its title and button in
 	-- the Midnight font)
 	core.show_formspec(name, "orthoverse_wallets:open_land",
 		"formspec_version[4]size[10,7.6]style_type[button,button_exit;font=mono]" ..
 		"hypertext[0.5,0.35;9,0.9;title;<global size=16><mono>" ..
-			esc(core.hypertext_escape("Building on open land")) .. "</mono>]" ..
+			esc(core.hypertext_escape(title)) .. "</mono>]" ..
 		"textarea[0.5,1.2;9,5;;;" .. esc(text) .. "]" ..
 		"button_exit[3,6.4;4,0.9;ok;" .. esc("I understand") .. "]")
+end
+
+local function others_notice(name, land)
+	local holder = owner_of(land)
+	local who = holder and name_of_wallet(holder) or "its token holder"
+	notice(name, "Building on open land", land.name .. " is open land, held by " .. who .. ".\n\n" ..
+		"You can build here, and so can anyone else who has signed in. But the land is not yours, " ..
+		"and it is not anyone's to claim: it belongs to its holder.\n\n" ..
+		"If " .. who .. " upgrades the land, you can no longer build here, and " ..
+		"everything built here becomes theirs, to keep, change or even knock down. That includes " ..
+		"what you build.\n\n" ..
+		"Build on open land for the fun of it. To keep what you build, build on a land your wallet holds.")
+end
+
+local function own_notice(name, land)
+	notice(name, "Your land is open to others", land.name .. " is your land, at castle level 0: open land.\n\n" ..
+		"Anyone who has signed in can build here too, and change or knock down what is built here, " ..
+		"including what you build.\n\n" ..
+		"When you upgrade the land (at " .. ACCOUNT_URL .. "), it becomes yours alone: nobody else can " ..
+		"build here, and everything built here, by anyone, is yours to keep, change or knock down.")
 end
 
 local function first_build(pos, player)
@@ -644,11 +656,11 @@ local function first_build(pos, player)
 	local land, key = orthoverse.land_at(pos)
 	if not is_croft(land, key) then return end
 	local holder = owner_of(land)
-	if holder and holder == wallet_of(name) then return end   -- their own land
-	local k = "openland:" .. name .. ":" .. key
+	local own = holder and holder == wallet_of(name)
+	local k = (own and "openland_own:" or "openland:") .. name
 	if storage:get_string(k) ~= "" then return end
 	storage:set_string(k, tostring(os.time()))
-	open_land_notice(player, land, key)
+	if own then own_notice(name, land) else others_notice(name, land) end
 end
 
 core.register_on_placenode(function(pos, _, placer) first_build(pos, placer) end)
