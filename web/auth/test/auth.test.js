@@ -108,7 +108,7 @@ const svcEnv = {
 	OV_ETH_RPC: `http://127.0.0.1:${rpc.address().port}`,
 	OV_TURNSTILE_SITEKEY: 'ts-site', OV_TURNSTILE_SECRET: 'ts-secret',
 	OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
-	OV_REGISTER_PER_DAY: '3',
+	OV_REGISTER_PER_DAY: '4',
 	OV_ADVENTURES: join(dir, 'adventures.json'),
 	OV_ADMIN: 'Bossy',
 	OV_SKIN_EVERY_MS: '0',
@@ -451,15 +451,16 @@ try {
 	check(r.status === 200 && r.body.name === 'Alice_1' && r.body.lands.length === 2,
 		'and can then sign in with it, lands and all');
 
-	// Registration limit per address per day (3 in this test; Pat was the first)
+	// Registration limit per address per day (4 in this test: Alice_1, a
+	// wallet character, was the first; Pat the second)
 	cookie = '';
 	r = await call('POST', '/auth/register', { name: 'Quin', password: 'quin password', turnstile: 'good' });
-	check(r.status === 200, 'register: a second character from the same address');
+	check(r.status === 200, 'register: a third character from the same address (wallet characters count too)');
 	cookie = '';
 	r = await call('POST', '/auth/register', { name: 'Rex', password: 'rex password', turnstile: 'good' });
 	cookie = '';
 	r = await call('POST', '/auth/register', { name: 'Sam', password: 'sam password', turnstile: 'good' });
-	check(r.status === 429 && /tomorrow/.test(r.body.error), 'register: the fourth in a day from one address is refused');
+	check(r.status === 429 && /tomorrow/.test(r.body.error), 'register: the fifth in a day from one address is refused');
 
 	// Too many wrong passwords for one name
 	for (let i = 0; i < 10; i++) await call('POST', '/auth/login', { name: 'Quin', password: 'nope nope' + i });
@@ -540,6 +541,36 @@ try {
 	check(/1 lands held by player wallets \(checked with 1 request; 1 no longer held\)/.test(log2) && balanceCalls - idxBefore === 1,
 		`chain index: one request for the player's two lands, none for the rest (${balanceCalls - idxBefore})`);
 	if (failures.length) svcLog += '\n--- with the chain index:\n' + log2;
+
+	// Limits from everywhere together: new characters per hour, and the chain
+	// lookups anyone can cause per minute
+	let log3 = '';
+	const svc3 = spawn(process.execPath, ['server.js'], {
+		cwd: new URL('..', import.meta.url).pathname,
+		env: { ...process.env, ...svcEnv, OV_AUTH_PORT: String(PORT + 6), OV_REGISTER_PER_DAY: '10',
+			OV_NEW_PER_HOUR: '2', OV_PUBLIC_RPC_PER_MIN: '2', OV_TURNSTILE_SECRET: '', OV_TURNSTILE_SITEKEY: '' },
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	svc3.stdout.on('data', d => log3 += d);
+	svc3.stderr.on('data', d => log3 += d);
+	await new Promise(r => setTimeout(r, 1500));
+	const post3 = async (path, body, ip) => {
+		const res = await fetch(`http://127.0.0.1:${PORT + 6}${path}`, {
+			method: 'POST', body: JSON.stringify(body),
+			headers: { 'content-type': 'application/json', host: 'orthoverse.land', 'cf-connecting-ip': ip },
+		});
+		return { status: res.status, body: await res.json() };
+	};
+	const made = [];
+	for (const [i, n] of ['Una', 'Vic', 'Wes'].entries()) made.push(await post3('/auth/register', { name: n, password: n.toLowerCase() + ' password' }, '192.0.2.' + (i + 1)));
+	check(made[0].status === 200 && made[1].status === 200 && made[2].status === 429 && /last hour/.test(made[2].body.error),
+		'new characters: at most so many an hour from everywhere together');
+	const looks = [];
+	for (const key of ['1:2', '3:4', '5:6']) looks.push(await post3('/api/levels/check', { key }, '198.51.100.' + looks.length));
+	check(looks[0].status === 200 && looks[1].status === 200 && looks[2].status === 503 && /busy/.test(looks[2].body.error),
+		'level checks: at most so many chain lookups a minute from everywhere together');
+	svc3.kill();
+	if (failures.length) svcLog += '\n--- with limits for everywhere:\n' + log3;
 
 } catch (e) {
 	failures.push('exception: ' + e.stack);

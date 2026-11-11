@@ -445,10 +445,30 @@ async function refreshWallet(address) {
 
 // One lookup at a time
 let queue = Promise.resolve();
+let queued = 0;   // lookups waiting or running
 function serial(fn) {
-	const p = queue.then(fn);
+	queued++;
+	const p = queue.then(fn).finally(() => { queued--; });
 	queue = p.catch(() => {});
 	return p;
+}
+
+// A wallet's lands looked up as it signs in (or is linked), unless lookups
+// are queued already or the minute's allowance is spent: then its lands come
+// with the next refresh (and the chain index has them anyway). Anyone can
+// make wallets, and each look asks about every land.
+async function lookUpWallet(address, signer) {
+	if (watched.has(address)) return;
+	watched.add(address);
+	if (queued > 1 || !publicRpcAllowed(5)) {
+		log('lands of', signer, 'left to the next refresh (lookups busy)');
+		return;
+	}
+	try {
+		await serial(() => refreshWallet(address));
+	} catch (e) {
+		log('lands of', signer, 'not looked up yet:', e.message);
+	}
 }
 
 async function ownersLoop() {
@@ -616,17 +636,43 @@ function loginFailed(name) {
 	else f.n++;
 }
 
-// New characters per client address per day
+// New characters (with a password or a wallet: making wallets costs nothing)
+// per client address per day, and from everywhere per hour
 const registrations = new Map();   // ip -> { n, reset }
-function registrationAllowed(req) {
+const NEW_PER_HOUR = parseInt(env.OV_NEW_PER_HOUR || '60', 10);
+let newThisHour = { n: 0, reset: 0 };
+const TOO_MANY_NEW = 'Too many new characters from here today. Try again tomorrow.';
+const TOO_MANY_NEW_HOUR = 'A great many characters have been made in the last hour. Please try again later.';
+// Null if a new character may be made now (and counted), else why not
+function registrationProblem(req) {
 	const ip = clientIp(req);
 	const now = Date.now();
+	if (now > newThisHour.reset) newThisHour = { n: 0, reset: now + 3600000 };
+	if (newThisHour.n >= NEW_PER_HOUR) {
+		if (newThisHour.n++ === NEW_PER_HOUR) log(`warning: ${NEW_PER_HOUR} new characters within the hour; no more until it is over`);
+		return TOO_MANY_NEW_HOUR;
+	}
 	const r = registrations.get(ip);
-	if (!r || now > r.reset) { registrations.set(ip, { n: 1, reset: now + 86400000 }); return true; }
-	if (r.n >= REGISTER_PER_DAY) return false;
-	r.n++;
+	if (!r || now > r.reset) registrations.set(ip, { n: 1, reset: now + 86400000 });
+	else if (r.n >= REGISTER_PER_DAY) return TOO_MANY_NEW;
+	else r.n++;
+	newThisHour.n++;
+	return null;
+}
+
+// Chain lookups that anyone can cause (a land's level, a reveal): this many a
+// minute from everywhere together, so nobody can use up the RPC endpoint's
+// allowance (the lookups the game needs would then fail too)
+const PUBLIC_RPC_PER_MIN = parseInt(env.OV_PUBLIC_RPC_PER_MIN || '60', 10);
+let publicRpcs = { n: 0, reset: 0 };
+function publicRpcAllowed(cost = 1) {
+	const now = Date.now();
+	if (now > publicRpcs.reset) publicRpcs = { n: 0, reset: now + 60000 };
+	if (publicRpcs.n + cost > PUBLIC_RPC_PER_MIN) return false;
+	publicRpcs.n += cost;
 	return true;
 }
+const BUSY = 'The Orthoverse is busy looking things up on the chain. Please try again in a minute.';
 
 async function turnstileOk(req, token) {
 	if (!TURNSTILE_SECRET) return true;
@@ -670,6 +716,8 @@ function limited(req, max = RATE) {
 setInterval(() => {
 	const now = Date.now();
 	for (const [ip, h] of hits) if (now > h.reset) hits.delete(ip);
+	for (const [ip, r] of registrations) if (now > r.reset) registrations.delete(ip);
+	for (const [name, f] of failedLogins) if (now > f.until) failedLogins.delete(name);
 }, 60 * 1000).unref();
 
 // ---------------------------------------------------------------------------
@@ -822,14 +870,7 @@ const routes = {
 		const named = nameOfAddress.get(entry.address);
 		if (named && entryOf(named.toLowerCase()).locked) return send(res, 403, { error: LOCKED });
 		log('signed in', signer, named || '(no name yet)');
-		if (!watched.has(entry.address)) {
-			watched.add(entry.address);
-			try {
-				await serial(() => refreshWallet(entry.address));
-			} catch (e) {
-				log('lands of', signer, 'not looked up yet:', e.message);
-			}
-		}
+		await lookUpWallet(entry.address, signer);
 		send(res, 200, me(entry.address), {
 			'set-cookie': sessionCookie(req, makeSession(entry.address), SESSION_DAYS * 86400),
 		});
@@ -856,9 +897,8 @@ const routes = {
 		if (!await turnstileOk(req, body.turnstile)) {
 			return send(res, 400, { error: 'The check that you are not a robot did not pass. Please try again.' });
 		}
-		if (!registrationAllowed(req)) {
-			return send(res, 429, { error: 'Too many new characters from here today. Try again tomorrow.' });
-		}
+		const tooMany = registrationProblem(req);
+		if (tooMany) return send(res, 429, { error: tooMany });
 		const code = makeRecoveryCode();
 		const entry = withSrp({
 			name, since: new Date().toISOString(),
@@ -979,14 +1019,7 @@ const routes = {
 		nameOfAddress.set(address, sess.entry.name);
 		saveRegistry();
 		log('wallet', signer, 'linked to', sess.entry.name);
-		if (!watched.has(address)) {
-			watched.add(address);
-			try {
-				await serial(() => refreshWallet(address));
-			} catch (e) {
-				log('lands of', signer, 'not looked up yet:', e.message);
-			}
-		}
+		await lookUpWallet(address, signer);
 		send(res, 200, me(readSession(req)));
 	},
 
@@ -1003,6 +1036,8 @@ const routes = {
 		const name = String(body.name || '').trim();
 		const problem = nameProblem(name);
 		if (problem) return send(res, 400, { error: problem });
+		const tooMany = registrationProblem(req);
+		if (tooMany) return send(res, 429, { error: tooMany });
 		registry.players[name.toLowerCase()] = withSrp({ name, address, since: new Date().toISOString() });
 		nameOfAddress.set(address, name);
 		saveRegistry();
@@ -1089,6 +1124,7 @@ const routes = {
 		if (Date.now() - last < 15000 && freshLevels.levels[land.key]) {
 			return send(res, 200, { key: land.key, level: freshLevels.levels[land.key].level, cached: true });
 		}
+		if (!publicRpcAllowed()) return send(res, 503, { error: BUSY });
 		levelChecked.set(land.key, Date.now());
 		const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('castleLevel', [BigInt(land.token)]) }]);
 		const level = Number(erc1155.decodeFunctionResult('castleLevel', r)[0]);
@@ -1108,6 +1144,7 @@ const routes = {
 		try { body = await readBody(req); } catch (e) { return send(res, 400, { error: 'Send JSON.' }); }
 		const address = String(body && body.address || '');
 		if (!isAddress(address)) return send(res, 400, { error: 'That is not an Ethereum address.' });
+		if (!publicRpcAllowed()) return send(res, 503, { error: BUSY });
 		const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('revealedTokenIds', [BigInt(address)]) }]);
 		const revealed = erc1155.decodeFunctionResult('revealedTokenIds', r)[0];
 		if (revealed && Date.now() - lastIndexRequest > 30000) {
@@ -1152,7 +1189,7 @@ const routes = {
 			// Not placed: revealed on the chain (and on its way), or not yet, so
 			// that the account page can offer to reveal it without a wallet to ask
 			let revealed = null;
-			try {
+			if (publicRpcAllowed()) try {
 				const [r] = await rpcBatch([{ to: CONTRACT, data: erc1155.encodeFunctionData('revealedTokenIds', [BigInt(address)]) }]);
 				revealed = Boolean(erc1155.decodeFunctionResult('revealedTokenIds', r)[0]);
 			} catch (e) { /* cannot tell now */ }
@@ -1164,7 +1201,8 @@ const routes = {
 		// (and whether the address holds it still: it may have been given or
 		// sold since)
 		let holds = owners ? owners.owners[land.token] === token : null;
-		if (owners && !holds) {
+		if (owners && !holds && !publicRpcAllowed()) holds = null;
+		else if (owners && !holds) {
 			try {
 				const [held] = await balances([[address, land.token]]);
 				holds = !!held;

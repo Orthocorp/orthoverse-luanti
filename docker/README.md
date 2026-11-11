@@ -188,8 +188,14 @@ Adventures page reads `adventures.json` there through the auth service
   entry, as for wallets.
 - Characters without a wallet mine and build on crofts after their first hour of
   play (counted by the game); with a wallet, at once.
-- At most three new characters per address per day; ten wrong passwords for a
-  name rest it for 15 minutes.
+- At most three new characters per address per day (with a password or a
+  wallet), and 60 an hour from everywhere together (`OV_NEW_PER_HOUR`); ten
+  wrong passwords for a name rest it for 15 minutes.
+- Chain lookups that any visitor can cause (a land's level after an upgrade, a
+  reveal) are limited to 60 a minute from everywhere together
+  (`OV_PUBLIC_RPC_PER_MIN`), so the RPC endpoint's allowance is kept for the
+  lookups the game needs. A wallet signing in has its lands looked up at once
+  only when lookups are not busy; otherwise they come with the next refresh.
 - The "are you a robot" check (Cloudflare Turnstile) is optional: create a
   Turnstile widget for orthoverse.land in the Cloudflare dashboard, put its keys
   in `OV_TURNSTILE_SITEKEY` and `OV_TURNSTILE_SECRET` in `.env`, and
