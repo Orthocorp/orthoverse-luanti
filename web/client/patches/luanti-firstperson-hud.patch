@@ -1,8 +1,20 @@
 diff --git a/src/client/hud.cpp b/src/client/hud.cpp
-index e64e06ea4..a793e1e54 100644
+index 3bcde6f..8f076e0 100644
 --- a/src/client/hud.cpp
 +++ b/src/client/hud.cpp
-@@ -377,9 +377,17 @@ void Hud::drawLuaElements(const v3s16 &camera_offset, bool only_unhidable)
+@@ -8,9 +8,11 @@
+ #include <string>
+ #include <iostream>
+ #include <cmath>
++#include <unordered_map>
+ #include "settings.h"
+ #include "util/numeric.h"
+ #include "log.h"
++#include "porting.h"
+ #include "client.h"
+ #include "inventory.h"
+ #include "shader.h"
+@@ -377,9 +379,17 @@ void Hud::drawLuaElements(const v3s16 &camera_offset, bool only_unhidable)
  		return l->z_index < r->z_index;
  	});
  
@@ -20,3 +32,34 @@ index e64e06ea4..a793e1e54 100644
  
  		v2s32 pos(floor(e->pos.X * (float) m_screensize.X + 0.5),
  				floor(e->pos.Y * (float) m_screensize.Y + 0.5));
+@@ -502,8 +512,29 @@ void Hud::drawLuaElements(const v3s16 &camera_offset, bool only_unhidable)
+ 				v2s32 offset((e->align.X - 1.0) * dstsize.X / 2,
+ 				             (e->align.Y - 1.0) * dstsize.Y / 2);
+ 				core::rect<s32> rect(0, 0, dstsize.X, dstsize.Y);
++				// Orthoverse: an image named "firstperson_slide..." slides to a
++				// new vertical offset instead of jumping there: up quickly, down
++				// more slowly (the raised shield)
++				f32 offset_y = e->offset.Y;
++				if (e->name.rfind("firstperson_slide", 0) == 0) {
++					static std::unordered_map<const HudElement *, std::pair<f32, u64>> slides;
++					const u64 now = porting::getTimeMs();
++					auto it = slides.find(e);
++					if (it == slides.end()) {
++						slides[e] = {offset_y, now};
++					} else {
++						f32 &y = it->second.first;
++						const f32 dt = std::min<f32>((now - it->second.second) / 1000.0f, 0.1f);
++						it->second.second = now;
++						if (y > offset_y)
++							y = std::max(offset_y, y - 1400.0f * dt);
++						else if (y < offset_y)
++							y = std::min(offset_y, y + 550.0f * dt);
++						offset_y = y;
++					}
++				}
+ 				rect += pos + offset + v2s32(e->offset.X * m_scale_factor,
+-				                             e->offset.Y * m_scale_factor);
++				                             offset_y * m_scale_factor);
+ 				draw2DImageFilterScaled(driver, texture, rect,
+ 					core::rect<s32>(core::position2d<s32>(0,0), imgsize),
+ 					NULL, colors, true);

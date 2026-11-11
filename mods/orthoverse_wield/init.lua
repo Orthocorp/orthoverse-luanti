@@ -47,7 +47,8 @@ core.register_entity("orthoverse_wield:held", {
 local held = {}     -- name -> the object in their hand
 local showing = {}  -- name -> the item it shows ("" for none)
 local poses = {}    -- name -> {phase, till}
-local guarding = {} -- name -> the hud id of the shield picture, while the shield is up
+local guarding = {} -- name -> true while the shield is up
+local pictures = {} -- name -> {id, texture}: the shield picture in their own view
 local GUARD = {x = d(215), y = 0, z = 0}   -- the sword arm while the shield is up
 
 local function item_of(player)
@@ -102,10 +103,36 @@ end
 -- animation for the held right button, and the arm swings to and fro. The
 -- engine draws only the held item in the player's own first-person view, so
 -- the player sees the raised shield as a picture at the bottom left of the
--- screen. The browser client draws a picture named "firstperson..." only in
--- the first-person view (web/client/patches/luanti-firstperson-hud.patch), so
--- the third-person views show just the shield on the character.
+-- screen, sliding up into view quickly and down again more slowly. The
+-- browser client draws a picture named "firstperson..." only in the
+-- first-person view, so the third-person views show just the shield on the
+-- character, and slides one named "firstperson_slide..." to a new offset
+-- (web/client/patches/luanti-firstperson-hud.patch). The picture stays,
+-- below the edge of the screen, while the shield is down.
 local SHIELD_UP = {x = d(260), y = d(30), z = 0}
+local PICTURE_UP, PICTURE_DOWN = 134, 270   -- its offset below the bottom of the screen
+
+local function picture(player, material)
+	local name = player:get_player_name()
+	local texture = "shields_inv_shield_" .. (material or "steel") .. ".png^[opacity:230"
+	local p = pictures[name]
+	if not p then
+		-- from the hotbar's middle leftwards, over its four left boxes
+		local id = player:hud_add({
+			type = "image", name = "firstperson_slide_shield", text = texture,
+			position = {x = 0.5, y = 1}, alignment = {x = -1, y = -1},
+			offset = {x = 0, y = PICTURE_DOWN}, scale = {x = 36, y = 16}, z_index = -50,
+		})
+		if not id then return end
+		p = {id = id, texture = texture}
+		pictures[name] = p
+	elseif p.texture ~= texture then
+		player:hud_change(p.id, "text", texture)
+		p.texture = texture
+	end
+	return p
+end
+
 function orthoverse.wield.shield(player, up)
 	local name = player:get_player_name()
 	if up then
@@ -113,19 +140,15 @@ function orthoverse.wield.shield(player, up)
 		if not poses[name] then
 			player:set_bone_override("Arm_Right", {rotation = {vec = GUARD, absolute = true, interpolation = 0.15}})
 		end
-		if not guarding[name] then
-			local material = orthoverse.armor and orthoverse.armor.shield(player) or "steel"
-			guarding[name] = player:hud_add({
-				type = "image", name = "firstperson_shield", text = "shields_inv_shield_" .. material .. ".png^[opacity:230",
-				position = {x = 0.22, y = 1}, alignment = {x = 0, y = -1},
-				offset = {x = 0, y = 70}, scale = {x = 16, y = 16}, z_index = -50,
-			}) or false
-		end
+		guarding[name] = true
+		local p = picture(player, orthoverse.armor and orthoverse.armor.shield(player))
+		if p then player:hud_change(p.id, "offset", {x = 0, y = PICTURE_UP}) end
 	else
 		player:set_bone_override("Arm_Left", {})
 		if not poses[name] then player:set_bone_override("Arm_Right", {}) end
-		if guarding[name] then player:hud_remove(guarding[name]) end
 		guarding[name] = nil
+		local p = pictures[name]
+		if p then player:hud_change(p.id, "offset", {x = 0, y = PICTURE_DOWN}) end
 	end
 end
 
@@ -145,10 +168,12 @@ end)
 
 core.register_on_joinplayer(function(player)
 	core.after(0.5, function() if player:get_pos() then update(player) end end)
+	-- the shield picture, out of sight, ready to slide up
+	core.after(1, function() if player:get_pos() then picture(player) end end)
 end)
 
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	if held[name] and held[name]:get_pos() then held[name]:remove() end
-	held[name], showing[name], poses[name], guarding[name] = nil, nil, nil, nil
+	held[name], showing[name], poses[name], guarding[name], pictures[name] = nil, nil, nil, nil, nil
 end)
