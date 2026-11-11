@@ -102,8 +102,9 @@ end
 -- animation for the held right button, and the arm swings to and fro. The
 -- engine draws only the held item in the player's own first-person view, so
 -- the player sees the raised shield as a picture at the bottom left of the
--- screen (in the third-person views too: the server cannot tell which view a
--- player has chosen).
+-- screen. The browser client draws a picture named "firstperson..." only in
+-- the first-person view (web/client/patches/luanti-firstperson-hud.patch), so
+-- the third-person views show just the shield on the character.
 local SHIELD_UP = {x = d(260), y = d(30), z = 0}
 function orthoverse.wield.shield(player, up)
 	local name = player:get_player_name()
@@ -115,7 +116,7 @@ function orthoverse.wield.shield(player, up)
 		if not guarding[name] then
 			local material = orthoverse.armor and orthoverse.armor.shield(player) or "steel"
 			guarding[name] = player:hud_add({
-				type = "image", text = "shields_inv_shield_" .. material .. ".png^[opacity:230",
+				type = "image", name = "firstperson_shield", text = "shields_inv_shield_" .. material .. ".png^[opacity:230",
 				position = {x = 0.22, y = 1}, alignment = {x = 0, y = -1},
 				offset = {x = 0, y = 70}, scale = {x = 16, y = 16}, z_index = -50,
 			}) or false

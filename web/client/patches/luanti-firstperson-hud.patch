@@ -1,0 +1,22 @@
+diff --git a/src/client/hud.cpp b/src/client/hud.cpp
+index e64e06ea4..a793e1e54 100644
+--- a/src/client/hud.cpp
++++ b/src/client/hud.cpp
+@@ -377,9 +377,17 @@ void Hud::drawLuaElements(const v3s16 &camera_offset, bool only_unhidable)
+ 		return l->z_index < r->z_index;
+ 	});
+ 
++	// Orthoverse: elements whose name begins "firstperson" are drawn only in
++	// the first-person view (a raised shield, which the third-person views
++	// show on the character itself)
++	Camera *const view = client->getCamera();
++	const bool first_person = !view || view->getCameraMode() == CAMERA_MODE_FIRST;
++
+ 	for (HudElement *e : elems) {
+ 		if (only_unhidable && e->hideable)
+ 			continue;
++		if (!first_person && e->name.rfind("firstperson", 0) == 0)
++			continue;
+ 
+ 		v2s32 pos(floor(e->pos.X * (float) m_screensize.X + 0.5),
+ 				floor(e->pos.Y * (float) m_screensize.Y + 0.5));
