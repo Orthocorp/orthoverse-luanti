@@ -223,3 +223,91 @@ gives any password.
 The admin's name (OV_ADMIN) gets every privilege in the game, so nobody else
 may take it on the website. To make it there the first time, run the auth
 service once with OV_ADMIN_OPEN=1.
+
+## Third sweep, 11 November 2026
+
+Ahead of more visitors after the Substack article. This covered everything
+added since the second sweep (3D Armor, skins, guests, the reveal and level
+routes, OpenSea, the status page, the admin socket, the proxy's logging and the
+engine patches). It also asked a new question of the whole service: what can
+one person, or a script with many addresses, do to it?
+
+### Fixed (patches 1102 to 1104)
+
+- **Free diamond armour from creative mode (high, for the game).** 3D Armor
+  drops what a player wears when they die, and creative mode does not stop
+  /killme. Armour from the Creative tab then lay on the ground for anyone to
+  pick up. This was tested and confirmed. A creative player's armour is now
+  removed before 3D Armor sees it. Ordinary deaths are unchanged (armour goes
+  into bones).
+- **Unlimited wallet characters (medium).** Making a wallet costs nothing, so
+  a script could make any number of characters, one fresh wallet each,
+  without the per-address limit or Turnstile. Each sign-in also asked the
+  chain about every land, in a queue with no limit. Now:
+  - wallet characters count against the three a day per address;
+  - at most 60 new characters of either kind are made an hour, from all
+    addresses together (`OV_NEW_PER_HOUR`);
+  - a new wallet's lands are looked up only when lookups are not busy.
+- **Using up the RPC endpoint (medium).** Anyone could make the auth service
+  ask the chain things: a land's level, whether a token is revealed, a
+  fresh wallet's lands. From many addresses this could use up the public
+  endpoint's allowance, and the lookups the game needs would then fail. These
+  are now limited to 60 a minute from all addresses together
+  (`OV_PUBLIC_RPC_PER_MIN`). Beyond that, visitors are asked to try again in
+  a minute.
+- **No way to keep a troublemaker out (medium).** Everyone reaches the game
+  through the web proxy, so the game sees one address for all players. A
+  guest has no character to lock, and the engine's /ban would have shut out
+  every player. Now:
+  - the proxy logs the name each game client gives, next to its real
+    address;
+  - it keeps out the addresses listed in `OV_DATA/proxy/blocked.txt`, and
+    closes connections from a newly listed one within ten seconds;
+  - `./characters.sh who / ban / unban / bans` manage the list;
+  - /ban and /unban in the game now say what to do instead.
+- **Floods through the proxy (low).** One browser can send at most 1000
+  datagrams a second to the game (`OV_DATAGRAMS_PER_SECOND`); the rest are
+  dropped at the proxy. This was tested with a flood of 5000.
+- **Small leaks of memory (low).** Old entries in the per-address and
+  per-name limits were never cleared. They are now.
+
+### Checked, nothing to fix
+
+- No code runs input as code. In the web services there is no `eval`,
+  `new Function`, `vm` or process spawning. In our mods there is no `load`,
+  `loadstring`, `os.execute` or `io.popen`. WorldEdit's own loaders only read
+  our ready-made adventure files, and its Lua commands need `server`, which
+  only the admin has.
+- Skins: the website paints each picture itself from its own parts, and a
+  design is checked field by field. The game reads only `<name>.png`, with
+  names checked by the website's pattern, and only PNGs of at most 64 KB.
+- The admin socket is an abstract Unix socket, which only processes inside
+  the auth container can reach.
+- The status page is refused for anything that came through Cloudflare. nginx
+  is published on 127.0.0.1 only.
+- Client addresses come from `Cf-Connecting-IP`, which Cloudflare sets
+  itself, so visitors cannot forge them.
+- 3D Armor's armour inventory lets only its owner put things in or take them
+  out. Adventures and creative mode put armour aside and give it back with
+  the rest.
+- `npm audit`: nothing found in either service. nginx 1.30.6 has the October
+  fixes. Luanti 5.18 is past the 2026 sandbox escapes (fixed in 5.15.2).
+
+### For the operator
+
+- **Node.js security release, due 11 November** (highest severity HIGH, lines
+  22, 24 and 26). When it is out, move both Dockerfiles off
+  `node:24.22.1-bookworm-slim` and rebuild auth, chain and proxy.
+- **Turnstile.** Make sure `OV_TURNSTILE_SECRET` and `OV_TURNSTILE_SITEKEY`
+  are set in production.
+- **Cloudflare.** Turn on Bot Fight Mode. Add a rate-limiting rule for
+  `/auth/` and `/api/` (for example 100 requests a minute per address).
+  Remember "Under Attack" mode for a bad day.
+- **Before restarting the proxy with patch 1104**, run `./characters.sh bans`
+  once. This makes `OV_DATA/proxy` as your user; otherwise Docker makes it,
+  owned by root.
+- **Guests can chat.** Guests are anonymous and new on each visit. If chat
+  abuse starts, the choices are: kick, ban the address, or take the `shout`
+  privilege from guests.
+- **The host** (outside this repository): keep unattended upgrades on, keep
+  Docker up to date, use SSH keys only, and keep iLO on its own network.
