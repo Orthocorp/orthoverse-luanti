@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Play the Orthoverse</title>
+<title>Play · The Orthoverse</title>
 <link rel="icon" type="image/png" href="/img/icon.png">
 <link rel="stylesheet" href="/css/site.css">
 <script src="/js/site.js"></script>
@@ -129,6 +129,19 @@
 
 <script src="%__RELEASE_UUID__%/launcher.js"></script>
 <script>
+  // The page's title stays the Orthoverse's: the engine sets the window title
+  // to its own name and version ("Luanti 5.18.0-dev-...") when it starts, and
+  // in a browser the window title is the page's
+  (() => {
+    const desc = Object.getOwnPropertyDescriptor(Document.prototype, 'title');
+    const ours = document.title;
+    Object.defineProperty(document, 'title', {
+      configurable: true,
+      get: () => desc.get.call(document),
+      set: (t) => { if (!/^(Luanti|Minetest)\b/.test(String(t))) desc.set.call(document, t); else desc.set.call(document, ours); },
+    });
+  })();
+
   // The address web players dial. It exists only inside the web proxy, which
   // relays it to the Orthoverse server; it must match OV_VIRTUAL_IP there.
   const SERVER_ADDRESS = '10.58.0.1';
