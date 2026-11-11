@@ -29,7 +29,13 @@ RUN git clone -q -b v2.1 https://github.com/LuaJIT/LuaJIT.git luajit \
  && make -s -C luajit -j"$(nproc)" PREFIX=/opt/luajit amalg >/dev/null \
  && make -s -C luajit PREFIX=/opt/luajit install >/dev/null
 
+# One change to the engine: it gives up (and the server stops with "database
+# is locked") when a database has been busy for 3 seconds. The nightly backup
+# may hold the map for longer than that while it copies it; the game now
+# waits up to a minute for it (a moment of lag, once a night).
 RUN git clone -q --depth 1 -b "$LUANTI_TAG" https://github.com/luanti-org/luanti.git luanti \
+ && grep -q 'BUSY_FATAL_TRESHOLD   = 3000' luanti/src/database/database-sqlite3.cpp \
+ && sed -i 's/BUSY_FATAL_TRESHOLD   = 3000/BUSY_FATAL_TRESHOLD   = 60000/' luanti/src/database/database-sqlite3.cpp \
  && cmake -S luanti -B luanti/build -DBUILD_CLIENT=0 -DBUILD_SERVER=1 -DBUILD_UNITTESTS=0 \
       -DRUN_IN_PLACE=0 -DCMAKE_INSTALL_PREFIX=/opt/luanti \
       -DENABLE_LUAJIT=1 -DLUA_INCLUDE_DIR=/opt/luajit/include/luajit-2.1 \

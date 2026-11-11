@@ -47,7 +47,8 @@ const DAYS = parseInt(env.OV_BACKUP_DAYS || '14', 10);
 const WEEKS = parseInt(env.OV_BACKUP_WEEKS || '8', 10);
 const MONTHS = parseInt(env.OV_BACKUP_MONTHS || '12', 10);
 const RATE = 2048;          // pages copied per step (8 MB at 4 kB pages)
-const MAX_RESTARTS = 5;     // then copy in one step (the game waits for that)
+const MAX_RESTARTS = 5;     // then copy in one step (the game waits for that: up to a minute,
+                            // docker/luanti/Dockerfile; the engine alone gives up after 3 seconds)
 // Left out: SQLite's temporary files, the game's log, and the folders other
 // services mount into the world (backed up from where they really are)
 // (and what a restore moved aside)
@@ -85,8 +86,10 @@ async function copyDatabase(from, to) {
 				last = remainingPages;
 				if (restarts > MAX_RESTARTS && rate === RATE) throw new Error('restarting');
 			};
+			const began = Date.now();
 			try {
 				await backup(src, tmp, { rate, progress });
+				if (rate !== RATE) log(`  ${from} copied in one go in ${((Date.now() - began) / 1000).toFixed(1)} s`);
 			} catch (e) {
 				if (restarts > MAX_RESTARTS && rate === RATE) {
 					log(`  ${from} kept changing during the copy; copying it in one go`);
