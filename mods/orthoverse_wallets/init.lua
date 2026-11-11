@@ -623,11 +623,11 @@ local function notice(name, title, text)
 	-- (the same grey pane as an adventure's gate: its title and button in
 	-- the Midnight font)
 	core.show_formspec(name, "orthoverse_wallets:open_land",
-		"formspec_version[4]size[10,7.6]style_type[button,button_exit;font=mono]" ..
-		"hypertext[0.5,0.35;9,0.9;title;<global size=16><mono>" ..
+		"formspec_version[4]size[10.6,8.8]style_type[button,button_exit;font=mono]" ..
+		"hypertext[0.5,0.35;9.6,0.9;title;<global size=16><mono>" ..
 			esc(core.hypertext_escape(title)) .. "</mono>]" ..
-		"textarea[0.5,1.2;9,5;;;" .. esc(text) .. "]" ..
-		"button_exit[3,6.4;4,0.9;ok;" .. esc("I understand") .. "]")
+		"textarea[0.5,1.2;9.6,6.2;;;" .. esc(text) .. "]" ..
+		"button_exit[3.3,7.6;4,0.9;ok;" .. esc("I understand") .. "]")
 end
 
 local function others_notice(name, land)
