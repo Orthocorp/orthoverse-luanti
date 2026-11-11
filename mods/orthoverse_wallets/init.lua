@@ -611,6 +611,49 @@ do
 	end
 end
 
+------------------------------------------------------------------------------
+-- Building on open land: the first time a player places or digs a block on
+-- a level 0 land someone else holds, a notice says what that means (once for
+-- each land: remembered in mod storage as "openland:<name>:<land key>")
+
+local function open_land_notice(player, land, key)
+	local name = player:get_player_name()
+	local holder = owner_of(land)
+	local who = holder and name_of_wallet(holder) or "its token holder"
+	local esc = core.formspec_escape
+	local text = land.name .. " is open land, held by " .. who .. ".\n\n" ..
+		"You can build here, and so can anyone else who has signed in. But the land is not yours, " ..
+		"and it is not anyone's to claim: it belongs to its holder.\n\n" ..
+		"If " .. who .. " upgrades the land, you can no longer build here, and " ..
+		"everything built here becomes theirs, to keep, change or even knock down. That includes " ..
+		"what you build.\n\n" ..
+		"Build here for the fun of it. To keep what you build, build on a land your wallet holds."
+	-- (the same grey pane as an adventure's gate: its title and button in
+	-- the Midnight font)
+	core.show_formspec(name, "orthoverse_wallets:open_land",
+		"formspec_version[4]size[10,7.6]style_type[button,button_exit;font=mono]" ..
+		"hypertext[0.5,0.35;9,0.9;title;<global size=16><mono>" ..
+			esc(core.hypertext_escape("Building on open land")) .. "</mono>]" ..
+		"textarea[0.5,1.2;9,5;;;" .. esc(text) .. "]" ..
+		"button_exit[3,6.4;4,0.9;ok;" .. esc("I understand") .. "]")
+end
+
+local function first_build(pos, player)
+	if not (player and player.is_player and player:is_player()) then return end
+	local name = player:get_player_name()
+	local land, key = orthoverse.land_at(pos)
+	if not is_croft(land, key) then return end
+	local holder = owner_of(land)
+	if holder and holder == wallet_of(name) then return end   -- their own land
+	local k = "openland:" .. name .. ":" .. key
+	if storage:get_string(k) ~= "" then return end
+	storage:set_string(k, tostring(os.time()))
+	open_land_notice(player, land, key)
+end
+
+core.register_on_placenode(function(pos, _, placer) first_build(pos, placer) end)
+core.register_on_dignode(function(pos, _, digger) first_build(pos, digger) end)
+
 orthoverse.wallets = {
 	is_guest = is_guest,
 	is_registered = is_registered,
