@@ -90,6 +90,17 @@ function orthoverse.wield.pose(player, phase, kind)
 		interpolation = phase == "strike" and 0.08 or 0.25}})
 end
 
+-- The shield raised (the left arm across the front, forearm up), or lowered
+-- again (orthoverse_combat's blocking)
+local SHIELD_UP = {x = d(260), y = d(30), z = 0}
+function orthoverse.wield.shield(player, up)
+	if up then
+		player:set_bone_override("Arm_Left", {rotation = {vec = SHIELD_UP, absolute = true, interpolation = 0.15}})
+	else
+		player:set_bone_override("Arm_Left", {})
+	end
+end
+
 local since = 0
 core.register_globalstep(function(dtime)
 	since = since + dtime

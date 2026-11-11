@@ -321,13 +321,49 @@ local rested = {}    -- name -> when the arm has recovered
 
 local function now() return core.get_us_time() / 1e6 end
 
+------------------------------------------------------------------------------
+-- Blocking. With a weapon in hand and a shield worn (3D Armor), holding the
+-- right mouse button raises the shield: a monster's blow from the front
+-- (within BLOCK_ARC of where the player faces) that hits does half its
+-- damage, and one that would glance does none (orthoverse_armor). While the
+-- shield is up the player walks slowly and cannot wind up a blow; winding up
+-- first, the shield waits until the blow is struck. Others see the arm
+-- raised (orthoverse_wield).
+
+local BLOCK_ARC = math.rad(60)   -- either side of straight ahead
+local BLOCK_WALK = 0.5           -- of walking speed, shield up
+local blocking = {}              -- name -> true while the shield is up
+
+function orthoverse.combat.blocking(player, from)
+	if not blocking[player:get_player_name()] or not from then return false end
+	local p = player:get_pos()
+	local to = {x = from.x - p.x, z = from.z - p.z}
+	local len = math.sqrt(to.x * to.x + to.z * to.z)
+	if len < 0.01 then return true end
+	local yaw = player:get_look_horizontal()
+	local ahead = {x = -math.sin(yaw), z = math.cos(yaw)}
+	return (to.x * ahead.x + to.z * ahead.z) / len >= math.cos(BLOCK_ARC)
+end
+
+local function set_blocking(player, up)
+	local name = player:get_player_name()
+	if (blocking[name] or false) == up then return end
+	blocking[name] = up or nil
+	if orthoverse.wield and orthoverse.wield.shield then orthoverse.wield.shield(player, up) end
+end
+
 core.register_globalstep(function()
 	local t = now()
 	for _, player in ipairs(core.get_connected_players()) do
 		local name = player:get_player_name()
 		local w = by_item[player:get_wielded_item():get_name()]
-		local down = player:get_player_control().dig
+		local ctl = player:get_player_control()
+		local down = ctl.dig
 		local h = holding[name]
+		-- the shield: up while the right button is held, with a weapon in hand
+		-- and a shield worn, unless a blow is being wound up
+		set_blocking(player, (w and ctl.place and not h and orthoverse.armor and orthoverse.armor.shield(player)) and true or false)
+		if blocking[name] then down = false end
 		local wield = orthoverse.wield
 		if h and h.w ~= w then
 			-- weapon changed while winding up: no blow
@@ -392,6 +428,7 @@ core.register_globalstep(function()
 		if by_item[player:get_wielded_item():get_name()] and c.down and not c.up then
 			factor = holding[name] and BACK_WINDING or BACK_ARMED
 		end
+		if blocking[name] then factor = math.min(factor, BLOCK_WALK) end
 		local b = boosts[name]
 		if b and t > b.till then
 			boosts[name] = nil
@@ -413,6 +450,7 @@ end)
 core.register_on_leaveplayer(function(player)
 	local name = player:get_player_name()
 	holding[name] = nil
+	blocking[name] = nil
 	rested[name] = nil
 	boosts[name] = nil
 	applied[name] = nil

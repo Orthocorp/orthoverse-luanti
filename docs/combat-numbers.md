@@ -101,7 +101,9 @@ A monster's blow against a player: d20 + the monster's attack bonus (3 + half it
 
 Measured in the game (an orc, 5 damage, 400 blows each): no armour AC 10, 4.4 damage a blow on average (81% hit, 15% glance); full steel and shield AC 18, 2.5 (40% hit, 23% glance, 36% miss).
 
-Monsters have an AC by kind (a kobold 12, an orc 13, a deep orc 16) and soak 0.5 damage a point over 10 from players' blows (Hitting, below). Still to come: weapon kinds against armour (bash better, thrust against light armour), and a raised shield blocking from the front.
+**Raising a shield.** With a weapon in hand and a shield worn, hold the right mouse button: the shield comes up across the body (others see it). A monster's blow from the front (within 60 degrees either side of where the player faces) that hits does half its damage, and one that would glance does nothing ("Blocked"). With the shield up the player walks at half speed and cannot wind up a blow; a blow already being wound up comes first. Blows from the side or behind are not blocked, nor fire. Measured (an orc, AC 14 with a steel chestplate and shield): 1.2 damage a blow from the front with the shield up, 3.5 from behind.
+
+Monsters have an AC by kind (a kobold 12, an orc 13, a deep orc 16) and soak 0.5 damage a point over 10 from players' blows (Hitting, below). Still to come: weapon kinds against armour (bash better, thrust against light armour).
 
 ## Hitting
 

@@ -103,6 +103,16 @@ local function stats_of(player)
 	return {ac = 10 + math.floor(add + 0.5), speed = 1 - slow}
 end
 
+-- The shield a player wears (its material), or nil
+function orthoverse.armor.shield(player)
+	for _, it in ipairs(orthoverse.armor.worn(player)) do
+		local stack = ItemStack(it)
+		if not stack:is_empty() and armor:get_element(stack:get_name()) == "shield" then
+			return stack:get_name():match("_(%a+)$") or "steel"
+		end
+	end
+end
+
 -- A player's armour class (10 with nothing on)
 function orthoverse.armor.ac(player)
 	local s = worn_stats[player:get_player_name()]
@@ -178,8 +188,24 @@ core.register_on_player_hpchange(function(player, change, reason)
 	local roll = math.random(20)
 	local total = roll + orthoverse.armor.attack_bonus(ent._level)
 	local ac = orthoverse.armor.ac(player)
-	if roll == 20 or (roll > 1 and total >= ac) then return change end
-	if roll > 1 and total >= ac - GLANCE then
+	local hit = roll == 20 or (roll > 1 and total >= ac)
+	local glance = not hit and roll > 1 and total >= ac - GLANCE
+	-- A raised shield (orthoverse_combat: right mouse button) takes a blow
+	-- from the front: a hit does half, a glance nothing
+	local c = orthoverse.combat
+	if (hit or glance) and c and c.blocking and c.blocking(player, reason.object:get_pos()) then
+		local shield = orthoverse.armor.shield(player)
+		core.sound_play(shield == "wood" and "default_dig_choppy" or "default_dig_cracky",
+			{to_player = player:get_player_name(), gain = 0.7, pitch = 0.8}, true)
+		if glance then
+			flash(player, "Blocked")
+			return 0
+		end
+		flash(player, "Blocked: half the blow")
+		return math.min(-1, math.ceil(change / 2))
+	end
+	if hit then return change end
+	if glance then
 		flash(player, ac > 10 and "Glances off your armour" or "A glancing blow")
 		core.sound_play("default_dig_cracky", {to_player = player:get_player_name(), gain = 0.5, pitch = 1.3}, true)
 		return math.min(-1, math.ceil(change / 2))
