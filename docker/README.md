@@ -142,6 +142,19 @@ fast with J and noclip with H.
   (asks first; the game then removes the character's account, what it carries
   and where it stands, and the name is free again). It asks the running auth
   service over a socket only its own container can reach.
+- Keeping someone out by address (a guest has no character to lock): everyone
+  reaches the game through the web proxy, so the game sees one address for all
+  and its own `/ban` would shut everyone out (it now says so instead). The
+  proxy's log names the player behind each connection (`[12] 203.0.113.7 is
+  Guest-1A2B3C`): `./characters.sh who <name>` lists the addresses a player came
+  from in the last two days, `./characters.sh ban <address> [why]` keeps one out
+  (put out of the game within ten seconds), `unban <address>` lets it back, and
+  `bans` lists them. The list is `OV_DATA/proxy/blocked.txt`. Make the folder
+  before the proxy first starts with it, by running `./characters.sh bans` once:
+  otherwise Docker makes it, owned by root.
+- The proxy drops datagrams from a browser sending more than 1000 a second
+  (`OV_DATAGRAMS_PER_SECOND`; a game client sends far fewer) and says so in its
+  log.
 - `docker compose logs auth` shows sign-ins, new names and each ownership update:
   `owners updated: N lands held by W player wallets; M of 1943 held as the chain
   index says`. M should be nearly all of them (before the chain service's first

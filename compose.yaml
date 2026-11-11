@@ -57,6 +57,9 @@ services:
       OV_VIRTUAL_IP: 10.58.0.1
       OV_MAX_SOCKETS: ${OV_MAX_SOCKETS:-100}
       OV_MAX_PER_IP: ${OV_MAX_PER_IP:-6}
+    volumes:
+      # Addresses kept out (./characters.sh ban), read again when changed
+      - ${OV_DATA}/proxy:/blocked:ro
     networks: [game, web]
     read_only: true
     restart: unless-stopped

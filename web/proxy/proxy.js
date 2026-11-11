@@ -19,6 +19,7 @@
 'use strict';
 
 import dgram from 'node:dgram';
+import { readFileSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { isIPv4, isIPv6 } from 'node:net';
 import { WebSocketServer } from 'ws';
@@ -46,6 +47,11 @@ const IDLE_MS = parseInt(env.OV_IDLE_SECONDS || '120', 10) * 1000;
 const ADDR_TTL_MS = 24 * 3600 * 1000;
 const MAX_ASSIGNMENTS = 20000;
 const MAX_DATAGRAM = 1500;
+// Datagrams a second one browser may send to the game (a game client sends
+// far fewer, even acknowledging a fast map download): more are dropped
+const DATAGRAMS_PER_SECOND = parseInt(env.OV_DATAGRAMS_PER_SECOND || '1000', 10);
+// Addresses kept out (characters.sh ban): one per line, # for comments
+const BLOCKED_FILE = env.OV_BLOCKED_FILE || '/blocked/blocked.txt';
 
 // ---------------------------------------------------------------------------
 // Address helpers
@@ -85,6 +91,62 @@ function clientIp(request) {
     if (xff) return String(xff).split(',')[0].trim();
     return request.socket.remoteAddress || '?';
 }
+
+// The name a game client gives in its first message to the server
+// (TOSERVER_INIT), so that the log says which address each player comes
+// from: everyone reaches the game through this proxy, so the game itself
+// sees one address for all. The message is a plain ("original") packet,
+// perhaps inside a reliable one: after the 7 byte header, type 1, command
+// 0x0002, then the format (1 byte), 2 unused bytes, the protocol versions
+// (2 + 2), and the name (2 byte length, then the name).
+function initName(p) {
+    for (const at of [7, 10]) {
+        if (p.length < at + 13) continue;
+        if (at === 10 && p[7] !== 3) continue;
+        if (p[at] !== 1 || p.readUInt16BE(at + 1) !== 0x0002) continue;
+        const len = p.readUInt16BE(at + 10);
+        if (len < 1 || len > 32 || p.length < at + 12 + len) continue;
+        const name = p.subarray(at + 12, at + 12 + len).toString('latin1');
+        if (/^[A-Za-z0-9_-]+$/.test(name)) return name;
+    }
+    return null;
+}
+
+// ---------------------------------------------------------------------------
+// Addresses kept out: read from BLOCKED_FILE, again whenever it changes;
+// connections from a newly blocked address are closed
+
+let blocked = new Set();
+let blockedStamp = null;
+const connections = new Set();
+
+function readBlocked() {
+    let stamp = null;
+    try { stamp = statSync(BLOCKED_FILE).mtimeMs; } catch (e) { /* no file: nobody blocked */ }
+    if (stamp === blockedStamp) return;
+    blockedStamp = stamp;
+    const next = new Set();
+    if (stamp !== null) {
+        try {
+            for (const line of readFileSync(BLOCKED_FILE, 'utf8').split('\n')) {
+                const ip = line.replace(/#.*/, '').trim();
+                if (isIPv4(ip) || isIPv6(ip)) next.add(ip.toLowerCase());
+            }
+        } catch (e) {
+            log('could not read ' + BLOCKED_FILE + ': ' + e.message);
+            return;
+        }
+    }
+    if (next.size !== blocked.size || [...next].some(ip => !blocked.has(ip))) {
+        log(`${next.size} blocked address${next.size === 1 ? '' : 'es'}`);
+    }
+    blocked = next;
+    for (const c of connections) {
+        if (blocked.has(c.ip.toLowerCase())) c.close('address blocked');
+    }
+}
+readBlocked();
+setInterval(readBlocked, 10000).unref();
 
 // ---------------------------------------------------------------------------
 // Address assignments: what NEWADDR hands out and BIND checks
@@ -140,6 +202,18 @@ class Connection {
         this.udp = null;       // UDP socket to the Luanti server, once bound
         this.mode = 'command'; // command | udp | dns | closed
         this.counted = false;
+        this.name = null;      // the player's name, once the game client gives it
+        this.budget = DATAGRAMS_PER_SECOND;   // datagrams it may send now
+        this.budgetAt = Date.now();
+        this.dropped = 0;      // datagrams dropped since the log last said so
+        this.droppedAt = 0;
+        if (blocked.has(this.ip.toLowerCase())) {
+            log(`[${this.id}] ${this.ip} refused: blocked`);
+            this.mode = 'closed';
+            try { ws.terminate(); } catch (e) { /* gone */ }
+            return;
+        }
+        connections.add(this);
         this.lastActivity = Date.now();
         this.idleTimer = setInterval(() => {
             if (Date.now() - this.lastActivity > IDLE_MS) {
@@ -186,6 +260,7 @@ class Connection {
             log(`[${this.id}] ${this.ip} closed after ${mins} min: ${reason}`);
         }
         this.mode = 'closed';
+        connections.delete(this);
         this.doneWaiting();
         clearInterval(this.idleTimer);
         if (this.udp) {
@@ -301,6 +376,29 @@ class Connection {
         const payload = data.subarray(EP_HEADER_LEN);
         if (payload.length < 4 || payload.readUInt32BE(0) !== LUANTI_MAGIC) {
             throw new Error('not a Luanti datagram');
+        }
+        // At most DATAGRAMS_PER_SECOND (with a second's worth to spare): a
+        // flood from one browser is dropped here, not put to the game
+        const now = Date.now();
+        this.budget = Math.min(2 * DATAGRAMS_PER_SECOND, this.budget + (now - this.budgetAt) * DATAGRAMS_PER_SECOND / 1000);
+        this.budgetAt = now;
+        if (this.budget < 1) {
+            // (said in the log at most every 10 seconds)
+            this.dropped++;
+            if (now - this.droppedAt > 10000) {
+                log(`[${this.id}] ${this.ip} sending too fast: ${this.dropped} datagram${this.dropped === 1 ? '' : 's'} dropped`);
+                this.dropped = 0;
+                this.droppedAt = now;
+            }
+            return;
+        }
+        this.budget -= 1;
+        if (!this.name) {
+            const name = initName(payload);
+            if (name) {
+                this.name = name;
+                log(`[${this.id}] ${this.ip} is ${name}`);
+            }
         }
         if (this.udp) this.udp.send(payload);
     }

@@ -273,3 +273,20 @@ core.register_globalstep(function(dtime)
 	pace()
 end)
 core.after(0, pace)
+
+-- Everyone reaches the game through the web proxy, so the game sees one
+-- address for all players: the engine's /ban (which bans the player's
+-- address) would shut everyone out. It says what to do instead.
+for _, cmd in ipairs({"ban", "unban"}) do
+	if core.registered_chatcommands[cmd] then
+		core.override_chatcommand(cmd, {
+			params = "",
+			description = "Not used here: see ./characters.sh on the server",
+			func = function()
+				return false, "Not here: every player comes through the web proxy, so a ban here would keep " ..
+					"everyone out. Use /kick <name> now; on the server, ./characters.sh who <name> finds their " ..
+					"address and ./characters.sh ban <address> keeps it out (lock <name> for a character)."
+			end,
+		})
+	end
+end

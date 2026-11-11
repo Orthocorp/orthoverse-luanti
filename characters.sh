@@ -15,6 +15,17 @@
 #   ./characters.sh delete <name>        delete the character for good (asks first):
 #                                        the website forgets it and the game removes
 #                                        its account, what it carries and where it is
+#
+# Keeping someone out by their address (a guest, who has no character to
+# lock): everyone reaches the game through the web proxy, so the game sees
+# one address for all and its own /ban would shut everyone out.
+#
+#   ./characters.sh who <name>           the addresses a player (or guest) came
+#                                        from in the last two days, from the proxy's log
+#   ./characters.sh ban <address> [why]  keep an address out: put out of the game at
+#                                        once, and refused until unbanned
+#   ./characters.sh unban <address>
+#   ./characters.sh bans                 the addresses kept out
 cd "$(dirname "$0")" || exit 1
 
 usage() {
@@ -25,10 +36,56 @@ usage() {
 cmd=$1
 [ -n "$cmd" ] || usage
 case "$cmd" in
-	list) ;;
-	show|lock|unlock|recovery|delete) [ -n "$2" ] || usage ;;
+	list|bans) ;;
+	show|lock|unlock|recovery|delete|who|ban|unban) [ -n "$2" ] || usage ;;
 	*) usage ;;
 esac
+
+# The proxy's list of addresses kept out: OV_DATA/proxy/blocked.txt
+if [ "$cmd" = who ]; then
+	case "$2" in *[!A-Za-z0-9_-]*) echo "That is not a player name." >&2; exit 2 ;; esac
+	found=$(docker compose logs --no-log-prefix --since 48h proxy 2>/dev/null | grep -i " is $2\$")
+	if [ -z "$found" ]; then echo "$2 has not come through the proxy in the last two days."; exit 1; fi
+	printf '%s\n' "$found" | awk '{ print substr($1, 1, 16), $3 }' | sed 's/T/ /'
+	exit 0
+fi
+case "$cmd" in
+	ban|unban|bans)
+		data=$(sed -n 's/^OV_DATA=//p' .env 2>/dev/null | tail -n 1)
+		if [ -z "$data" ]; then echo "OV_DATA is not set in .env" >&2; exit 1; fi
+		mkdir -p "$data/proxy" 2>/dev/null
+		file="$data/proxy/blocked.txt"
+		[ -f "$file" ] || : > "$file" 2>/dev/null
+		if [ ! -w "$file" ]; then
+			echo "Cannot write $file (made by Docker?): sudo chown -R $(id -u):$(id -g) $data/proxy" >&2
+			exit 1
+		fi
+		;;
+esac
+if [ "$cmd" = bans ]; then
+	if grep -q '[^[:space:]]' "$file"; then cat "$file"; else echo "No addresses are kept out."; fi
+	exit 0
+fi
+if [ "$cmd" = ban ] || [ "$cmd" = unban ]; then
+	ip=$2
+	if ! printf '%s' "$ip" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*$'; then
+		echo "That is not an address: $ip" >&2; exit 2
+	fi
+	rest=$(awk -v ip="$ip" 'tolower($1) != tolower(ip)' "$file")
+	if [ "$cmd" = ban ]; then
+		shift 2
+		why=$(printf '%s' "$*" | tr -d '\n')
+		{ [ -n "$rest" ] && printf '%s\n' "$rest"; printf '%s  # %s %s\n' "$ip" "$(date -u +%Y-%m-%d)" "$why"; } > "$file.new"
+		mv "$file.new" "$file"
+		echo "$ip is kept out: put out of the game within 10 seconds, and refused until unbanned."
+	else
+		if [ "$rest" = "$(cat "$file")" ]; then echo "$ip was not kept out."; exit 0; fi
+		{ [ -n "$rest" ] && printf '%s\n' "$rest"; } > "$file.new"
+		mv "$file.new" "$file"
+		echo "$ip may come in again."
+	fi
+	exit 0
+fi
 
 if [ "$cmd" = delete ]; then
 	printf 'Delete %s for good? Type the name again to go ahead: ' "$2"

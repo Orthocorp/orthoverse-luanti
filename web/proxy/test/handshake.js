@@ -174,7 +174,7 @@ await check('TOSERVER_INIT through the proxy gets TOCLIENT_HELLO', async () => {
     const ws = await open();
     ws.send(`BIND ${a.passcode} UDP 40002`);
     assert.equal(await nextMessage(ws), 'BIND OK');
-    ws.send(encapsulate(VIRTUAL_IP, PORT, initPacket('webtest' + (process.pid % 10000))));
+    ws.send(encapsulate(VIRTUAL_IP, PORT, initPacket('Guest-' + (0x100000 + process.pid % 0xefffff).toString(16).toUpperCase())));
     const deadline = Date.now() + 5000;
     let hello = false;
     const seen = [];
