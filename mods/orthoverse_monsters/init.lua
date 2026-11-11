@@ -1234,8 +1234,12 @@ core.register_entity("orthoverse_monsters:wyrm_fire", {
 			local d = vector.distance(pos, vector.offset(p:get_pos(), 0, 0.9, 0))
 			if d <= WYRM.breath.radius + 0.9 then
 				local owner = self._owner and self._owner:get_pos() and self._owner or self.object
-				p:punch(owner, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = d < 1 and WYRM.breath.damage or
-					math.ceil(WYRM.breath.damage / 2)}}, nil)
+				-- (fire, not a blow: armour does not turn it)
+				local function burn()
+					p:punch(owner, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = d < 1 and WYRM.breath.damage or
+						math.ceil(WYRM.breath.damage / 2)}}, nil)
+				end
+				if orthoverse.armor then orthoverse.armor.unrolled(burn) else burn() end
 			end
 		end
 	end,

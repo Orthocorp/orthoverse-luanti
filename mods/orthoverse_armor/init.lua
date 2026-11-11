@@ -5,10 +5,10 @@
 --   can put it aside with the rest of what they carry: armour taken from the
 --   Creative tab never leaves the land, and a party goes into an adventure
 --   with its kit.
--- - Armour does not change a player's speed, jumping or gravity: 3D Armor
---   would set those whenever armour is put on or taken off, over what the
---   game sets (combat, adventures). For now armour only protects; what heavy
---   armour costs comes with the combat's armour class.
+-- - 3D Armor does not change a player's speed, jumping or gravity: it would
+--   set those whenever armour is put on or taken off, over what the game sets
+--   (combat, adventures). Heavy armour's cost in speed is ours (below).
+-- - Armour works through an armour class (below), not 3D Armor's protection.
 -- - The character's look stays the game's: orthoverse_skins gives 3D Armor the
 --   skin to draw under the armour, and orthoverse_wield shows held items (3D
 --   Armor's wieldview is not installed).
@@ -46,3 +46,144 @@ function orthoverse.armor.set_worn(player, list)
 	armor:save_armor_inventory(player)
 	armor:set_player_armor(player)
 end
+
+------------------------------------------------------------------------------
+-- Armour class (docs/combat-numbers.md, "Armour"). A player's armour class
+-- is 10, plus what each piece they wear adds; a monster's blow is a d20
+-- roll plus the monster's attack bonus (3 + half its level) against it:
+-- at or over, it hits in full; up to GLANCE under, it glances off (half the
+-- damage); further under, it misses. A natural 20 always hits, a natural 1
+-- always misses. 3D Armor's own protection (taking a share off every blow)
+-- is turned off: armour works through the roll. Breath, explosions and the
+-- like are not blows: armour does not turn them (Mobs Redo's explosions punch
+-- with the player's own object; the wyrm's fire is marked with unrolled()).
+--
+-- Heavy armour is slow: each piece takes its share of a full set's cost off
+-- walking speed (orthoverse_combat's footwork applies it).
+
+-- What a full set (helmet, chestplate, leggings and boots) adds to armour
+-- class, and what it costs in walking speed; a shield's on its own
+local FULL = {
+	wood    = {ac = 2, slow = 0},
+	gold    = {ac = 4, slow = 0.10},
+	bronze  = {ac = 5, slow = 0.08},
+	steel   = {ac = 6, slow = 0.07},
+	diamond = {ac = 7, slow = 0.03},
+}
+local SHIELD = {
+	wood    = {ac = 1, slow = 0},
+	gold    = {ac = 2, slow = 0.03},
+	bronze  = {ac = 2, slow = 0.02},
+	steel   = {ac = 2, slow = 0.02},
+	diamond = {ac = 2, slow = 0.01},
+}
+-- Each piece's share of a full set
+local SHARE = {head = 0.15, torso = 0.4, legs = 0.3, feet = 0.15}
+local GLANCE = 5
+
+orthoverse.armor.FULL, orthoverse.armor.SHIELD, orthoverse.armor.SHARE = FULL, SHIELD, SHARE
+
+local worn_stats = {}   -- name -> {ac, speed}
+
+local function stats_of(player)
+	local add, slow = 0, 0
+	for _, it in ipairs(orthoverse.armor.worn(player)) do
+		local stack = ItemStack(it)
+		if not stack:is_empty() then
+			local element = armor:get_element(stack:get_name())
+			local material = stack:get_name():match("_(%a+)$")
+			if element == "shield" and SHIELD[material] then
+				add, slow = add + SHIELD[material].ac, slow + SHIELD[material].slow
+			elseif SHARE[element] and FULL[material] then
+				add = add + SHARE[element] * FULL[material].ac
+				slow = slow + SHARE[element] * FULL[material].slow
+			end
+		end
+	end
+	return {ac = 10 + math.floor(add + 0.5), speed = 1 - slow}
+end
+
+-- A player's armour class (10 with nothing on)
+function orthoverse.armor.ac(player)
+	local s = worn_stats[player:get_player_name()]
+	return s and s.ac or 10
+end
+
+-- The share of walking speed their armour leaves them
+function orthoverse.armor.speed(player)
+	local s = worn_stats[player:get_player_name()]
+	return s and s.speed or 1
+end
+
+-- A monster's attack bonus, from its level
+function orthoverse.armor.attack_bonus(level)
+	return 3 + math.floor((tonumber(level) or 0) / 2)
+end
+
+-- Damage done inside fn is not a blow (no roll against armour)
+local unrolled_depth = 0
+function orthoverse.armor.unrolled(fn)
+	unrolled_depth = unrolled_depth + 1
+	local ok, err = pcall(fn)
+	unrolled_depth = unrolled_depth - 1
+	if not ok then error(err, 0) end
+end
+
+armor:register_on_update(function(player)
+	worn_stats[player:get_player_name()] = stats_of(player)
+	-- no share off every blow: the roll does armour's work
+	local groups = player:get_armor_groups()
+	if groups.fleshy ~= 100 then
+		groups.fleshy = 100
+		player:set_armor_groups(groups)
+	end
+end)
+
+core.register_on_leaveplayer(function(player)
+	worn_stats[player:get_player_name()] = nil
+end)
+
+-- The Armor tab shows the armour class and walking speed, not 3D Armor's
+-- protection level
+local armor_formspec = armor.get_armor_formspec
+armor.get_armor_formspec = function(self, name, listring)
+	local fs = armor_formspec(self, name, listring)
+	local player = core.get_player_by_name(name)
+	if not player then return fs end
+	local speed = math.floor(orthoverse.armor.speed(player) * 100 + 0.5)
+	local labels = ("label[5,1;Armour class: %d]label[5,1.5;Walking speed: %d%%%%]"):format(orthoverse.armor.ac(player), speed)
+	return (fs:gsub("label%[5,1;[^%]]*%]", labels, 1))
+end
+
+-- A word on the screen, for a moment
+local shown = {}   -- name -> hud id
+local function flash(player, text)
+	local name = player:get_player_name()
+	if shown[name] then player:hud_remove(shown[name]) end
+	local id = player:hud_add({type = "text", position = {x = 0.5, y = 0.62}, text = text, number = 0xD8D8D8,
+		alignment = {x = 0, y = 0}, offset = {x = 0, y = 0}, size = {x = 1, y = 1}, z_index = 10})
+	shown[name] = id
+	core.after(0.9, function()
+		local p = core.get_player_by_name(name)
+		if p and shown[name] == id then p:hud_remove(id); shown[name] = nil end
+	end)
+end
+
+core.register_on_player_hpchange(function(player, change, reason)
+	if change >= 0 or unrolled_depth > 0 or not reason or reason.type ~= "punch" or not reason.object then
+		return change
+	end
+	local ent = reason.object:get_luaentity()
+	if not ent or not ent._orthoverse_target or not ent._level or ent.attack_type == "explode" then return change end
+	local roll = math.random(20)
+	local total = roll + orthoverse.armor.attack_bonus(ent._level)
+	local ac = orthoverse.armor.ac(player)
+	if roll == 20 or (roll > 1 and total >= ac) then return change end
+	if roll > 1 and total >= ac - GLANCE then
+		flash(player, ac > 10 and "Glances off your armour" or "A glancing blow")
+		core.sound_play("default_dig_cracky", {to_player = player:get_player_name(), gain = 0.5, pitch = 1.3}, true)
+		return math.min(-1, math.ceil(change / 2))
+	end
+	flash(player, "Missed")
+	return 0
+end, true)

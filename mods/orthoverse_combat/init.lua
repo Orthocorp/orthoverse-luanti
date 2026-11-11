@@ -400,7 +400,9 @@ core.register_globalstep(function()
 		end
 		local hm = hampers[name]
 		if hm and t > hm.till then hampers[name] = nil; hm = nil end
-		local speed = factor * (b and b.mult or 1) * (hm and hm.mult or 1)
+		-- (and heavy armour: orthoverse_armor)
+		local worn = orthoverse.armor and orthoverse.armor.speed(player) or 1
+		local speed = factor * (b and b.mult or 1) * (hm and hm.mult or 1) * worn
 		if applied[name] ~= speed then
 			applied[name] = speed
 			player:set_physics_override({speed_walk = speed})
