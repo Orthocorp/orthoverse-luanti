@@ -154,7 +154,8 @@ core.register_on_leaveplayer(function(player)
 end)
 
 -- The Armor tab shows the armour class and walking speed, not 3D Armor's
--- protection level
+-- level, heal and fire (heal is turned off, and none of our materials
+-- give fire protection)
 local armor_formspec = armor.get_armor_formspec
 armor.get_armor_formspec = function(self, name, listring)
 	local fs = armor_formspec(self, name, listring)
@@ -162,6 +163,7 @@ armor.get_armor_formspec = function(self, name, listring)
 	if not player then return fs end
 	local speed = math.floor(orthoverse.armor.speed(player) * 100 + 0.5)
 	local labels = ("label[5,1;Armour class: %d]label[5,1.5;Walking speed: %d%%%%]"):format(orthoverse.armor.ac(player), speed)
+	fs = fs:gsub("label%[5,1%.5;[^%]]*%]", ""):gsub("label%[5,2;[^%]]*%]", "")
 	return (fs:gsub("label%[5,1;[^%]]*%]", labels, 1))
 end
 
