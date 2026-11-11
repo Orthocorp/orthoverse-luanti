@@ -5,10 +5,13 @@
 --   from our tables, never from the builder's inventory: so a builder in
 --   creative mode cannot hand out free gear. What a chest may give is capped
 --   by the adventure's top rank (an adventure for ranks 1 to 5 gives at most
---   bronze; mese from 6, diamond from 10). Three kinds:
+--   bronze; mese from 6, diamond from 10; armour: wood, then gold and
+--   bronze from 3, steel from 6, diamond from 10). Four kinds:
 --     common:  a healing draught or two; often gold, now and then torches,
---              a weapon or a draught of swiftness
+--              a weapon, a piece of armour or a draught of swiftness
 --     weapon:  a weapon, and a draught; sometimes gold or torches
+--     armour:  a piece of armour (3D Armor: a helmet, chestplate, leggings,
+--              boots or a shield), and a draught; sometimes gold
 --     finish:  the best metal the adventure allows, gold and a gem, once
 --              a day for each player (a common share after that)
 -- * Treasure: gold and gems (gold lumps and ingots, mese crystals,
@@ -29,9 +32,10 @@ orthoverse.loot = {}
 
 local KINDS = {"dagger", "short_sword", "broadsword", "spear", "mace", "morning_star", "war_hammer"}
 local METALS = {{id = "steel", rank = 1}, {id = "bronze", rank = 3}, {id = "mese", rank = 6}, {id = "diamond", rank = 10}}
-local CHEST_KINDS = {"common", "weapon", "finish"}
-local CHEST_LABEL = {common = "Common (draughts, gold; now and then torches, a weapon)",
+local CHEST_KINDS = {"common", "weapon", "armour", "finish"}
+local CHEST_LABEL = {common = "Common (draughts, gold; now and then torches, a weapon, armour)",
 	weapon = "Weapon (a weapon and a draught; sometimes gold)",
+	armour = "Armour (a piece of armour and a draught; sometimes gold)",
 	finish = "Finish (the best metal allowed, gold and a gem, once a day each)"}
 local DEFAULT_TOP_RANK = 5
 
@@ -89,6 +93,29 @@ local function metals_for(top)
 	return out
 end
 
+-- Armour (3D Armor), weakest first: what an adventure up to `top` rank may
+-- give, as for the weapons' metals, from the best three it allows (like
+-- weapons, found armour stays inside)
+local ARMOUR = {{id = "wood", rank = 1}, {id = "gold", rank = 3}, {id = "bronze", rank = 3},
+	{id = "steel", rank = 6}, {id = "diamond", rank = 10}}
+local PIECES = {"helmet", "chestplate", "leggings", "boots", "shield"}
+
+local function armour_for(top)
+	local out = {}
+	for _, m in ipairs(ARMOUR) do
+		if m.rank <= top then out[#out + 1] = m.id end
+	end
+	-- only the best three, so a high adventure does not give mostly wood
+	while #out > 3 do table.remove(out, 1) end
+	return out
+end
+
+local function armour(material)
+	local piece = PIECES[math.random(#PIECES)]
+	local item = piece == "shield" and ("shields:shield_" .. material) or ("3d_armor:" .. piece .. "_" .. material)
+	return core.registered_items[item] and item or nil   -- (none without 3D Armor)
+end
+
 local function weapon(metal)
 	return "orthoverse_combat:" .. KINDS[math.random(#KINDS)] .. "_" .. metal
 end
@@ -108,7 +135,9 @@ local function chance(p) return math.random() < p end
 local function fill(kind, top)
 	local allowed = metals_for(top)
 	local out = {}
-	local function add(s) out[#out + 1] = s end
+	-- (a lower material more often, as for metals)
+	local function some_armour() return armour(some_metal(armour_for(top))) end
+	local function add(s) if s then out[#out + 1] = s end end
 	if kind == "finish" then
 		add(weapon(allowed[#allowed]))
 		add("orthoverse_loot:draught 2")
@@ -116,6 +145,10 @@ local function fill(kind, top)
 		add("default:gold_ingot " .. math.random(3, 5))
 		-- a gem: a diamond now and then, more often mese
 		add(chance(top >= 6 and 0.5 or 0.25) and "default:diamond" or ("default:mese_crystal " .. math.random(1, 2)))
+	elseif kind == "armour" then
+		add(some_armour())
+		add("orthoverse_loot:draught")
+		if chance(0.3) then add("default:gold_ingot " .. math.random(1, 2)) end
 	elseif kind == "weapon" then
 		add(weapon(some_metal(allowed)))
 		add("orthoverse_loot:draught")
@@ -126,6 +159,7 @@ local function fill(kind, top)
 		if chance(0.5) then add("default:gold_lump " .. math.random(1, 3)) end
 		if chance(0.35) then add("default:torch " .. math.random(3, 6)) end
 		if chance(0.3) then add(weapon(some_metal(allowed))) end
+		if chance(0.15) then add(some_armour()) end
 		if chance(0.12) then add("orthoverse_loot:swiftness") end
 		if chance(0.05) then add("default:mese_crystal") end
 	end
