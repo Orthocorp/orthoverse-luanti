@@ -23,9 +23,11 @@ First rough version of the world:
 - Caves, caverns, dungeons and ores underneath, from the engine's flat mapgen.
 - Wallet sign-in and guests: wallet players build on the lands their wallet holds
   (ownership read from the Ethereum contract); guests explore. See `web/README.md`.
-- Crofts (castle level 0) are common land: any player signed in with an Ethereum
-  wallet, token or not, may mine and build there, and anyone may dig anyone's
-  blocks. Guests cannot build. A futuristic level 8 land is not a croft (flipping
+- Crofts (castle level 0) are open land: anyone can build there, but the holder
+  owns it and can claim it at any time. Any player signed in (with a wallet, or a
+  password character after its first hour of play), token or not, may mine and
+  build there, and anyone may dig anyone's blocks; when the holder raises the
+  castle level, the land and everything built on it is theirs alone. Guests cannot build. A futuristic level 8 land is not a croft (flipping
   the realm shows the holder takes part) until it is flipped back.
 - Creative mode on your own lands from castle level 1: every block in the
   inventory's Creative tab and no damage. Your own inventory is put away while you

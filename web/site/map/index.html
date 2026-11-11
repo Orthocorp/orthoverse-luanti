@@ -164,9 +164,9 @@
   let highlight = null;
 
   // Levels 8-15 are 0-7 in the futuristic realm; a fantasy level 0 land is a
-  // croft, common land in the game
+  // croft, open land in the game
   function realm(level) {
-    if (level === 0) return 'Croft, common land';
+    if (level === 0) return 'Croft, open land';
     return level >= 8 ? 'Futuristic realm, level ' + (level - 8) : 'Level ' + level;
   }
 

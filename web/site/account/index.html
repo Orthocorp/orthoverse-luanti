@@ -167,7 +167,8 @@
         <h3>Your own land</h3>
         <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
           Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
-          common land until you give it a castle.</p>
+          open land until you give it a castle (anyone can build there, but it is yours, and you can claim it at
+          any time).</p>
         <button id="reveal-go-lands" class="ov-btn spend" type="button">Reveal my land: pay 0.0004 ETH</button>
         <div id="reveal-status-lands" class="status" aria-live="polite"></div>
       </div>
@@ -199,7 +200,8 @@
       <h2>Your own land</h2>
       <p>Every Ethereum address has an Orthoverse land waiting for it, and yours has not been revealed yet.
         Reveal it and it is placed in the world within a few minutes, with its own name: a croft at first,
-        common land until you give it a castle.</p>
+        open land until you give it a castle (anyone can build there, but it is yours, and you can claim it at
+        any time).</p>
       <button id="reveal-go" class="ov-btn spend" type="button">Reveal my land: pay 0.0004 ETH</button>
       <div id="reveal-status" class="status" aria-live="polite"></div>
     </section>
@@ -258,7 +260,7 @@
   };
   // What each level adds, within a realm (levels 8-15 are 0-7 futuristic)
   const GAINS = {
-    1: ['The land becomes yours alone: a croft is common land until it has a castle',
+    1: ['The land becomes yours alone: a croft is open land, where anyone can build, until it has a castle',
         'A castle', 'A crest on the token and in the game'],
     2: ['Creative mode on the land: every block, no damage', 'A bigger castle'],
     3: ['Fly on your land', 'A bigger castle'],
@@ -468,7 +470,7 @@
     const choices = el('div', { class: 'choices' });
     body.append(el('h3', {}, info.name),
       el('p', { class: 'facts' }, 'Level ' + tier + ' in the ' + (futuristic ? 'futuristic' : 'fantasy') + ' realm' +
-        (level === 0 ? ', a croft: common land' : '') + '. ',
+        (level === 0 ? ', a croft: open land (anyone can build here, but the holder owns it and can claim it at any time)' : '') + '. ',
         el('a', { href: '/map/#' + x + ':' + z }, 'On the map'),
         info.token ? ' · ' : '',
         info.token ? el('a', { href: 'https://opensea.io/item/ethereum/' + OV.CONTRACT.toLowerCase() + '/' + BigInt(info.token).toString(),
@@ -490,8 +492,8 @@
     if (mine) {
       const to = futuristic ? 'fantasy' : 'futuristic';
       const gains = futuristic
-        ? ['Meadows, woods and a castle in place of tarmac and towers', level === 8 ? 'At level 0 the land becomes a croft again: common land, where anyone signed in may mine and build' : 'Same castle level, fantasy style']
-        : ['Tarmac, glass domes and towers in place of meadows and keeps', level === 0 ? 'The croft stops being common land: it becomes yours alone' : 'Same castle level, futuristic style'];
+        ? ['Meadows, woods and a castle in place of tarmac and towers', level === 8 ? 'At level 0 the land becomes a croft again: open land, where anyone signed in may mine and build until you claim it' : 'Same castle level, fantasy style']
+        : ['Tarmac, glass domes and towers in place of meadows and keeps', level === 0 ? 'The croft stops being open land: it becomes yours alone' : 'Same castle level, futuristic style'];
       choices.append(choice('Flip to the ' + to + ' realm', gains,
         'Flipping back later costs the same. Tiles anyone has built on stay as they are.', FLIP_PRICE, false,
         (btn, status) => pay(btn, status, info, SEL.flip + W.pad(info.token), FLIP_PRICE, true)));

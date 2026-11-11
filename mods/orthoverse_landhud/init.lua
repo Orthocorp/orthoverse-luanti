@@ -5,7 +5,7 @@
 -- crown at 7 (the contract's levels 8-15 are 0-7 with the futuristic style
 -- flag). A henge shows its name; the sea and the rim show nothing. On a land
 -- your wallet holds, the name is gold, with a line under it ("Your land, level
--- 4"; "Your croft, common land").
+-- 4"; "Your land, open land").
 --
 -- Crests are single small PNGs in crests/ (cut from web/heraldry by
 -- tools/split_crests.py when the server image is built), sent embedded in the
@@ -132,7 +132,7 @@ local function yours(pname, land, key)
 	local wallet = w.wallet_of(pname)
 	if not wallet or wallet ~= w.owner_of(land) then return nil end
 	local level = (tonumber(land.level) or 0) % 8
-	if w.is_croft(land, key) then return "Your croft, common land" end
+	if w.is_croft(land, key) then return "Your land, open land" end
 	if level == 0 then return "Your land" end
 	return "Your land, level " .. level
 end

@@ -12,7 +12,7 @@
 -- Building: a wallet player may dig and build on the lands whose token their
 -- wallet holds now, according to owners.json (the auth service reads the
 -- Orthoverse contract on Ethereum mainnet), and on every croft: a land at
--- castle level 0 is common land, where any wallet player may mine and build,
+-- castle level 0 is open land, where any wallet player may mine and build,
 -- token or not (pure commons: anyone may dig anyone's blocks). Password
 -- characters without a wallet may too, after their first hour of play (so a
 -- character made a minute ago cannot wreck a croft). Upgrading the
@@ -322,20 +322,23 @@ end)
 -- Building
 
 -- Whether `name` may change the world at `pos`, and if not, why not
--- Crofts (castle level 0 exactly) are common land
+-- Crofts (castle level 0 exactly) are open land
 local function is_croft(land, key)
 	return land ~= nil and not HENGES[key] and orthoverse.rights_level(land, key) == 0
 end
+
+-- What players are told about open land (crofts), wherever it comes up
+local OPEN_LAND = "Open land: anyone can build here, but the holder owns it and can claim it at any time."
 
 local function may_build(name, pos)
 	local land, key = orthoverse.land_at(pos)
 	if is_guest(name) then
 		if is_croft(land, key) then
-			return false, land.name .. " is a croft, common land: make a character or sign in at " .. PLAY_URL ..
-				" to mine and build here. Guests can explore but not build."
+			return false, land.name .. " is open land, but guests can explore and not build: make a character " ..
+				"or sign in at " .. PLAY_URL .. " to mine and build here. " .. OPEN_LAND
 		end
 		return false, "Guests can explore but not build. Make a character or sign in at " .. PLAY_URL ..
-			" to build on crofts, the common lands."
+			" to build on open land (crofts, castle level 0)."
 	end
 	if not land then
 		return false, "Nobody can build on the open sea or at the edge of the world."
@@ -350,9 +353,9 @@ local function may_build(name, pos)
 	if is_croft(land, key) and without_wallet(name) then
 		local wait = croft_wait(name)
 		if wait == 0 then return true end
-		return false, land.name .. " is a croft, common land. You can mine and build on crofts after your first hour " ..
+		return false, land.name .. " is open land. You can mine and build on open land after your first hour " ..
 			"of play (" .. wait .. " minute" .. (wait == 1 and "" or "s") .. " to go), or at once with a wallet linked at " ..
-			ACCOUNT_URL .. "."
+			ACCOUNT_URL .. ". " .. OPEN_LAND
 	end
 	local owner = owner_of(land)
 	if owner == nil then
@@ -365,7 +368,7 @@ local function may_build(name, pos)
 		return false, land.name .. " is not held by any player here, so nobody can build on it."
 	end
 	return false, land.name .. " belongs to " .. short(owner) .. ". You can build on lands your wallet holds, " ..
-		"and on crofts (castle level 0), which are common land."
+		"and on open land (crofts, castle level 0), which anyone can build on until its holder claims it."
 end
 
 local old_is_protected = core.is_protected
@@ -409,13 +412,13 @@ core.register_on_joinplayer(function(player)
 			core.chat_send_player(name, "Welcome, " .. name .. ". As a guest you can explore, ride and " ..
 				"travel by the henges, but not build. Nothing is kept: when you leave, this guest and everything " ..
 				"it carries are gone. Make a character or sign in at " .. PLAY_URL ..
-				" to keep what you find and build on crofts, the common lands.")
+				" to keep what you find and build on open land (crofts, castle level 0).")
 		elseif without_wallet(name) then
 			local wait = croft_wait(name)
 			core.chat_send_player(name, "Welcome, " .. name .. ". " .. (wait == 0
-				and "You can mine and build on crofts (castle level 0), the common lands. "
-				or ("You can mine and build on crofts, the common lands, after your first hour of play (" ..
-					wait .. " minute" .. (wait == 1 and "" or "s") .. " to go). ")) ..
+				and "You can mine and build on open land (crofts, castle level 0). "
+				or ("You can mine and build on open land (crofts, castle level 0) after your first hour of play (" ..
+					wait .. " minute" .. (wait == 1 and "" or "s") .. " to go). ")) .. OPEN_LAND .. " " ..
 				"Lands belong to Ethereum wallets: link one at " .. ACCOUNT_URL .. " to hold lands and build on them.")
 		else
 			local n = 0
@@ -424,7 +427,7 @@ core.register_on_joinplayer(function(player)
 				if wallet and owner_of(land) == wallet then n = n + 1 end
 			end
 			core.chat_send_player(name, ("Welcome, %s. Your wallet holds %d land%s: /mylands lists them, /home takes you there. " ..
-				"Anyone signed in may also mine and build on crofts (castle level 0), the common lands."):format(
+				"Anyone signed in may also mine and build on open land (crofts, castle level 0). " .. OPEN_LAND):format(
 				name, n, n == 1 and "" or "s"))
 		end
 	end)
@@ -579,9 +582,8 @@ core.override_chatcommand("whereami", {
 		end
 		local owner = owner_of(land)
 		if is_croft(land, key) then
-			local yours = owner and owner == wallet_of(name) and "yours, and " or ""
-			return true, ("Land %s: %s, a croft: %scommon land, where anyone signed in may mine and build."):format(
-				key, land.name, yours)
+			local yours = owner and owner == wallet_of(name) and " (yours)" or ""
+			return true, ("Land %s: %s%s. %s"):format(key, land.name, yours, OPEN_LAND)
 		end
 		local whose = owner == nil and "owner being checked"
 			or owner == false and "not held by a player"
