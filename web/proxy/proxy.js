@@ -147,7 +147,9 @@ class Connection {
             }
         }, 15000);
         ws.on('message', (data, isBinary) => this.onMessage(data, isBinary));
-        ws.on('close', () => this.close());
+        // (1000: closed by the page; 1001: the page went away; 1006: the
+        // connection dropped, with no goodbye)
+        ws.on('close', (code) => this.close('websocket closed (' + code + ')'));
         ws.on('error', () => this.close('websocket error'));
         this.waiting = true;
         const w = (waitingPerIp.get(this.ip) || 0) + 1;
@@ -179,7 +181,10 @@ class Connection {
 
     close(reason) {
         if (this.mode === 'closed') return;
-        if (reason && this.mode === 'udp') log(`[${this.id}] ${this.ip} closed: ${reason}`);
+        if (reason && this.mode === 'udp') {
+            const mins = Math.round((Date.now() - this.boundAt) / 60000);
+            log(`[${this.id}] ${this.ip} closed after ${mins} min: ${reason}`);
+        }
         this.mode = 'closed';
         this.doneWaiting();
         clearInterval(this.idleTimer);
@@ -273,6 +278,7 @@ class Connection {
         udp.on('error', (e) => this.close('udp error ' + e.message));
         udp.connect(TARGET_PORT, TARGET_HOST, () => {
             this.mode = 'udp';
+            this.boundAt = Date.now();
             this.doneWaiting();
             log(`[${this.id}] ${this.ip} bound (${openSockets} open)`);
             this.send('BIND OK');

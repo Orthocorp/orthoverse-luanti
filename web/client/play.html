@@ -135,6 +135,7 @@
   const SERVER_PORT = 30000;
   const PROXY_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/proxy';
   const RETRY_KEY = 'orthoverse.retry';   // sessionStorage: what to show after a failed join
+  const LOST_AFTER_MS = 90000;            // a time-out later than this after Enter: the connection was lost
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $('status');
@@ -332,7 +333,11 @@
   };
   mtl.onexit = () => {
     if (joinError !== null && attempt) {
-      if (save('session', RETRY_KEY, { kind: attempt.kind, reason: joinError })) {
+      // A connection that failed after the player had been in the game a
+      // while was lost, not refused
+      const lost = Date.now() - attempt.at > LOST_AFTER_MS &&
+        /timed out|Connection failed|Connection error/i.test(joinError);
+      if (save('session', RETRY_KEY, { kind: attempt.kind, reason: joinError, lost })) {
         location.reload();
         return;
       }
@@ -390,7 +395,7 @@
     } catch (e) {
       return showProblem('Could not reach the Orthoverse', e.message, null, '');
     }
-    attempt = { kind, name };
+    attempt = { kind, name, at: Date.now() };
 
     const args = new LuantiArgs();
     args.address = SERVER_ADDRESS;
@@ -439,7 +444,11 @@
   const retry = load('session', RETRY_KEY);
   save('session', RETRY_KEY, null);
   if (retry) {
-    const [title, text, action] = explain(retry.reason, retry.kind);
+    const [title, text, action] = retry.lost
+      ? ['The connection to the Orthoverse was lost',
+        'The game stopped hearing from the server. That happens when the internet connection at either end ' +
+        'drops for a moment, or the server restarts. Press Enter to go back in.', null]
+      : explain(retry.reason, retry.kind);
     const known = !/^Could not join the Orthoverse$/.test(title);
     showProblem(title, text, action, known ? '' : retry.reason);
   }
