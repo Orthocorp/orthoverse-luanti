@@ -5,9 +5,10 @@
 -- crown at 7 (the contract's levels 8-15 are 0-7 with the futuristic style
 -- flag). A henge shows its name; the sea and the rim show nothing. On a land
 -- your wallet holds, the name is gold, with a line under it ("Your land, level
--- 4"; "Your land, open land"). On open land (a croft) someone else holds, the
--- line says whose it is ("Open land", then "held by Alice"): anyone may build there,
--- but the holder can claim it at any time.
+-- 4"; "Your land, open land"). On a land someone else holds, two lines say
+-- what it is and whose ("Open land", then "held by Alice"; "Level 3", then
+-- "held by 0x1234...abcd"): on open land anyone may build, but the holder can
+-- claim it at any time.
 --
 -- Crests are single small PNGs in crests/ (cut from web/heraldry by
 -- tools/split_crests.py when the server image is built), sent embedded in the
@@ -139,13 +140,19 @@ local function yours(pname, land, key)
 	return "Your land, level " .. level
 end
 
--- The line under the name on open land someone else holds
-local function open_land(pname, land, key)
+-- The lines under the name on a land someone else holds: what it is (open
+-- land, or its castle level and realm), then who holds it
+local function held_by(pname, land, key)
 	local w = orthoverse.wallets
-	if not (w and w.is_croft(land, key)) then return nil end
+	if not w then return nil end
+	-- (the rights it gives: Tir Na Nog counts as level 7)
+	local level = orthoverse.rights_level(land, key)
+	local what = w.is_croft(land, key) and "Open land"
+		or level >= 8 and ("Futuristic level " .. (level - 8))
+		or ("Level " .. level)
 	local holder = w.owner_of(land)
-	if not holder then return "Open land" end
-	return "Open land\nheld by " .. w.name_of_wallet(holder)
+	if not holder then return what end
+	return what .. "\nheld by " .. w.name_of_wallet(holder)
 end
 
 -- The name, crest, headgear, the line under the name, and whether the land
@@ -157,7 +164,7 @@ local function display_at(pos, pname)
 	if henge then return henge.name or land.name end
 	local line = yours(pname, land, key)
 	local mine = line ~= nil
-	line = line or open_land(pname, land, key)
+	line = line or held_by(pname, land, key)
 	local level = (tonumber(land.level) or 0) % 8
 	if level == 0 then return land.name, nil, nil, line, mine end
 	local n = crest_number(land)
