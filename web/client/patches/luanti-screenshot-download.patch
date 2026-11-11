@@ -1,0 +1,39 @@
+diff --git a/src/util/screenshot.cpp b/src/util/screenshot.cpp
+index f9d230612..e7bdfc42f 100644
+--- a/src/util/screenshot.cpp
++++ b/src/util/screenshot.cpp
+@@ -14,6 +14,9 @@
+ #include "debug.h"
+ #include <IVideoDriver.h>
+ #include <ctime>
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#endif
+ 
+ #define SCREENSHOT_MAX_SERIAL_TRIES 1000
+ 
+@@ -80,6 +83,24 @@ bool takeScreenshot(video::IVideoDriver *driver, std::string &filename_out)
+ 
+ 	bool success = driver->writeImageToFile(image, filename.c_str(), quality);
+ 
++#ifdef __EMSCRIPTEN__
++	// In a browser the file would stay in the page's own storage, out of the
++	// player's reach: hand it to the page, which offers it as a download, and
++	// remove it here (the chat names the downloaded file)
++	if (success) {
++		std::string data;
++		const std::string base = fs::GetFilenameFromPath(filename.c_str());
++		if (fs::ReadFile(filename, data)) {
++			MAIN_THREAD_EM_ASM({
++				if (globalThis.orthoverseScreenshot)
++					globalThis.orthoverseScreenshot(UTF8ToString($0), HEAPU8.slice($1, $1 + $2));
++			}, base.c_str(), data.data(), data.size());
++			fs::DeleteSingleFileOrEmptyDirectory(filename);
++			filename = base;
++		}
++	}
++#endif
++
+ 	if (success) {
+ 		filename_out = filename;
+ 		std::string msg = fmtgettext("Saved screenshot to \"%s\"", filename.c_str());

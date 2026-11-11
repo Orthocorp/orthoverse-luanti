@@ -326,6 +326,22 @@
   // Called by the engine (patched) when a join fails, just before it exits
   globalThis.orthoverseJoinError = (reason) => { joinError = String(reason || ''); };
 
+  // F12 in the game: the engine hands the picture over (it would otherwise
+  // stay in the page's own storage, out of the player's reach), and it is
+  // downloaded as orthoverse_<date>_<time>.png
+  globalThis.orthoverseScreenshot = (name, bytes) => {
+    const ext = (String(name).match(/\.(png|jpe?g)$/i) || [, 'png'])[1].toLowerCase();
+    const stamp = (String(name).match(/(\d{8}_\d{6}(?:_\d+)?)/) || [, String(Date.now())])[1];
+    const url = URL.createObjectURL(new Blob([bytes], { type: ext === 'png' ? 'image/png' : 'image/jpeg' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'orthoverse_' + stamp + '.' + ext;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
   const progress = new Map();
   // Phones and tablets get the site's "needs a computer" card (js/site.js),
   // and no engine download (tens of megabytes)
