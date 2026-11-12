@@ -1,0 +1,30 @@
+diff --git a/src/client/clientmedia.cpp b/src/client/clientmedia.cpp
+index 50d6cf2d9..f7f120d6e 100644
+--- a/src/client/clientmedia.cpp
++++ b/src/client/clientmedia.cpp
+@@ -186,6 +186,10 @@ void ClientMediaDownloader::initialStep(Client *client)
+ 
+ 	// Check media cache
+ 	m_uncached_count = m_files.size();
++	// Orthoverse: loading what is cached takes most of the wait for a player
++	// who has been before, so show how far it has got (it was a still "Media...")
++	const size_t files_total = m_files.size();
++	size_t files_checked = 0;
+ 	for (auto &file_it : m_files) {
+ 		const std::string &name = file_it.first;
+ 		FileStatus *filestatus = file_it.second;
+@@ -196,10 +200,13 @@ void ClientMediaDownloader::initialStep(Client *client)
+ 			m_uncached_count--;
+ 		}
+ 
++		files_checked++;
+ 		u64 cur_time = porting::getTimeMs();
+ 		u64 dtime = porting::getDeltaMs(last_time, cur_time);
+ 		if (dtime >= chunk_time_ms) {
+-			client->drawLoadScreen(loading_text, dtime / 1000.0f, 30);
++			const float ratio = (float)files_checked / files_total;
++			client->drawLoadScreen(loading_text + L" " + std::to_wstring((int)(ratio * 100)) + L"%",
++				dtime / 1000.0f, 30 + (int)(ratio * 35));
+ 			last_time = cur_time;
+ 		}
+ 	}
