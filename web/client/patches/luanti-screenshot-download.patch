@@ -1,5 +1,5 @@
 diff --git a/src/util/screenshot.cpp b/src/util/screenshot.cpp
-index f9d230612..e7bdfc42f 100644
+index f9d230612..417aa0b4e 100644
 --- a/src/util/screenshot.cpp
 +++ b/src/util/screenshot.cpp
 @@ -14,6 +14,9 @@
@@ -12,7 +12,7 @@ index f9d230612..e7bdfc42f 100644
  
  #define SCREENSHOT_MAX_SERIAL_TRIES 1000
  
-@@ -80,6 +83,24 @@ bool takeScreenshot(video::IVideoDriver *driver, std::string &filename_out)
+@@ -80,6 +83,28 @@ bool takeScreenshot(video::IVideoDriver *driver, std::string &filename_out)
  
  	bool success = driver->writeImageToFile(image, filename.c_str(), quality);
  
@@ -22,7 +22,11 @@ index f9d230612..e7bdfc42f 100644
 +	// remove it here (the chat names the downloaded file)
 +	if (success) {
 +		std::string data;
-+		const std::string base = fs::GetFilenameFromPath(filename.c_str());
++		// (named as the page downloads it: orthoverse_<date>_<time>, not
++		// screenshot_..., so the chat names the file the player has)
++		std::string base = fs::GetFilenameFromPath(filename.c_str());
++		if (base.rfind("screenshot_", 0) == 0)
++			base = "orthoverse_" + base.substr(11);
 +		if (fs::ReadFile(filename, data)) {
 +			MAIN_THREAD_EM_ASM({
 +				if (globalThis.orthoverseScreenshot)
