@@ -1431,7 +1431,7 @@ local function place_template(tname, at, by, done, turned)
 			local fp = info.footprint or {min = info.corner1, max = info.corner2}
 			adventures[key] = {
 				name = (info.name or tname):sub(1, 60), line = (info.line or ""):sub(1, 200), version = 0, open = false,
-				limit = info.limit or LIMIT_DEFAULT, creator = by,
+				limit = info.limit or LIMIT_DEFAULT, creator = by, template = tname,
 				corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
 				start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 				rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
@@ -1479,7 +1479,8 @@ local function place_template(tname, at, by, done, turned)
 		end
 		adventures[key] = {
 			name = (info.name or tname):sub(1, 60), line = (info.line or ""):sub(1, 200), version = 0, open = false,
-			limit = info.limit or LIMIT_DEFAULT, creator = by,
+			limit = info.limit or LIMIT_DEFAULT, creator = by, template = tname,
+			turned = turned and true or false,
 			corner1 = offset(p1, info.corner1), corner2 = offset(p1, info.corner2),
 			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
@@ -1759,19 +1760,36 @@ core.register_chatcommand("adventure", {
 		-- (its records are kept); then /adventure save and open, as after placing
 		if cmd == "replace" then
 			if not is_admin(name) then return false, "Replacing a ready-made adventure is for the admin." end
-			if not def then return false, "Stand in the adventure to replace." end
+			if not def then return false, "Stand on the land of the adventure to replace." end
 			if runs[key] then return false, "A run is in progress." end
 			local tname = rest:match("^([%w_%-]+)$")
 			local info = tname and core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
-			if type(info) ~= "table" or type(info.corner1) ~= "table" or type(info.corner2) ~= "table" then
+			if type(info) ~= "table" or type(info.size) ~= "table" or type(info.corner1) ~= "table"
+					or type(info.corner2) ~= "table" then
 				return false, "No ready-made adventure called that: /adventure place lists them."
 			end
-			-- where it was placed: its corners less the template's
-			local p1 = vector.subtract(def.corner1, info.corner1)
-			if not vector.equals(vector.subtract(def.corner2, p1), vector.new(info.corner2.x, info.corner2.y, info.corner2.z)) then
-				return false, "This adventure is not " .. tname .. " as made (or it was placed facing north): " ..
-					"/adventure delete, then place it again."
+			-- Where it was placed and which way it faces: recorded since this
+			-- command came; for one placed before, whichever way its corners
+			-- fit the template's (as made, or turned round)
+			local function origin(t)
+				local p1 = vector.subtract(def.corner1, t.corner1)
+				local c2 = vector.new(t.corner2.x, t.corner2.y, t.corner2.z)
+				if vector.equals(vector.subtract(def.corner2, p1), c2) then return p1 end
 			end
+			local fits = {}
+			for _, turned in ipairs({false, true}) do
+				if def.turned == nil or def.turned == turned then
+					local p1 = origin(turned and half_turn_info(info) or info)
+					if p1 then fits[#fits + 1] = {p1 = p1, turned = turned} end
+				end
+			end
+			if #fits == 0 then
+				return false, "This adventure is not " .. tname .. " as made: /adventure delete, then place it again."
+			elseif #fits > 1 then
+				return false, "Cannot tell which way this adventure faces: /adventure delete, then place it again."
+			end
+			if fits[1].turned and info.whole_land then return false, tname .. " cannot be turned round." end
+			local p1, turned = fits[1].p1, fits[1].turned
 			local old = adventures[key]
 			adventures[key] = nil
 			-- (place_template takes the ground under the player, above p1)
@@ -1798,7 +1816,7 @@ core.register_chatcommand("adventure", {
 					adventures[key] = old
 				end
 				core.chat_send_player(name, msg)
-			end, false)
+			end, turned)
 			return true, "Replacing " .. old.name .. " with the newer " .. tname .. "…"
 		end
 		if not land then return false, "Stand on a land first." end
