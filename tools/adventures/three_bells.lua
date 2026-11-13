@@ -395,17 +395,32 @@ local function tower()
 	for x = 31, 27, -1 do cells[#cells + 1] = {x, 32, 3} end
 	for z = 31, 27, -1 do cells[#cells + 1] = {27, z, 2} end
 	for x = 28, 31 do cells[#cells + 1] = {x, 27, 1} end
+	-- The pillar's face beside every fourth step (but at a corner) holds a
+	-- lamp: the stair is shut in, and was pitch dark
+	local function inner(c)
+		if c[1] == 32 and c[2] >= 28 and c[2] <= 31 then return 31, c[2] end
+		if c[1] == 27 and c[2] >= 28 and c[2] <= 31 then return 28, c[2] end
+		if c[2] == 32 and c[1] >= 28 and c[1] <= 31 then return c[1], 31 end
+		if c[2] == 27 and c[1] >= 28 and c[1] <= 31 then return c[1], 28 end
+	end
+	local lamps = {}
 	for j = 1, 24 do
 		local c = cells[(j % #cells) + 1]
 		local y = G + j
 		set(c[1], y, c[2], "stairs:stair_sandstonebrick", c[3])
 		if j < #cells then box(c[1], F, c[2], c[1], y - 1, c[2], TOWER) end
+		local ix, iz = inner(c)
+		if ix and j % 4 == 0 and y + 1 <= 31 then lamps[#lamps + 1] = {ix, y + 1, iz} end
 	end
-	-- The belfry
+	for _, l in ipairs(lamps) do set(l[1], l[2], l[3], LAMP) end
+	-- The belfry. Its floor took the stair's last step, leaving a full block
+	-- to jump at the top, in the dark: the step is put back, flush with the
+	-- floor (32, 32, 31). The two squares before it are open (headroom for
+	-- the steps below them), fenced at their sides.
 	room(24, 24, 35, 35, 32, 6, TOWER, false)
-	for z = 28, 30 do set(32, 32, z, "air") end       -- the stairwell
-	for z = 28, 30 do set(31, 33, z, FENCE) end
-	set(32, 33, 27, FENCE)
+	set(32, 32, 31, "stairs:stair_sandstonebrick", 0)
+	for z = 29, 30 do set(32, 32, z, "air"); set(31, 33, z, FENCE); set(33, 33, z, FENCE) end
+	set(32, 33, 28, FENCE)
 	for _, a in ipairs({26, 32}) do
 		box(a, 34, 23, a + 1, 37, 23, BARS, 0); box(a, 34, 36, a + 1, 37, 36, BARS, 0)
 		box(23, 34, a, 23, 37, a + 1, BARS, 1); box(36, 34, a, 36, 37, a + 1, BARS, 1)

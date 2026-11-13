@@ -1677,6 +1677,7 @@ local HELP = table.concat({
 	"/adventure place <name> [north]   (Admin) Place a ready-made adventure, standing on the ground",
 	"   at its south-west corner (north: turned round, its entrance at the north end);",
 	"   /adventure place on its own lists them.",
+	"/adventure replace <name>   (Admin) Put the newer copy of a ready-made adventure in place of this one, saved as its next version (records kept)",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
 	"builder, the admin and guests are not recorded: test it with another character to",
@@ -1698,7 +1699,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[go [<name>] | leave | place <name> [north] | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
+	params = "[go [<name>] | leave | place <name> [north] | replace <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -1753,6 +1754,52 @@ core.register_chatcommand("adventure", {
 				core.chat_send_player(name, msg)
 			end, facing == "north")
 			return true, "Placing " .. tname .. "…"
+		end
+		-- Putting a newer copy of a ready-made adventure where the old one is
+		-- (its records are kept); then /adventure save and open, as after placing
+		if cmd == "replace" then
+			if not is_admin(name) then return false, "Replacing a ready-made adventure is for the admin." end
+			if not def then return false, "Stand in the adventure to replace." end
+			if runs[key] then return false, "A run is in progress." end
+			local tname = rest:match("^([%w_%-]+)$")
+			local info = tname and core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+			if type(info) ~= "table" or type(info.corner1) ~= "table" or type(info.corner2) ~= "table" then
+				return false, "No ready-made adventure called that: /adventure place lists them."
+			end
+			-- where it was placed: its corners less the template's
+			local p1 = vector.subtract(def.corner1, info.corner1)
+			if not vector.equals(vector.subtract(def.corner2, p1), vector.new(info.corner2.x, info.corner2.y, info.corner2.z)) then
+				return false, "This adventure is not " .. tname .. " as made (or it was placed facing north): " ..
+					"/adventure delete, then place it again."
+			end
+			local old = adventures[key]
+			adventures[key] = nil
+			-- (place_template takes the ground under the player, above p1)
+			place_template(tname, vector.offset(p1, 0, info.ground or 0, 0), name, function(ok, msg)
+				local new = adventures[key]
+				if ok and new then
+					-- saved at once as the next version after the old ones (so
+					-- their records and saved copies stay apart, and a run
+					-- never puts the old one back); it keeps its settings
+					new.version = old.version
+					new.open, new.limit = false, old.limit
+					new.rank_min, new.rank_max = old.rank_min, old.rank_max
+					local saved, n = save_template(key, new)
+					if saved then
+						new.version = new.version + 1
+						msg = ("%s replaced and saved as version %d (%d blocks). It is closed: /adventure open " ..
+							"when you have looked round."):format(new.name, new.version, n)
+					else
+						msg = msg .. " But it could not be saved (" .. n .. "): /adventure save."
+					end
+					save_def(key)
+					write_public()
+				elseif not adventures[key] then
+					adventures[key] = old
+				end
+				core.chat_send_player(name, msg)
+			end, false)
+			return true, "Replacing " .. old.name .. " with the newer " .. tname .. "…"
 		end
 		if not land then return false, "Stand on a land first." end
 		if not may_manage(name, key) then
