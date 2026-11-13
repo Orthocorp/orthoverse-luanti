@@ -26,6 +26,9 @@ services:
     volumes:
       - ${OV_WORLD:?set OV_WORLD in .env}:/world
       - ./docker/luanti/orthoverse.conf:/etc/orthoverse/orthoverse.conf:ro
+      # The ready-made adventures, read afresh at each /adventure place or
+      # replace: a new or changed one needs no rebuild or restart
+      - ./adventures:/opt/luanti/share/luanti/games/orthoverse/adventures:ro
       # Player names and land owners, written by the auth service
       - ${OV_DATA:?set OV_DATA in .env}/auth:/world/orthoverse_auth:ro
       # New lands, placed by the chain service
