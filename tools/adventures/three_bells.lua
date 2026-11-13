@@ -415,12 +415,13 @@ local function tower()
 	for _, l in ipairs(lamps) do set(l[1], l[2], l[3], LAMP) end
 	-- The belfry. Its floor took the stair's last step, leaving a full block
 	-- to jump at the top, in the dark: the step is put back, flush with the
-	-- floor (32, 32, 31). The two squares before it are open (headroom for
-	-- the steps below them), fenced at their sides.
+	-- floor (32, 32, 31). The three squares before it are open, fenced at
+	-- their sides: a player stepping up passes under the square behind the
+	-- step, so each step needs headroom over the one before it too.
 	room(24, 24, 35, 35, 32, 6, TOWER, false)
 	set(32, 32, 31, "stairs:stair_sandstonebrick", 0)
-	for z = 29, 30 do set(32, 32, z, "air"); set(31, 33, z, FENCE); set(33, 33, z, FENCE) end
-	set(32, 33, 28, FENCE)
+	for z = 28, 30 do set(32, 32, z, "air"); set(31, 33, z, FENCE); set(33, 33, z, FENCE) end
+	set(32, 33, 27, FENCE)
 	for _, a in ipairs({26, 32}) do
 		box(a, 34, 23, a + 1, 37, 23, BARS, 0); box(a, 34, 36, a + 1, 37, 36, BARS, 0)
 		box(23, 34, a, 23, 37, a + 1, BARS, 1); box(36, 34, a, 36, 37, a + 1, BARS, 1)
