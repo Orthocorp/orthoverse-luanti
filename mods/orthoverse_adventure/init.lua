@@ -897,10 +897,13 @@ end)
 -- In a run, a dropped item falls at the player's feet rather than being
 -- thrown: nothing found inside can be tossed over a wall (the Mill's yard)
 -- or out of a gorge to someone waiting outside. Things dropped inside are
--- cleared when the run ends.
+-- cleared when the run ends. Things made to be thrown and worth nothing
+-- (group throwable: the pebbles) are thrown as usual: puzzles need them
+-- thrown (The Three Bells' pressure plates behind slots).
 local item_drop = core.item_drop
 function core.item_drop(itemstack, dropper, pos)
-	if dropper and dropper.is_player and dropper:is_player() and run_of(dropper:get_player_name()) then
+	if dropper and dropper.is_player and dropper:is_player() and run_of(dropper:get_player_name()) and
+			core.get_item_group(ItemStack(itemstack):get_name(), "throwable") == 0 then
 		local p = vector.offset(dropper:get_pos(), 0, 0.5, 0)
 		local obj = core.add_item(p, itemstack)
 		if obj then obj:set_velocity({x = 0, y = 0, z = 0}) end
