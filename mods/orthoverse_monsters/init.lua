@@ -378,6 +378,7 @@ local function monster(id, def)
 	ent._on_hit = def.on_hit
 	ent._undead = def.undead
 	ent._heavy = def.heavy
+	ent._seed_growth = def.seed
 	ent._windup_time = def.windup
 	ent._level, ent._xp, ent._desc = def.level or 1, def.xp or 0, def.desc
 	kinds[#kinds + 1] = {name = name, id = id, desc = def.desc, great = def.great}
@@ -1085,6 +1086,274 @@ monster("turret", {
 })
 
 ------------------------------------------------------------------------------
+-- The Seed's growth (mods/orthoverse_seed). Ranks 5 to 10. All of them are the
+-- growth's (_seed_growth): when the Heart dies they fall with it.
+
+local function seed() return orthoverse.seed end
+local function spawn_later(...) return orthoverse.monsters.spawn_at(...) end
+
+-- The husk: a survey team member the growth has taken over. Slow, and its
+-- grip holds a player for a moment.
+monster("husk", {
+	desc = S("Husk"), level = 5, xp = 100, size = 1.0, hp = 28, ac = 11, damage = 4, windup = 0.7, interval = 1.8,
+	walk = 0.9, run = 2.0, reach = 2.0, seed = true,
+	sounds = {random = "orthoverse_monsters_husk", damage = "default_dig_crumbly", death = "orthoverse_monsters_husk",
+		distance = 16},
+	on_hit = function(self, target)
+		hamper(target, 0.2, 0.8, S("The husk's fingers lock round your arm."))
+	end,
+})
+
+-- The crawler: small and quick, from the egg sacs, in threes
+monster("crawler", {
+	desc = S("Crawler"), level = 4, xp = 35, visual = "cube", size = 0.45, hp = 9, ac = 12, damage = 2, windup = 0.25,
+	interval = 0.9, walk = 2.2, run = 4.6, reach = 1.6, seed = true,
+	textures = {"orthoverse_monsters_crawler_top.png", "orthoverse_monsters_crawler_side.png",
+		"orthoverse_monsters_crawler_side.png", "orthoverse_monsters_crawler_side.png",
+		"orthoverse_monsters_crawler_side.png", "orthoverse_monsters_crawler_front.png"},
+	collisionbox = {-0.25, -0.22, -0.25, 0.25, 0.22, 0.25},
+	sounds = {random = "orthoverse_monsters_crawler", attack = "orthoverse_monsters_crawler",
+		damage = "orthoverse_monsters_mossling_hurt", death = "orthoverse_seed_pop", distance = 12},
+	mobs = {jump_height = 2, stepheight = 0.6},
+})
+
+-- The spitter: a pod in the wall that lobs acid in an arc. Acid burns and
+-- wears armour.
+local SPIT = {every = 2.6, speed = 8, gravity = 6, damage = 3, view = 16}
+
+core.register_entity("orthoverse_monsters:acid_orb", {
+	initial_properties = {
+		visual = "sprite", textures = {"orthoverse_monsters_acid_orb.png"}, visual_size = {x = 0.5, y = 0.5},
+		glow = 8, physical = true, collide_with_objects = false, pointable = true,
+		collisionbox = {-0.15, -0.15, -0.15, 0.15, 0.15, 0.15}, selectionbox = {-0.25, -0.25, -0.25, 0.25, 0.25, 0.25},
+		static_save = false,
+	},
+	_orthoverse_target = {ac = 1},
+	_burst = function(self, pos)
+		pos = pos or self.object:get_pos()
+		if pos then
+			core.add_particlespawner({amount = 12, time = 0.15, pos = pos, radius = 0.2,
+				vel = {min = {x = -1.5, y = 0, z = -1.5}, max = {x = 1.5, y = 2, z = 1.5}}, exptime = {min = 0.3, max = 0.8},
+				size = {min = 1, max = 2}, texture = "orthoverse_monsters_acid_orb.png"})
+			core.sound_play("orthoverse_seed_squelch", {pos = pos, gain = 0.5, max_hear_distance = 16}, true)
+		end
+		self.object:remove()
+	end,
+	_on_blow = function(self, blow) if blow.result ~= "miss" then self:_burst() end end,
+	on_activate = function(self) self._t = 0 end,
+	on_punch = function() return true end,
+	on_step = function(self, dtime, moveresult)
+		self._t = self._t + dtime
+		local pos = self.object:get_pos()
+		if not pos then return end
+		if self._t > 5 then return self:_burst(pos) end
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, 1.2)) do
+			if obj:is_player() and obj:get_hp() > 0 then
+				local p = obj:get_pos()
+				if math.abs(p.x - pos.x) < 0.6 and math.abs(p.z - pos.z) < 0.6 and pos.y > p.y - 0.2 and pos.y < p.y + 1.9 then
+					obj:punch(self._owner and self._owner:get_pos() and self._owner or self.object, 1.0,
+						{full_punch_interval = 1.0, damage_groups = {fleshy = SPIT.damage}}, nil)
+					if orthoverse.armor and orthoverse.armor.wear then orthoverse.armor.wear(obj, 1) end
+					core.chat_send_player(obj:get_player_name(), S("Acid: it hisses on your armour."))
+					return self:_burst(pos)
+				end
+			end
+		end
+		if moveresult and moveresult.collides then return self:_burst(pos) end
+	end,
+})
+
+monster("spitter", {
+	desc = S("Spitter"), level = 5, xp = 80, visual = "cube", size = 0.8, hp = 16, ac = 12, damage = 0, seed = true,
+	textures = {"orthoverse_monsters_spitter_side.png", "orthoverse_monsters_spitter_side.png",
+		"orthoverse_monsters_spitter_side.png", "orthoverse_monsters_spitter_side.png",
+		"orthoverse_monsters_spitter_side.png", "orthoverse_monsters_spitter_front.png"},
+	collisionbox = {-0.4, -0.4, -0.4, 0.4, 0.4, 0.4}, walk = 0, run = 0, view_range = SPIT.view, heavy = true,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false},
+	sounds = {damage = "default_dig_crumbly", death = "orthoverse_seed_pop", distance = 16},
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return false end
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self._cool = (self._cool or SPIT.every * math.random()) - dtime
+		self._look = (self._look or 0) - dtime
+		if self._look > 0 then return false end
+		self._look = 0.25
+		local best, bd
+		for _, player in ipairs(core.get_connected_players()) do
+			local pp = player:get_pos()
+			local dd = vector.distance(pos, pp)
+			if dd <= SPIT.view and player:get_hp() > 0 and (not bd or dd < bd)
+					and core.line_of_sight(pos, vector.add(pp, {x = 0, y = 1.2, z = 0})) then
+				best, bd = player, dd
+			end
+		end
+		if not best then return false end
+		self._fought = now()
+		local aim = vector.add(best:get_pos(), {x = 0, y = 1, z = 0})
+		local dir = vector.direction(pos, aim)
+		self.object:set_yaw(math.atan2(-dir.x, dir.z))
+		if self._cool <= 0 then
+			self._cool = SPIT.every
+			local from = vector.add(pos, vector.multiply(dir, 0.6))
+			local across = vector.distance({x = from.x, y = 0, z = from.z}, {x = aim.x, y = 0, z = aim.z})
+			local time = math.max(0.3, across / SPIT.speed)
+			local vy = (aim.y - from.y + 0.5 * SPIT.gravity * time * time) / time
+			local h = vector.normalize({x = aim.x - from.x, y = 0, z = aim.z - from.z})
+			local orb = core.add_entity(from, "orthoverse_monsters:acid_orb")
+			if orb then
+				orb:set_velocity({x = h.x * across / time, y = vy, z = h.z * across / time})
+				orb:set_acceleration({x = 0, y = -SPIT.gravity, z = 0})
+				orb:get_luaentity()._owner = self.object
+				core.sound_play("orthoverse_monsters_spit", {pos = pos, gain = 0.7, max_hear_distance = 20}, true)
+			end
+		end
+		return false
+	end,
+})
+
+-- The spore puff: drifts at a player and bursts in a cloud of spores (a
+-- breathing mask keeps them out)
+monster("spore_puff", {
+	desc = S("Spore puff"), level = 4, xp = 40, visual = "sprite", size = 0.8, hp = 6, ac = 10, damage = 0, seed = true,
+	glow = 8, alpha = true, collisionbox = {-0.3, -0.3, -0.3, 0.3, 0.3, 0.3}, walk = 0.8, run = 1.8,
+	mobs = {fly = true, fly_in = {"air"}, keep_flying = true, fall_damage = false, jump = false, fear_height = 0,
+		stand_chance = 0},
+	sounds = {death = "orthoverse_seed_pop", distance = 10},
+	after_activate = function(self)
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self._bob = math.random() * 6
+	end,
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return end
+		self._bob = (self._bob or 0) + dtime
+		local target = self.attack and self.attack:get_pos()
+		local want
+		if target then
+			want = target.y + 1.3
+			if vector.distance(pos, vector.offset(target, 0, 1.2, 0)) < 1.6 then
+				-- burst: spores on everyone near
+				core.add_particlespawner({amount = 40, time = 0.4, pos = pos, radius = 0.6,
+					vel = {min = {x = -1.5, y = -0.5, z = -1.5}, max = {x = 1.5, y = 1.5, z = 1.5}},
+					exptime = {min = 1, max = 2.5}, size = {min = 1, max = 3}, texture = "orthoverse_seed_spore.png", glow = 6})
+				core.sound_play("orthoverse_seed_pop", {pos = pos, gain = 0.8, max_hear_distance = 16}, true)
+				for _, obj in ipairs(core.get_objects_inside_radius(pos, 3)) do
+					if obj:is_player() and seed() then seed().spores(obj, 6) end
+				end
+				self._fought = now()
+				self.object:remove()
+				return false
+			end
+		else
+			local g = ground_below(pos, 8)
+			want = (g or pos.y) + 1.8 + math.sin(self._bob * 1.3) * 0.3
+		end
+		local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
+		self.object:set_velocity({x = v.x, y = math.max(-1.5, math.min(1.5, (want - pos.y) * 2)), z = v.z})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end,
+})
+
+-- Things of the growth that do not move: a ganglion, a nodule of the Heart,
+-- a tendril. Never knocked back.
+local function rooted(self)
+	local pos = self.object:get_pos()
+	if not pos or self.state == "die" then return false end
+	self.object:set_velocity({x = 0, y = math.min(0, (self.object:get_velocity() or {y = 0}).y), z = 0})
+	return pos
+end
+
+local function pulse(self, dtime, colour)
+	self._pulse = (self._pulse or math.random() * 2) + dtime
+	if self._pulse > 1.2 then
+		self._pulse = 0
+		local pos = self.object:get_pos()
+		if pos then
+			core.add_particlespawner({amount = 6, time = 0.3, pos = pos, radius = 0.4,
+				vel = {min = {x = -0.3, y = 0.2, z = -0.3}, max = {x = 0.3, y = 0.8, z = 0.3}}, exptime = {min = 0.5, max = 1},
+				size = {min = 1, max = 2}, texture = "orthoverse_seed_spore.png^[colorize:" .. colour .. ":180", glow = 10})
+		end
+	end
+end
+
+-- A ganglion: a knot of nerves. Cut all three and the Heart's shell opens.
+monster("ganglion", {
+	desc = S("Ganglion"), level = 6, xp = 120, visual = "cube", size = 0.9, hp = 30, ac = 12, damage = 0, seed = true,
+	glow = 6, textures = {"orthoverse_monsters_ganglion.png"},
+	collisionbox = {-0.45, -0.45, -0.45, 0.45, 0.45, 0.45}, walk = 0, run = 0, heavy = true, view_range = 8,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
+		on_die = function(self, pos) if seed() then seed().ganglion_cut(pos) end end},
+	sounds = {damage = "orthoverse_seed_squelch", death = "orthoverse_monsters_heart_cry", distance = 24},
+	on_struck = function(self, blow)
+		-- a cut ganglion spits spores at whoever cuts it, now and then
+		local a = blow.attacker
+		if a and a:is_player() and math.random(3) == 1 and seed() then seed().spores(a, 3) end
+	end,
+	do_custom = function(self, dtime)
+		if not rooted(self) then return false end
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		pulse(self, dtime, "#ff80c0")
+		self.state = "stand"
+		return false
+	end,
+})
+
+-- A nodule of the Heart: burst them all to kill it. Each one that bursts
+-- (but the last) calls up two crawlers.
+monster("nodule", {
+	desc = S("Nodule of the Heart"), level = 8, xp = 160, visual = "cube", size = 1.0, hp = 40, ac = 13, damage = 0,
+	seed = true, glow = 12, textures = {"orthoverse_monsters_nodule.png"},
+	collisionbox = {-0.5, -0.5, -0.5, 0.5, 0.5, 0.5}, walk = 0, run = 0, heavy = true, view_range = 8,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
+		on_die = function(self, pos)
+			if seed() then seed().nodule_burst(pos, self.object) end
+			local key = self._adventure
+			local _, def = orthoverse.adventure and orthoverse.adventure.at(pos)
+			if def and not (seed() and orthoverse.adventure.runs[key] and (orthoverse.adventure.runs[key].seed or {}).dead) then
+				spawn_later(pos, "orthoverse_monsters:crawler", 2, self._run, key)
+			end
+		end},
+	sounds = {damage = "orthoverse_seed_squelch", death = "orthoverse_monsters_heart_cry", distance = 32},
+	do_custom = function(self, dtime)
+		if not rooted(self) then return false end
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		pulse(self, dtime, "#ffe0a0")
+		self.state = "stand"
+		return false
+	end,
+})
+
+-- A tendril: grows out of the floor by the Heart and lashes at anyone near
+monster("tendril", {
+	desc = S("Tendril"), level = 6, xp = 70, visual = "cube", size = 1.0, hp = 14, ac = 11, damage = 4, windup = 0.6,
+	interval = 1.6, seed = true, textures = {"orthoverse_monsters_tendril.png"}, reach = 3.0,
+	collisionbox = {-0.22, -1.1, -0.22, 0.22, 1.1, 0.22}, walk = 0, run = 0, heavy = true, view_range = 6,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
+		visual_size = {x = 0.45, y = 2.2}},
+	sounds = {attack = "orthoverse_seed_squelch", damage = "orthoverse_seed_squelch", death = "orthoverse_seed_pop",
+		distance = 16},
+	do_custom = function(self, dtime)
+		local pos = rooted(self)
+		if not pos then return false end
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		-- it sways, and leans at its target as it winds up
+		self._sway = (self._sway or math.random() * 6) + dtime
+		local a = self.attack and self.attack:get_pos()
+		if a then
+			local dir = vector.direction(pos, a)
+			self.object:set_yaw(math.atan2(-dir.x, dir.z))
+		end
+		self.object:set_rotation({x = math.sin(self._sway * 1.4) * 0.12 + (self._windup and -0.35 or 0),
+			y = self.object:get_yaw() or 0, z = math.cos(self._sway * 1.1) * 0.1})
+		return true
+	end,
+})
+
+------------------------------------------------------------------------------
 -- The wyrm: the dragon of The Wyrm Below, ranks 6 to 12. Its model, skin and
 -- sounds are Draconis's fire dragon (by ElCeejo, MIT: LICENSE-wyrm.txt); what
 -- it does is ours, and none of Mobs Redo's own behaviour is used.
@@ -1655,6 +1924,10 @@ local function spawn_at(pos, kind, count, run_id, key)
 	return spawned
 end
 
+orthoverse.monsters.spawn_at = spawn_at
+-- Other mods hear when a spawner wakes (The Seed: its egg sacs burst)
+orthoverse.monsters.on_wake = {}
+
 -- A spawner whose timer is not running (set by WorldEdit, or lost) starts it
 -- when its block loads
 core.register_lbm({
@@ -1695,10 +1968,14 @@ core.register_node(SPAWNER, {
 		local id = "run:" .. run.started
 		if meta:get_string("run") == id then return true end
 		local wake = math.max(4, math.min(24, meta:get_int("wake")))
+		-- (a stealthy spawner, The Seed's nest: a sneaking player gets twice as near)
+		local stealth = meta:get_string("stealth") == "1"
 		for _, obj in ipairs(core.get_objects_inside_radius(pos, wake)) do
-			if obj:is_player() and run.members[obj:get_player_name()] then
+			if obj:is_player() and run.members[obj:get_player_name()] and (not stealth or not obj:get_player_control().sneak
+					or vector.distance(obj:get_pos(), pos) <= wake / 2) then
 				meta:set_string("run", id)
 				spawn_at(pos, meta:get_string("kind"), math.max(1, math.min(6, meta:get_int("count"))), id, key)
+				for _, f in ipairs(orthoverse.monsters.on_wake) do f(pos, meta:get_string("kind")) end
 				break
 			end
 		end
@@ -1735,7 +2012,7 @@ end)
 -- Admin: /monster <kind> brings one in front of you, to look at or fight
 
 core.register_chatcommand("monster", {
-	params = "<kind, e.g. goblin, skeleton, zombie, ghoul, wight>",
+	params = "<kind, e.g. goblin, skeleton, zombie, ghoul, wight, husk, crawler, spitter>",
 	description = "Bring a monster in front of you (admin)",
 	privs = {server = true},
 	func = function(name, param)
