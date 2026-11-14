@@ -1,0 +1,47 @@
+{
+	"arrival": {
+		"x": 40.5,
+		"y": 37,
+		"z": 2.5
+	},
+	"corner1": {
+		"x": 3,
+		"y": 0,
+		"z": 8
+	},
+	"corner2": {
+		"x": 76,
+		"y": 47,
+		"z": 76
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 79,
+				"y": 35,
+				"z": 79
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"ground": 36,
+	"limit": 60,
+	"line": "Something fell, and the ground round it is growing. The survey team went down after it.",
+	"name": "The Seed",
+	"rank_max": 10,
+	"rank_min": 5,
+	"size": {
+		"x": 80,
+		"y": 50,
+		"z": 80
+	},
+	"start": {
+		"x": 36.5,
+		"y": 37,
+		"z": 18.5
+	}
+}

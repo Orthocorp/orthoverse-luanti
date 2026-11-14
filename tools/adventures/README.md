@@ -78,3 +78,13 @@ Its `.json` uses what a sky adventure needs from `/adventure place`:
 - `finish_xp`: the finishing bonus (300; otherwise 200), once a day.
 
 The ghost steps are `orthoverse_props:ghost_step` (param2 0 to 7 sets when each comes and goes).
+
+## The Seed
+
+`seed.lua` builds it the same way, with `orthoverse_generate_adventure = seed` and room to forceload it (`max_forceloaded_blocks = 400`); copy `seed.ovt` (the compact form) and `seed.json`. For the checks the crane's containers are lifted out, the membranes and valves burnt, and the Heart's shell and core gone. Besides the usual checks it has its own (`g.check_more`):
+- for each set of valves, with only one of them open at a time (as a run opens them), every spawner, chest and the finish can still be reached;
+- the gated places (the Gut without moving the container, the Heart without its shell opening, the finish without its core opening) stay out of reach even falling any height, not only walking.
+
+Expected: `unreachable: none` (also for each valve), every gated place `false`, falling too.
+
+Its blocks, gear and crane are in `mods/orthoverse_seed`, its monsters (husks, crawlers, spitters, spore puffs, ganglia, the Heart's nodules and tendrils) in `mods/orthoverse_monsters`, their textures and sounds from `tools/seed/make_textures.py`.

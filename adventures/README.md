@@ -194,3 +194,22 @@ Each part ends on a small floating island with a checkpoint (a moonstone with a 
 **The castle**: cream walls and round towers with pink roofs, a tall keep. Through the gate, a **maze**, made anew for every run (its walls are four high, so nobody gets over them standing on a friend), and beyond it the **treasure hall**: the finish on a golden dais, the finish chest beside it.
 
 Everything is put back after each run.
+
+## The Seed
+
+Something fell, and the ground round it is growing. The survey team went down after it. For ranks 5 to 10, a party of two to four, 60 minutes. It is 80 blocks by 80 and goes 32 blocks down: stand at the land's south-west corner. The growth has walled the place in (nine blocks high), so the camp and the Rind are inside the adventure, on the surface; only the gate, the board and the title sign are outside, at the south. Nothing else is signed: the rest is for players to find.
+
+- **The survey camp** (the start): a hut with the **stores** (three fire pots and a breathing mask each) and the **rifle rack** (a plasma rifle each, and its charge renewed: come back to it), the lab hut (a common chest).
+- **The hangar**: a **crane** on a rail under the roof, and in the floor a loading pit with a cargo container in it, over the hatch to the team's borehole. The **booth** up the stair has five buttons: left, right, up, down, and the magnet. Move the magnet over the container, lower it onto it, switch it on, lift the container out of the pit (two up), move it aside, switch the magnet off. The hatch is under the pit.
+- **The Rind**, north of the camp: the surface under the growth, the Seed's broken husk in its crater, egg sacs (crawlers), husks, spore vents, a common chest.
+- **The borehole**: a stair down round the drill pipe into **the Gut**: ribbed tunnels lit by glowing nodules, where creep spreads over the floors as the run goes on (it slows; fire burns it). From the hub:
+  - east, **the acid river**: pads across it that sink a moment after you step on them; spitters on the walls; on the far shore a **ganglion** and a weapon chest;
+  - north-west, by one of two valves (which one is open changes every run), **the Lung**: narrow ribs over a pit of spore vents; every 14 seconds it breathes in, then out, and the gust from the north wall blows players off the ribs. Cross in the lulls. A ganglion and an armour chest on the far ledge;
+  - north, by one of two valves, **the Nest**: egg sacs in clutches (sneak: they wake when you are half as near), crawlers by threes, a husk, a ganglion at the back, a common chest;
+  - west, the way down, shut by the **Heart's shell** until all three ganglia are cut;
+  - a membrane (burn it) in the hub's west wall hides a common chest.
+- **The Heart** (28 blocks down): a great chamber, the Heart in the middle, four **nodules** round it, tendrils, spitters on the walls, husks. Burst all four nodules (each but the last calls two crawlers) and the Heart's core opens; the whole growth withers to ash. Inside the core, the **finish** and the finish chest.
+
+The new monsters: the **husk** (level 5, a survey team member taken over; its grip holds you a moment), the **crawler** (level 4, small and quick), the **spitter** (level 5, a pod in a wall that lobs acid: it wears armour), the **spore puff** (level 4, drifts at you and bursts in spores), the **tendril** (level 6, lashes from the floor), the **ganglion** (level 6) and the Heart's **nodules** (level 8). The fire pot (thrown) and the plasma rifle (twelve shots, one a second) both burn membranes and creep and hurt the growth.
+
+Everything is put back after each run: the container in its pit, the valves shut, the growth alive.

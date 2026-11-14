@@ -209,6 +209,8 @@ core.after(2, function()
 			else
 				check(A, "built")
 			end
+			-- and its own, besides (The Seed: every choice of valves)
+			if g.check_more then g.check_more(A, {say = say, reach = reach, walkable = walkable, standable = standable}) end
 			flush()
 		end)
 	end)
