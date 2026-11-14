@@ -1,0 +1,25 @@
+diff --git a/src/client/game_formspec.cpp b/src/client/game_formspec.cpp
+index b10e8dace..aa3ad76bb 100644
+--- a/src/client/game_formspec.cpp
++++ b/src/client/game_formspec.cpp
+@@ -412,6 +412,12 @@ void GameFormSpec::showPauseMenu()
+ #endif
+ #endif
+ 
++#ifdef __EMSCRIPTEN__
++	// In the browser both exits end the game and go back to the web page
++	// (it starts straight into the game, with no main menu): one button
++	os << "button_exit[0," << (ypos += button_height + spacing) << ";3.5," << button_height << ";btn_exit_menu;"
++		<< strgettext("Exit to web") << "]";
++#else
+ 	os << "button_exit[0," << (ypos += button_height + spacing) << ";3.5," << button_height << ";btn_exit_menu;"
+ 		// TRANSLATORS: Pause menu button, try to keep the translation short
+ 		<< strgettext("Exit to Menu") << "]";
+@@ -419,6 +425,7 @@ void GameFormSpec::showPauseMenu()
+ 	os << "button_exit[0," << (ypos += button_height + spacing) << ";3.5," << button_height << ";btn_exit_os;"
+ 		// TRANSLATORS: Pause menu button, try to keep the translation short (OS = Operating System)
+ 		<< strgettext("Exit to OS") << "]";
++#endif
+ 
+ 	os << "container_end[]";
+ 	if (!control_text.empty()) {
