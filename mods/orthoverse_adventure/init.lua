@@ -1675,9 +1675,9 @@ local HELP = table.concat({
 	"/adventure reset   Put the saved dungeon back as it was.",
 	"/adventure status   How it stands, in the chat.",
 	"/adventure delete   Remove it (its records and saved dungeons are kept).",
-	"/adventure place <name> [north]   (Admin) Place a ready-made adventure, standing on the ground",
-	"   at its south-west corner (north: turned round, its entrance at the north end);",
-	"   /adventure place on its own lists them.",
+	"/adventure place <name> [north] [here]   (Admin) Place a ready-made adventure in the middle of the",
+	"   land you stand on (north: turned round, its entrance at the north end; here: its south-west",
+	"   corner where you stand); /adventure place on its own lists them.",
 	"/adventure replace <name>   (Admin) Put the newer copy of a ready-made adventure in place of this one, saved as its next version (records kept)",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
@@ -1700,7 +1700,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[go [<name>] | leave | place <name> [north] | replace <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
+	params = "[go [<name>] | leave | place <name> [north] [here] | replace <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -1741,17 +1741,41 @@ core.register_chatcommand("adventure", {
 			if rest == "" then
 				local names = template_names()
 				return true, #names > 0 and ("Ready-made adventures: " .. table.concat(names, ", ") ..
-					". Stand on the ground at the south-west corner and type /adventure place <name>, " ..
-					"or /adventure place <name> north for its entrance at the north end.")
+					". Stand anywhere on the land and type /adventure place <name>: it is built in the middle " ..
+					"of the land. Add north for its entrance at the north end, or here to build it with its " ..
+					"south-west corner where you stand.")
 					or "There are no ready-made adventures in " .. TEMPLATES_DIR .. "."
 			end
-			local tname, facing = rest:match("^(%S+)%s*(%S*)$")
+			local words = {}
+			for w in rest:gmatch("%S+") do words[#words + 1] = w:lower() end
+			local tname = table.remove(words, 1)
 			if not tname or not tname:match("^[%w_%-]+$") then return false, "No ready-made adventure called that." end
-			if facing ~= "" and facing ~= "north" and facing ~= "south" then
-				return false, "Its entrance can be at the south end (as made) or the north: /adventure place " .. tname .. " north"
+			local facing, here = "", false
+			for _, w in ipairs(words) do
+				if w == "north" or w == "south" then facing = w
+				elseif w == "here" then here = true
+				else
+					return false, "Its entrance can be at the south end (as made) or the north, and it is built in " ..
+						"the middle of the land unless you say here: /adventure place " .. tname .. " [north] [here]"
+				end
 			end
 			local feet = vector.round(player:get_pos())
-			place_template(tname, vector.new(feet.x, feet.y - 1, feet.z), name, function(ok, msg)
+			local at = vector.new(feet.x, feet.y - 1, feet.z)
+			if not here then
+				-- In the middle of the land you stand on, on the map's ground
+				-- (every template fits on one land, which is C.LAND square)
+				local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+				if type(info) ~= "table" or type(info.size) ~= "table" then
+					return false, "There is no ready-made adventure called " .. tname .. "."
+				end
+				local C = orthoverse.coords
+				local x0 = math.floor((feet.x + C.HALF) / C.LAND) * C.LAND - C.HALF
+				local z0 = math.floor((feet.z + C.HALF) / C.LAND) * C.LAND - C.HALF
+				local G = tonumber(core.get_mapgen_setting("mgflat_ground_level")) or 8
+				at = vector.new(x0 + math.max(0, math.floor((C.LAND - info.size.x) / 2)), G,
+					z0 + math.max(0, math.floor((C.LAND - info.size.z) / 2)))
+			end
+			place_template(tname, at, name, function(ok, msg)
 				core.chat_send_player(name, msg)
 			end, facing == "north")
 			return true, "Placing " .. tname .. "…"

@@ -10,8 +10,7 @@ The server image copies this folder into the game, so after a `git pull` and `do
 ## Placing one
 
 1. Go to the land that should hold it. The land must have no adventure yet; use `/adventure delete` first if it has one.
-2. Stand on the ground at the **south-west corner** of where it should go. It extends east and north from there, and must fit on the land. The game says so if it doesn't.
-3. Type `/adventure place three-bells` (or `gullet`). Tir Na Nog is different: it covers the whole land, so stand anywhere on it. On its own, `/adventure place` lists the adventures in this folder. Add `north` (`/adventure place gullet north`) to turn it round, so its entrance is at the north end.
+2. Stand anywhere on the land and type `/adventure place three-bells` (or `gullet`, and so on). It is built in the middle of the land, on the land's ground. On its own, `/adventure place` lists the adventures in this folder. Add `north` (`/adventure place gullet north`) to turn it round, so its entrance is at the north end. Add `here` to build it with its south-west corner where you stand instead (it extends east and north from there, and must fit on the land).
 
 The command does the following:
 - It clears everything above the ground over the whole footprint.
@@ -41,7 +40,7 @@ It needs 60 blocks east by 42 north. The buildings rise 38 blocks above the grou
    | Stepping St.  Grate  [ hub + stairs down ] Library  Maze |
    |                 [ courtyard, gate, board ]                |
    +----------------------------------------------------------+
-          south (where you stood: south-west corner)
+          south
 ```
 
 ### The route
@@ -143,7 +142,7 @@ Lights in the old mill at night, and screams; the miller vanished last spring. A
 
 ## St Morwen's
 
-The bell of St Morwen's has not rung in forty years, and the dead there do not lie still. An undead adventure for ranks 4 to 8, a party of one to four. It is 96 blocks by 96 (a land of 6 x 6 tiles): stand at the land's south-west corner. The churchyard is on the ground, the church's tower rises 31 blocks over it, and the crypt is eight blocks below. Placing it clears the land above it and digs out only the crypt's part of the ground.
+The bell of St Morwen's has not rung in forty years, and the dead there do not lie still. An undead adventure for ranks 4 to 8, a party of one to four. It is 96 blocks by 96 (a land of 6 x 6 tiles): it fills the land. The churchyard is on the ground, the church's tower rises 31 blocks over it, and the crypt is eight blocks below. Placing it clears the land above it and digs out only the crypt's part of the ground.
 
 - **The crossroads** (outside, at the south end, or the north with `north`): the road, an empty gibbet with the title sign, the gate and the board.
 - **The haunted forest**, inside a thorn hedge three blocks high (nobody climbs in or out): dead trees and dark pines, low fog, 2 wisp pairs and 3 ghoul packs, a common chest. The run starts on the path north from the gate.
@@ -162,7 +161,7 @@ Everything is put back after each run: the gate locked, the floor shut, the font
 
 ## The Wyrm Below
 
-Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm sleeps on a ring made in the lake of fire. The lake keeps what lies beyond: give the ring back to it. For ranks 6 to 12, a party of two to six, 90 minutes. It is 80 blocks by 80 and goes 72 blocks down: stand at the land's south-west corner (it needs 80 x 80 of the land). Placing it clears the land above it and digs out everything under it. It has one sign, the title at the gate: the rest is told by the place.
+Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm sleeps on a ring made in the lake of fire. The lake keeps what lies beyond: give the ring back to it. For ranks 6 to 12, a party of two to six, 90 minutes. It is 80 blocks by 80 and goes 72 blocks down (in the middle of the land, 8 blocks of it left round it). Placing it clears the land above it and digs out everything under it. It has one sign, the title at the gate: the rest is told by the place.
 
 - **Karn Dolm** (outside, at the south end, or the north with `north`): a ruined hold, its old stair under a steel grate, the gate, the board and the title, among rocky hills (up to 27 blocks high, snow on the highest) and woods of pine and oak.
 - **The upper halls** (12 blocks down), built of cobble: the stair hall where the run starts (its stair up has fallen in), the pillared hall (goblins and an orc), the guard room to the west (goblins and a cutthroat, a common chest) and the barracks to the east (cutthroats and goblins, a weapon chest). Each has its own way to the landing, and the stair goes down from there.
@@ -197,7 +196,7 @@ Everything is put back after each run.
 
 ## The Seed
 
-Something fell, and the ground round it is growing. The survey team went down after it. For ranks 5 to 10, a party of two to four, 60 minutes. It is 80 blocks by 80 and goes 32 blocks down: stand at the land's south-west corner. The growth has walled the place in, nine blocks high, so the survey camp and the land round the crater are inside the adventure, on the surface; only the gate, the board and the title sign are outside, at the south. Nothing inside is signed: the rest is for players to find.
+Something fell, and the ground round it is growing. The survey team went down after it. For ranks 5 to 10, a party of two to four, 60 minutes. It is 80 blocks by 80 and goes 32 blocks down, in the middle of the land. The growth has walled the place in, nine blocks high, so the survey camp and the land round the crater are inside the adventure, on the surface; only the gate, the board and the title sign are outside, at the south. Nothing inside is signed: the rest is for players to find.
 
 What waits: the abandoned survey camp and its hangar, the land under a skin of growth, the Seed's broken husk in its crater, and below, ribbed tunnels lit by glowing nodules, an acid river, a chamber that breathes, a nest, and the Heart. Some ways through change from run to run, and the growth spreads while you are inside.
 
