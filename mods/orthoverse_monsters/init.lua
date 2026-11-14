@@ -32,7 +32,7 @@ local function now() return core.get_us_time() / 1e6 end
 -- it is taken away on joining too: nobody here is meant to have it.
 core.register_on_mods_loaded(function()
 	local p = core.registered_privileges.peaceful_player
-	if p then p.give_to_admin = false; p.give_to_singleplayer = false end
+	if p then p.give_to_admin = false; p.give_to_singleplayer = false; p._orthoverse_never_admin = true end
 end)
 core.register_on_joinplayer(function(player)
 	local name = player:get_player_name()

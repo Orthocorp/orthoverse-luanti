@@ -221,8 +221,10 @@ core.register_on_joinplayer(function(player)
 	for priv, def in pairs(core.registered_privileges) do
 		-- not those marked as never for the admin (orthoverse_monsters marks
 		-- Mobs Redo's peaceful_player: monsters would ignore the admin, who
-		-- tests the adventures)
-		if not privs[priv] and def.give_to_admin ~= false then
+		-- tests the adventures). Not Luanti's own give_to_admin: it is false
+		-- for fly, fast, noclip, teleport, give, protection_bypass and more,
+		-- the very ones this is for
+		if not privs[priv] and not def._orthoverse_never_admin then
 			privs[priv] = true
 			added[#added + 1] = priv
 		end
