@@ -1090,6 +1090,8 @@ monster("turret", {
 -- growth's (_seed_growth): when the Heart dies they fall with it.
 
 local function seed() return orthoverse.seed end
+-- A cube drawn the same on all six faces (a cube needs a texture for each)
+local function cube6(t) return {t, t, t, t, t, t} end
 local function spawn_later(...) return orthoverse.monsters.spawn_at(...) end
 
 -- The husk: a survey team member the growth has taken over. Slow, and its
@@ -1281,7 +1283,7 @@ end
 -- A ganglion: a knot of nerves. Cut all three and the Heart's shell opens.
 monster("ganglion", {
 	desc = S("Ganglion"), level = 6, xp = 120, visual = "cube", size = 0.9, hp = 30, ac = 12, damage = 0, seed = true,
-	glow = 6, textures = {"orthoverse_monsters_ganglion.png"},
+	glow = 6, textures = cube6("orthoverse_monsters_ganglion.png"),
 	collisionbox = {-0.45, -0.45, -0.45, 0.45, 0.45, 0.45}, walk = 0, run = 0, heavy = true, view_range = 8,
 	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
 		on_die = function(self, pos) if seed() then seed().ganglion_cut(pos) end end},
@@ -1305,7 +1307,7 @@ monster("ganglion", {
 -- (but the last) calls up two crawlers.
 monster("nodule", {
 	desc = S("Nodule of the Heart"), level = 8, xp = 160, visual = "cube", size = 1.0, hp = 40, ac = 13, damage = 0,
-	seed = true, glow = 12, textures = {"orthoverse_monsters_nodule.png"},
+	seed = true, glow = 12, textures = cube6("orthoverse_monsters_nodule.png"),
 	collisionbox = {-0.5, -0.5, -0.5, 0.5, 0.5, 0.5}, walk = 0, run = 0, heavy = true, view_range = 8,
 	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
 		on_die = function(self, pos)
@@ -1330,7 +1332,7 @@ monster("nodule", {
 -- A tendril: grows out of the floor by the Heart and lashes at anyone near
 monster("tendril", {
 	desc = S("Tendril"), level = 6, xp = 70, visual = "cube", size = 1.0, hp = 14, ac = 11, damage = 4, windup = 0.6,
-	interval = 1.6, seed = true, textures = {"orthoverse_monsters_tendril.png"}, reach = 3.0,
+	interval = 1.6, seed = true, textures = cube6("orthoverse_monsters_tendril.png"), reach = 3.0,
 	collisionbox = {-0.22, -1.1, -0.22, 0.22, 1.1, 0.22}, walk = 0, run = 0, heavy = true, view_range = 6,
 	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
 		visual_size = {x = 0.45, y = 2.2}},
@@ -1913,7 +1915,12 @@ local function spawn_at(pos, kind, count, run_id, key)
 		local a, b = core.get_node(p), core.get_node(vector.add(p, {x = 0, y = 1, z = 0}))
 		local da, db = core.registered_nodes[a.name], core.registered_nodes[b.name]
 		if da and db and not da.walkable and not db.walkable and da.liquidtype == "none" then
-			local obj = core.add_entity(vector.add(p, {x = 0, y = -0.45, z = 0}), kind)
+			-- (feet on the floor: a monster whose box reaches below its middle, a
+			-- cube, is lifted by that much, not left half in the floor)
+			local edef = core.registered_entities[kind] or {}
+			local cb = edef.collisionbox or (edef.initial_properties or {}).collisionbox
+			local lift = cb and math.max(0, -cb[2]) or 0
+			local obj = core.add_entity(vector.add(p, {x = 0, y = -0.45 + lift, z = 0}), kind)
 			local ent = obj and obj:get_luaentity()
 			if ent then
 				ent._adventure, ent._run, ent._spawner = key, run_id, core.pos_to_string(pos)
