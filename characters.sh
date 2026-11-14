@@ -3,8 +3,11 @@
 # folder. It asks the running auth service (nothing here is reachable from
 # the internet).
 #
-#   ./characters.sh list [text]          every character (or those whose name or
-#                                        wallet contains the text), and the guests
+#   ./characters.sh list [column] [text] every character (or those whose name or
+#                                        wallet contains the text), and the guests;
+#                                        sorted by a column if one is named: name,
+#                                        wallet, password, since or last (newest
+#                                        first), locked
 #   ./characters.sh show <name>          one character in full
 #   ./characters.sh lock <name> [reason] keep them out: signed out on the website,
 #                                        put out of the game, until unlocked
@@ -93,6 +96,19 @@ if [ "$cmd" = delete ]; then
 	if [ "$again" != "$2" ]; then echo "Not deleted."; exit 1; fi
 fi
 
+# list <column>: sorted by that column (the rest, if any, is the text to look for)
+SORT=
+if [ "$cmd" = list ]; then
+	case "$(printf '%s' "$2" | tr 'A-Z' 'a-z')" in
+		name|wallet|password|since|last|played|lastplayed|last_played|locked)
+			SORT=$(printf '%s' "$2" | tr 'A-Z' 'a-z')
+			shift 2
+			set -- list "$@"
+			;;
+	esac
+fi
+export SORT
+
 out=$(docker compose exec -T auth node admin.js "$@")
 status=$?
 if [ -z "$out" ]; then
@@ -112,6 +128,16 @@ if r.get("error"):
     print(r["error"]); sys.exit(1)
 if "characters" in r:
     rows = r["characters"]
+    # Sorted by a column (SORT): dates newest first, never at the end; yes first
+    import os
+    by = os.environ.get("SORT", "")
+    if by == "name": rows.sort(key=lambda c: c["name"].lower())
+    elif by == "wallet": rows.sort(key=lambda c: (not c["wallet"], (c["wallet"] or "").lower()))
+    elif by == "password": rows.sort(key=lambda c: (not c["password"], c["name"].lower()))
+    elif by == "since": rows.sort(key=lambda c: c["since"] or "", reverse=True)
+    elif by in ("last", "played", "lastplayed", "last_played"):
+        rows.sort(key=lambda c: c["lastPlayed"] or "", reverse=True)
+    elif by == "locked": rows.sort(key=lambda c: (not c["locked"], c["name"].lower()))
     def short(a): return a[:6] + "..." + a[-4:] if a else "-"
     table = [("Name", "Wallet", "Password", "Since", "Last played", "Locked")]
     for c in rows:
