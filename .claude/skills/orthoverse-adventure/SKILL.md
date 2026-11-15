@@ -92,6 +92,7 @@ g.info = {
 	start = {...}, arrival = {...},     -- inside start; outside arrival
 	tags = {"combat", "explore"},  -- at most three of: combat, puzzle, skill,
 	                                -- explore, mystery, spooky, sci-fi, solo
+	blurb = "Two or three sentences for the Adventures page, under its cover picture: what draws a player in, no answers.",
 	-- optional: kit = {item, ...}, finish_xp, catch_falls, whole_land, ...
 }
 g.compact = true                    -- save as .ovt (big adventures)
@@ -188,6 +189,12 @@ whole numbers: a player teleported to x.5 stands on a boundary between two.
 Look at the screenshots: dark corridors, monsters half in the floor and the
 red "no tex" placeholder are found only by looking (a monster drawn as a
 cube needs six textures).
+
+Then take its cover picture for the Adventures page: a daytime view that
+sells it (from the air for a building, from inside for a cave), with the
+HUD hidden and the player hovering (no gravity, immortal), cropped to 16:9
+and saved as `web/site/adventures/covers/<template name>.jpg`, 960 by 540.
+Without one the page shows the land's token picture.
 
 ## Delivering
 

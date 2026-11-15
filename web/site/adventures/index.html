@@ -17,52 +17,94 @@
   body { margin: 0; color: var(--parchment); font: 17px/1.6 var(--body-font); }
   a { color: var(--gold); }
   h1, h2, h3 { font-family: "Midnight", monospace; font-weight: normal; -webkit-font-smoothing: none; }
-  .wrap { max-width: 1040px; margin: 0 auto; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
   main { padding: 40px 16px 64px; }
   h1 { font-size: 32px; line-height: 40px; margin: 0 0 8px; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze); }
   h2 { font-size: 24px; line-height: 32px; margin: 0 0 6px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
-  p { margin: 0 0 16px; max-width: 40em; }
+  p { margin: 0 0 16px; max-width: 42em; }
   .quiet { color: var(--quiet); }
-  .list { display: grid; gap: 24px; margin-top: 32px; }
-  .adv { background: var(--night-2); border: 3px solid var(--outline); padding: 20px;
-    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
-  .adv .where { color: var(--quiet); font-size: 15px; margin-bottom: 10px; }
-  .adv .line { font-size: 18px; margin-bottom: 12px; }
-  .tag { display: inline-block; padding: 2px 8px; margin-left: 8px; font: 13px/20px var(--body-font);
-    border: 2px solid var(--outline); vertical-align: middle; }
+  .tag { display: inline-block; padding: 2px 8px; font: 13px/20px var(--body-font);
+    border: 2px solid var(--outline); vertical-align: middle; color: #fff; }
   .tag.open { background: #2e6b2a; } .tag.closed { background: #5a4630; }
+  .tag.done { background: #8a6a12; }
   /* what kind of adventure it is: up to three, each its own colour */
-  .tag.kind { margin-left: 6px; color: #fff; }
   .tag.k-combat { background: #8b2a2a; } .tag.k-puzzle { background: #2f4f8f; } .tag.k-skill { background: #8a6a12; }
   .tag.k-explore { background: #2c6e64; } .tag.k-mystery { background: #5d3a7a; } .tag.k-spooky { background: #3d3d4a; }
   .tag.k-sci-fi { background: #1f6f8b; } .tag.k-solo { background: #6b4a2e; }
-  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* The picture: the adventure's cover, or its land's token */
+  .pic { display: block; position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--night-3); line-height: 0; }
+  .pic img { width: 100%; height: 100%; object-fit: cover; }
+  .pic img.token { image-rendering: pixelated; }
+  .pic.blank { background: repeating-linear-gradient(45deg, var(--night-3) 0 12px, var(--night) 12px 24px); }
+
+  /* The featured adventure, across the top */
+  .feature { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); margin: 28px 0 8px;
+    border: 3px solid var(--gold); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35); background: var(--night-2); }
+  .feature .pic { aspect-ratio: auto; min-height: 100%; }
+  .feature .pic img { position: absolute; inset: 0; }
+  .feature .over { padding: 22px 24px 24px; display: flex; flex-direction: column; justify-content: center; }
+  .feature .kicker { font: 14px/20px "Midnight", monospace; color: var(--gold); letter-spacing: 1px; margin-bottom: 4px; }
+  .feature h2 { font-size: 30px; line-height: 38px; margin: 0 0 10px; }
+  .feature .blurb { margin: 12px 0 18px; }
+  .feature .acts { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  @media (max-width: 760px) {
+    .feature { grid-template-columns: minmax(0, 1fr); }
+    .feature .pic { aspect-ratio: 16 / 9; min-height: 0; }
+    .feature .over { padding: 14px; }
+    .feature h2 { font-size: 24px; line-height: 32px; }
+  }
+
+  /* The shelves of tiles */
+  .shelf { margin-top: 40px; }
+  .shelf > h2 { margin-bottom: 4px; }
+  .shelf > .sub { color: var(--quiet); margin: 0 0 14px; font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+  .tile { background: var(--night-2); border: 3px solid var(--outline); min-width: 0;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .tile > button.face { display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none; color: inherit;
+    font: inherit; text-align: left; cursor: pointer; }
+  .tile > button.face:hover .pic img { filter: brightness(1.08); }
+  .tile > button.face:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .tile .txt { padding: 12px 14px 14px; }
+  .tile h3 { font-size: 20px; line-height: 26px; margin: 0 0 8px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  .tile .line { font-size: 15px; line-height: 1.45; color: var(--parchment); margin-top: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tile .reach { margin-top: 8px; font-size: 14px; color: var(--quiet); }
+  .tile.far .pic img { filter: grayscale(0.85) brightness(0.7); }
+  .tile.far h3 { color: var(--quiet); text-shadow: none; }
+  .tile.far .tag { filter: grayscale(0.7); }
+
+  /* A tile opened: across the whole row, with everything about it */
+  .tile.open { grid-column: 1 / -1; border-color: var(--gold); }
+  .tile.open > button.face { display: none; }
+  .more { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0; }
+  .more .side { padding: 18px 20px 20px; min-width: 0; }
+  .more .head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+  .more h3 { font-size: 26px; line-height: 32px; margin: 0 0 8px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  .more .shut { flex: 0 0 auto; background: var(--night); color: var(--parchment); border: 2px solid var(--line);
+    font: 14px/20px var(--body-font); padding: 4px 10px; cursor: pointer; }
+  .more .shut:hover, .more .shut:focus-visible { border-color: var(--gold); }
+  .more .where { color: var(--quiet); font-size: 15px; margin: 6px 0 10px; }
+  .more .blurb { margin: 0 0 12px; }
+  .more .board { grid-column: 1 / -1; padding: 0 20px 18px; }
+  @media (max-width: 760px) { .more { grid-template-columns: minmax(0, 1fr); } .more .side { padding: 14px; } .more .board { padding: 0 14px 14px; } }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
   .facts b { color: var(--parchment); font-weight: 700; }
+  .warn { color: var(--gold); font-size: 15px; margin: 0 0 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  caption { text-align: left; color: var(--quiet); font-size: 14px; padding-bottom: 4px; }
   th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--quiet); font-weight: normal; }
   td.time { font-family: "Midnight", monospace; color: var(--gold); white-space: nowrap; }
-  .none { margin-top: 32px; }
-  /* The land's picture beside the text: square, the same size on every card */
-  .adv .top { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 16px; }
-  .adv .about { flex: 1; min-width: 0; }
-  .adv .token { flex: 0 0 auto; width: min(264px, 40%); aspect-ratio: 1; display: block; border: 3px solid var(--outline);
-    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35); line-height: 0; background: var(--night-3); }
-  .adv .token img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
-  @media (max-width: 640px) {
-    .adv .top { flex-direction: column; align-items: stretch; }
-    .adv .go code { white-space: normal; word-break: break-word; }
-    .adv .token { width: 100%; height: auto; max-width: 320px; aspect-ratio: 1; }
-    .adv { padding: 14px; min-width: 0; }
-    .adv th, .adv td { padding: 6px 6px; }
-  }
-  .adv .token:hover, .adv .token:focus-visible { border-color: var(--gold); }
+  @media (max-width: 640px) { th.when, td.when { display: none; } th, td { padding: 6px 6px; } }
   .go { margin: 0; font-size: 15px; color: var(--quiet); }
   .go .hint { margin-top: 10px; }
-  .go code { white-space: nowrap; }
   .go code { font-family: "Midnight", monospace; color: var(--gold); background: var(--night); padding: 2px 6px;
-    border: 1px solid var(--line); user-select: all; }
-  @media (max-width: 640px) { th.when, td.when { display: none; } }
+    border: 1px solid var(--line); user-select: all; word-break: break-word; }
+  .landlink { color: var(--quiet); font-size: 14px; }
+  .none { margin-top: 32px; }
 </style>
 </head>
 <body>
@@ -70,13 +112,14 @@
 <main>
   <div class="wrap">
     <h1>Adventures</h1>
-    <p>Holders build adventures on their lands: dungeons, towers and caves to get through, alone or with friends.
-      Go in through the adventure's gate in the game; reach the finish to get on its table. One party at a time:
-      if a party is inside, wait at the gate until they come out.</p>
-    <p class="quiet">Times count from the gate to the finish. Each saved version of an adventure has its own records.</p>
-    <div id="list" class="list"></div>
+    <p>Dungeons, towers, caves and mysteries built on Orthoverse lands, to get through alone or with friends.
+      Reach the finish to get on the board. Pick one to see more.</p>
+    <div id="feature"></div>
+    <div id="shelves"></div>
     <p id="none" class="none quiet" hidden>No adventures are open yet. Holders of a land at castle level 5 or more can
       build one: <code>/adventure</code> in the game explains how.</p>
+    <p class="quiet" style="margin-top:40px">Times count from the gate to the finish, and each saved version of an
+      adventure has its own board. One party at a time: if a party is inside, wait at the gate until they come out.</p>
   </div>
 </main>
 <div id="ov-footer"></div>
@@ -88,62 +131,204 @@
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
       if (v === false || v == null) continue;
-      if (k === 'class') e.className = v; else e.setAttribute(k, v);
+      if (k === 'class') e.className = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v);
     }
     for (const k of kids) if (k != null) e.append(k);
     return e;
   };
   const time = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   const party = n => n === 1 ? 'Solo' : 'Party of ' + n;
+  const idOf = a => 'a-' + a.key.replace(':', '_');
 
-  function card(a) {
-    const recs = (a.records || []).slice().sort((x, y) => x.secs - y.secs);
-    const rows = recs.slice(0, 10).map((r, i) => el('tr', {},
-      el('td', {}, String(i + 1)),
-      el('td', { class: 'time' }, time(r.secs)),
-      el('td', {}, r.names.join(', ')),
-      el('td', {}, party(r.size)),
-      el('td', { class: 'when' }, (r.at || '').slice(0, 10))));
-    const facts = el('div', { class: 'facts' },
-      el('span', {}, 'Completed ', el('b', {}, String(a.completions)), a.completions === 1 ? ' time' : ' times'),
-      a.first ? el('span', {}, 'First to complete: ', el('b', {}, a.first.names.join(', '))) : el('span', {}, 'Nobody has completed it yet'),
-      a.rank_min ? el('span', {}, 'Ranks ', el('b', {}, a.rank_min + ' to ' + a.rank_max)) : null,
-      el('span', {}, 'Time limit ', el('b', {}, (a.limit || 60) + ' minutes')),
-      el('span', {}, 'Version ', el('b', {}, String(a.version))));
-    // The land's token picture, linking to the token on OpenSea
-    // (sized to the text beside it, below)
+  let adventures = [];
+  let me = null;          // { name, rank } when signed in with a character
+  let openKey = null;     // the tile opened, if any
+
+  // The picture: the ready-made adventure's cover, else (or if it is missing)
+  // its land's token picture
+  function picture(a, cls) {
     const okImage = typeof a.image === 'string' && /^\/(map\/cards|api\/metadata\/classic)\/[-\w.]+\.png$/.test(a.image);
-    const okToken = typeof a.token === 'string' && /^0x[0-9a-f]{40}$/.test(a.token);
-    const picture = okImage ? el('img', { src: a.image, alt: 'The token of ' + (a.land || 'its land'), loading: 'lazy' }) : null;
-    const token = picture && okToken
-      ? el('a', { class: 'token', href: 'https://opensea.io/item/ethereum/' + OV.CONTRACT.toLowerCase() + '/' + BigInt(a.token).toString(),
-        target: '_blank', rel: 'noopener', title: (a.land || 'This land') + ' on OpenSea' }, picture)
-      : picture ? el('span', { class: 'token' }, picture) : null;
-    return el('article', { class: 'adv', id: 'a-' + a.key.replace(':', '_') },
-      el('div', { class: 'top' },
-        el('div', { class: 'about' },
-          el('h2', {}, a.name || 'Adventure', el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed'),
-            ...(Array.isArray(a.tags) ? a.tags : []).slice(0, 3).filter(t => KINDS.includes(t))
-              .map(t => el('span', { class: 'tag kind k-' + t }, t))),
+    const okCover = typeof a.template === 'string' && /^[a-z0-9_-]{1,40}$/.test(a.template);
+    const alt = a.name || 'Adventure';
+    const img = okCover
+      ? el('img', { src: '/adventures/covers/' + a.template + '.jpg', alt, loading: 'lazy' })
+      : okImage ? el('img', { class: 'token', src: a.image, alt, loading: 'lazy' }) : null;
+    if (img && okCover && okImage) img.addEventListener('error', () => { img.className = 'token'; img.src = a.image; }, { once: true });
+    return el('span', { class: 'pic' + (img ? '' : ' blank') + (cls ? ' ' + cls : '') }, img);
+  }
+  const tagsOf = a => (Array.isArray(a.tags) ? a.tags : []).slice(0, 3).filter(t => KINDS.includes(t))
+    .map(t => el('span', { class: 'tag k-' + t }, t));
+  const doneBy = (a, name) => !!name && (a.records || []).some(r => (r.names || []).some(n => n.toLowerCase() === name.toLowerCase()));
+  // Where the character's rank stands to the adventure's: 0 in reach, -1 not
+  // yet (too low), 1 outgrown
+  const reach = a => !me ? 0 : me.rank < (a.rank_min || 1) ? -1 : me.rank > (a.rank_max || 20) ? 1 : 0;
+
+  function playBits(a) {
+    if (!a.open) return el('p', { class: 'warn' }, 'Closed for now: its builder is working on it.');
+    const r = reach(a);
+    if (r < 0) return el('p', { class: 'warn' }, 'Open from rank ' + a.rank_min + '. You are rank ' + me.rank + '.');
+    if (r > 0) return el('p', { class: 'warn' }, 'For ranks up to ' + a.rank_max + '. You are rank ' + me.rank + ': too high to go in.');
+    return el('div', { class: 'go' },
+      el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play this adventure'),
+      el('div', { class: 'hint' }, 'Already in the game? Type ', el('code', {}, '/adventure go ' + (a.name || a.key))));
+  }
+
+  function facts(a) {
+    const mine = me && doneBy(a, me.name);
+    return el('div', { class: 'facts' },
+      el('span', {}, 'Ranks ', el('b', {}, (a.rank_min || 1) + ' to ' + (a.rank_max || 20))),
+      el('span', {}, 'Time limit ', el('b', {}, (a.limit || 60) + ' minutes')),
+      el('span', {}, 'Completed ', el('b', {}, String(a.completions || 0)), a.completions === 1 ? ' time' : ' times'),
+      a.first ? el('span', {}, 'First: ', el('b', {}, a.first.names.join(', '))) : el('span', {}, 'Nobody has finished it yet'),
+      mine ? el('span', {}, el('b', {}, 'You have finished it')) : null);
+  }
+
+  function board(a) {
+    const recs = (a.records || []).slice().sort((x, y) => x.secs - y.secs).slice(0, 5);
+    if (!recs.length) return null;
+    return el('table', {},
+      el('caption', {}, 'The fastest five (version ' + a.version + ')'),
+      el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
+      el('tbody', {}, ...recs.map((r, i) => el('tr', {},
+        el('td', {}, String(i + 1)), el('td', { class: 'time' }, time(r.secs)), el('td', {}, r.names.join(', ')),
+        el('td', {}, party(r.size)), el('td', { class: 'when' }, (r.at || '').slice(0, 10))))));
+  }
+
+  function status(a) {
+    return [el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed'),
+      me && doneBy(a, me.name) ? el('span', { class: 'tag done' }, 'Finished') : null, ...tagsOf(a)];
+  }
+
+  function tile(a) {
+    const r = reach(a);
+    const isOpen = openKey === a.key;
+    const t = el('article', { class: 'tile' + (r ? ' far' : '') + (isOpen ? ' open' : ''), id: idOf(a) });
+    t.append(el('button', { class: 'face', type: 'button', 'aria-expanded': isOpen ? 'true' : 'false',
+        onclick: () => show(a.key, true) },
+      picture(a),
+      el('div', { class: 'txt' },
+        el('h3', {}, a.name || 'Adventure'),
+        el('div', { class: 'tags' }, ...status(a)),
+        a.line ? el('div', { class: 'line' }, a.line) : null,
+        r < 0 ? el('div', { class: 'reach' }, 'From rank ' + a.rank_min)
+          : r > 0 ? el('div', { class: 'reach' }, 'Up to rank ' + a.rank_max)
+          : !me ? el('div', { class: 'reach' }, 'Ranks ' + (a.rank_min || 1) + ' to ' + (a.rank_max || 20)) : null)));
+    if (isOpen) {
+      t.append(el('div', { class: 'more' },
+        picture(a),
+        el('div', { class: 'side' },
+          el('div', { class: 'head' },
+            el('h3', {}, a.name || 'Adventure'),
+            el('button', { class: 'shut', type: 'button', 'aria-label': 'Close ' + (a.name || 'this adventure'),
+              onclick: () => show(null, false) }, 'Close')),
+          el('div', { class: 'tags' }, ...status(a)),
           el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
-          a.line ? el('div', { class: 'line' }, a.line) : null,
-          facts,
-          a.open ? el('div', { class: 'go' },
-            el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play this adventure'),
-            el('div', { class: 'hint' }, 'Already in the game? Type ', el('code', {}, '/adventure go ' + (a.name || a.key)))) : null),
-        token),
-      rows.length ? el('table', {},
-        el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Time'), el('th', {}, 'Who'), el('th', {}, ''), el('th', { class: 'when' }, 'When'))),
-        el('tbody', {}, ...rows)) : null);
+          a.blurb ? el('p', { class: 'blurb' }, a.blurb) : a.line ? el('p', { class: 'blurb' }, a.line) : null,
+          facts(a),
+          playBits(a)),
+        el('div', { class: 'board' }, board(a))));
+    }
+    return t;
+  }
+
+  // The featured adventure: the open one opened most recently (else the
+  // least known), so a new one gets seen
+  function featured() {
+    const open = adventures.filter(a => a.open);
+    if (!open.length) return null;
+    return open.slice().sort((x, y) => ((y.opened || 0) - (x.opened || 0)) ||
+      ((x.completions || 0) - (y.completions || 0)) || (x.name || '').localeCompare(y.name || ''))[0];
+  }
+
+  function drawFeature() {
+    const a = featured();
+    const box = $('feature');
+    box.replaceChildren();
+    if (!a) return;
+    box.append(el('section', { class: 'feature', 'aria-label': 'Featured adventure' },
+      picture(a),
+      el('div', { class: 'over' },
+        el('div', { class: 'kicker' }, a.opened && Date.now() / 1000 - a.opened < 30 * 86400 ? 'NEW ADVENTURE' : 'FEATURED'),
+        el('h2', {}, a.name || 'Adventure'),
+        el('div', { class: 'tags' }, ...status(a)),
+        el('p', { class: 'blurb' }, a.blurb || a.line || ''),
+        el('div', { class: 'acts' },
+          reach(a) === 0 ? el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play') : null,
+          el('a', { class: 'ov-btn info', href: '#' + idOf(a),
+            onclick: e => { e.preventDefault(); show(a.key, true); } }, 'More about it')))));
+  }
+
+  // Sorting within a shelf: not yet finished first, then open, then the
+  // newest, then by name
+  const order = (x, y) => (me ? (doneBy(x, me.name) - doneBy(y, me.name)) : 0) || (y.open - x.open) ||
+    ((y.opened || 0) - (x.opened || 0)) || (x.name || '').localeCompare(y.name || '');
+
+  function shelf(title, sub, list) {
+    if (!list.length) return null;
+    return el('section', { class: 'shelf' }, el('h2', {}, title), sub ? el('p', { class: 'sub' }, sub) : null,
+      el('div', { class: 'grid' }, ...list.slice().sort(order).map(tile)));
+  }
+
+  function drawShelves() {
+    const ready = a => typeof a.template === 'string' && a.template !== '';
+    const near = adventures.filter(a => reach(a) === 0);
+    const out = [];
+    if (me) {
+      out.push(shelf('For you', 'Ready-made adventures for rank ' + me.rank + '.', near.filter(ready)));
+      out.push(shelf('Built by players', 'Made by holders on their own lands.', near.filter(a => !ready(a))));
+      out.push(shelf('Coming within reach', 'For when you rank up.',
+        adventures.filter(a => reach(a) < 0).sort((x, y) => x.rank_min - y.rank_min)));
+      out.push(shelf('Mastered', 'Your rank is past these.', adventures.filter(a => reach(a) > 0)));
+    } else {
+      out.push(shelf('Ready-made adventures', null, adventures.filter(ready)));
+      out.push(shelf('Built by players', 'Made by holders on their own lands.', adventures.filter(a => !ready(a))));
+    }
+    $('shelves').replaceChildren(...out.filter(Boolean));
+    $('none').hidden = adventures.length > 0;
+  }
+
+  function draw() { drawFeature(); drawShelves(); }
+
+  // Open a tile (or none), and bring it into view
+  function show(key, scroll) {
+    openKey = key;
+    const want = key ? '#' + idOf(adventures.find(a => a.key === key) || { key }) : location.pathname;
+    if (location.hash !== (key ? want : '')) history.replaceState(null, '', want);
+    draw();
+    const t = key && document.getElementById(want.slice(1));
+    if (t) {
+      if (scroll) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const shut = t.querySelector('.shut');
+      if (shut) shut.focus({ preventScroll: true });
+    }
+  }
+
+  function fromHash() {
+    const m = /^#a-(-?\d+)_(-?\d+)$/.exec(location.hash);
+    const key = m ? m[1] + ':' + m[2] : null;
+    if (key && adventures.some(a => a.key === key)) show(key, true);
   }
 
   (async () => {
     let data = { adventures: [] };
     try { data = await (await fetch('/api/adventures', { cache: 'no-store' })).json(); } catch (e) { /* none shown */ }
-    const list = (data.adventures || []).filter(a => a.open || a.completions > 0)
-      .sort((x, y) => (y.open - x.open) || (y.completions - x.completions));
-    $('list').append(...list.map(card));
-    $('none').hidden = list.length > 0;
+    adventures = (data.adventures || []).filter(a => a && typeof a.key === 'string' && (a.open || a.completions > 0));
+    draw();
+    fromHash();
+    // Signed in: the character's rank sorts the shelves
+    OV.on(async m => {
+      let next = null;
+      if (m && m.signedIn && m.name) {
+        try { const c = await OV.api('GET', '/auth/character'); next = { name: c.name, rank: c.rank || 1 }; } catch (e) { next = null; }
+      }
+      if (JSON.stringify(next) === JSON.stringify(me)) return;
+      me = next;
+      draw();
+      if (openKey) { const t = document.getElementById(idOf({ key: openKey })); if (t) t.scrollIntoView({ block: 'start' }); }
+    });
+    window.addEventListener('hashchange', fromHash);
   })();
 </script>
 </body>

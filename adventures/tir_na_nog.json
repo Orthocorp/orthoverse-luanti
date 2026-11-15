@@ -10,6 +10,7 @@
 		"y": -5,
 		"z": 39.5
 	},
+	"blurb": "A castle floats high over the land, and the only way up is from stone to stone across the open sky. Stepping stones, fading ghost steps, slippery ice and a wind that catches you when you fall. Any rank can try it; reaching the treasure hall is another matter.",
 	"catch_falls": true,
 	"clear": [
 		{

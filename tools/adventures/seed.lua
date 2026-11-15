@@ -80,6 +80,8 @@ g.info = {
 	line = "Something fell, and the ground round it is growing. The survey team went down after it.",
 	limit = 60,
 	tags = {"combat", "puzzle", "sci-fi"},   -- for the Adventures page (at most three)
+	-- (the Adventures page, under the cover picture: a few sentences, no answers)
+	blurb = "The survey team followed it down and never came back up. Now the ground itself is growing over their camp, and the way below changes while you are inside it. Take the team's gear, go down into the growth, and find what is feeding it.",
 	rank_min = 5, rank_max = 10,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

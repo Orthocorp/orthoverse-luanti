@@ -84,6 +84,8 @@ g.info = {
 		"no monsters, only the long fall, and the wind that catches you.",
 	limit = 40,
 	tags = {"skill", "explore"},   -- for the Adventures page (at most three)
+	-- (the Adventures page, under the cover picture: a few sentences, no answers)
+	blurb = "A castle floats high over the land, and the only way up is from stone to stone across the open sky. Stepping stones, fading ghost steps, slippery ice and a wind that catches you when you fall. Any rank can try it; reaching the treasure hall is another matter.",
 	rank_min = 1, rank_max = 20,
 	size = {x = SX, y = SY, z = SZ},
 	-- placed over the whole land, its floor this far above the ground; the

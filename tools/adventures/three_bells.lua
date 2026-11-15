@@ -52,6 +52,8 @@ tb.info = {
 	line = "A mad bellfounder hid three bells in his tower. Each room is a trap he built for thieves.",
 	limit = 60,
 	tags = {"puzzle", "skill"},   -- for the Adventures page (at most three)
+	-- (the Adventures page, under the cover picture: a few sentences, no answers)
+	blurb = "A mad bellfounder hid three bells in his tower, and built a trap for thieves into every room. Levers, pressure plates, a dark maze and a puzzling library stand between you and the bells. No monsters: just your wits, your feet and a long way down.",
 	rank_min = 1, rank_max = 20,   -- puzzles only: every rank
 	size = {x = SX, y = SY, z = SZ},
 	ground = G,

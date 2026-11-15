@@ -308,6 +308,33 @@ local function format_time(secs)
 	return ("%d:%02d"):format(math.floor(secs / 60), secs % 60)
 end
 
+-- The ready-made adventures' files (<name>.json and its buildings), in the
+-- game's adventures folder
+local TEMPLATES_DIR = (function()
+	local game = core.get_game_info and core.get_game_info()
+	return (game and game.path or (core.get_modpath(core.get_current_modname()) .. "/../..")) .. "/adventures"
+end)()
+
+local function read_file(path)
+	local f = io.open(path, "rb")
+	if not f then return nil end
+	local data = f:read("*a")
+	f:close()
+	return data
+end
+
+-- A ready-made adventure's blurb for the Adventures page (from its .json,
+-- read once: the folder changes only with a new build)
+local blurbs = {}
+local function blurb_of(tname)
+	if not tname then return nil end
+	if blurbs[tname] == nil then
+		local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+		blurbs[tname] = type(info) == "table" and type(info.blurb) == "string" and info.blurb:sub(1, 600) or false
+	end
+	return blurbs[tname] or nil
+end
+
 -- For the website: the adventures and their records
 -- Tags shown on the Adventures page, at most three an adventure
 local TAGS = {"combat", "puzzle", "skill", "explore", "mystery", "spooky", "sci-fi", "solo"}
@@ -334,7 +361,9 @@ local function write_public()
 		list[#list + 1] = {key = key, land = land and land.name, name = def.name, line = def.line,
 			open = def.open == true, version = def.version, limit = def.limit, completions = #vrec,
 			rank_min = def.rank_min or RANK_MIN_DEFAULT, rank_max = def.rank_max or RANK_MAX_DEFAULT,
-			first = vrec[1], best = best, records = vrec, tags = def.tags}
+			first = vrec[1], best = best, records = vrec, tags = def.tags,
+			-- (ready-made: its cover picture is named after the template)
+			template = def.template, blurb = blurb_of(def.template), opened = def.opened}
 	end
 	table.sort(list, function(a, b) return (a.name or "") < (b.name or "") end)
 	core.safe_file_write(DIR .. "/adventures.json", core.write_json({updated = os.date("!%Y-%m-%dT%H:%M:%SZ"),
@@ -1197,19 +1226,6 @@ core.register_node("orthoverse_adventure:pebbles", {
 -- dungeon area's corners, the start, the arrival, name, line, time limit).
 -- The admin places one standing at its south-west corner on the ground.
 
-local TEMPLATES_DIR = (function()
-	local game = core.get_game_info and core.get_game_info()
-	return (game and game.path or (core.get_modpath(core.get_current_modname()) .. "/../..")) .. "/adventures"
-end)()
-
-local function read_file(path)
-	local f = io.open(path, "rb")
-	if not f then return nil end
-	local data = f:read("*a")
-	f:close()
-	return data
-end
-
 local function template_names()
 	local out = {}
 	for _, file in ipairs(core.get_dir_list(TEMPLATES_DIR, false) or {}) do
@@ -1916,6 +1932,7 @@ core.register_chatcommand("adventure", {
 					new.version = old.version
 					new.open, new.limit = false, old.limit
 					new.rank_min, new.rank_max = old.rank_min, old.rank_max
+					new.opened = old.opened
 					local saved, n = save_template(key, new)
 					if saved then
 						new.version = new.version + 1
@@ -2014,6 +2031,8 @@ core.register_chatcommand("adventure", {
 					". Fix it, or stand somewhere safe outside the dungeon and /adventure arrival."
 			end
 			def.open = true
+			-- (when first opened: the newest is the one the Adventures page shows first)
+			def.opened = def.opened or os.time()
 		elseif cmd == "close" then
 			if run_active then end_run(key, def.name .. " has been closed by its builder.") end
 			def.open = false

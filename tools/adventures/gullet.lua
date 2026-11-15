@@ -57,6 +57,8 @@ g.info = {
 	line = "Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head.",
 	limit = 60,
 	tags = {"combat", "explore"},   -- for the Adventures page (at most three)
+	-- (the Adventures page, under the cover picture: a few sentences, no answers)
+	blurb = "Below Thornwatch fort a ravine winds into the hills, and every cave in its walls holds something with teeth. Fight your way up the gorge, choose which caves to clear, and storm the temple where the orc warlord waits. A first adventure for new characters, alone or with friends.",
 	rank_min = 1, rank_max = 5,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

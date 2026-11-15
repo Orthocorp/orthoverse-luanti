@@ -71,6 +71,8 @@ g.info = {
 	line = "The bell of St Morwen's has not rung in forty years. The dead there do not lie still.",
 	limit = 75,
 	tags = {"combat", "spooky", "explore"},   -- for the Adventures page (at most three)
+	-- (the Adventures page, under the cover picture: a few sentences, no answers)
+	blurb = "Forty years since the bell rang, and the dead of St Morwen's walk the churchyard every night. Cross the haunted wood, hold the church where they cannot follow, and go down into the crypt to face what lies beneath the altar. The bell might yet be useful.",
 	rank_min = 4, rank_max = 8,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,
