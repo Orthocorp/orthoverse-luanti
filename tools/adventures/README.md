@@ -91,7 +91,7 @@ Its blocks, gear and crane are in `mods/orthoverse_seed`, its monsters (husks, c
 
 ## Death at the Château
 
-`chateau.lua` builds it the same way, with `orthoverse_generate_adventure = chateau` (`max_forceloaded_blocks = 400`), and writes `chateau.ovt`. Besides the walk checks, it checks that every clue place, weapon place and puzzle can be reached from the start with the secret ways open, and that the library's closet and the study cannot be reached without them. Expected: `unreachable: none`, both gated places `false`, `clue places: 20; unreachable things: none` and `clue places behind a puzzle: 5`.
+`chateau.lua` builds it the same way, with `orthoverse_generate_adventure = chateau` (`max_forceloaded_blocks = 400`), and writes `chateau.ovt`. Besides the walk checks, it checks that every clue place, weapon place and puzzle can be reached from the start with the secret ways open, and that the library's closet and the study cannot be reached without them. Expected: `unreachable: none`, both gated places `false`, `clue places: 20; unreachable things: none`, `floating: none` (no chandelier without a ceiling, nothing standing on air), `hung with no wall behind: none` (no mirror or portrait in a doorway or a window), the bedrooms reachable, and `clue places behind a puzzle: 5`.
 
 ```
 cp /tmp/gu/world/chateau.ovt adventures/

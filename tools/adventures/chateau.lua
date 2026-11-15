@@ -233,7 +233,7 @@ local function windows()
 	for _, x in ipairs({9, 14, 19, 51, 56, 61}) do win_z(14, x, 15) end
 	for _, x in ipairs({29, 32, 39, 42}) do win_z(14, x, 15) end
 	for _, x in ipairs({9, 19}) do win_z(65, x, 64) end
-	for _, x in ipairs({30, 35, 40}) do win_z(65, x, 64) end
+	for _, x in ipairs({31, 40}) do win_z(65, x, 64) end
 	for _, z in ipairs({19, 26, 36, 43}) do win_x(4, z, 5) end
 	for _, z in ipairs({53, 58}) do win_x(4, z, 5) end
 	for _, z in ipairs({19, 26, 36, 43}) do win_x(67, z, 66) end
@@ -297,8 +297,8 @@ local function armes()
 	doorway_z(31, 14, 15)
 	box(12, NF, 20, 13, NF, 24, "orthoverse_chateau:billiard_table")
 	set(6, NF + 2, 22, "orthoverse_chateau:pistols", WALL.w)
-	set(6, NF + 2, 18, "orthoverse_chateau:mirror", WALL.w)
-	set(6, NF + 2, 26, "orthoverse_chateau:mirror", WALL.w)
+	set(6, NF + 2, 17, "orthoverse_chateau:mirror", WALL.w)
+	set(6, NF + 2, 27, "orthoverse_chateau:mirror", WALL.w)
 	set(20, NF, 26, "orthoverse_chateau:table", 0)
 	spot(20, NF + 1, 26, "spot_box", 0, "a cigar box", "armes")
 	spot(23, NF, 17, "spot_drawers", FACE.w, "the cue cabinet", "armes")
@@ -390,7 +390,7 @@ local function galerie()
 	for x = 27, 44 do for z = 50, 63 do
 		if (x + z) % 2 == 0 then set(x, NG, z, "orthoverse_chateau:marble_black") end
 	end end
-	for x = 28, 43, 3 do
+	for _, x in ipairs({28, 34, 37, 43}) do
 		set(x, NF + 1, 63, "orthoverse_chateau:mirror", WALL.n)
 		set(x, NF + 2, 63, "orthoverse_chateau:mirror", WALL.n)
 	end
@@ -481,7 +481,9 @@ local function jardin()
 	spot(56, NF + 1, 51, "spot_box", 0, "the potting bench", "jardin")
 	set(57, NF + 1, 51, CANDLES)
 	spot(65, NF, 58, "spot_barrel", 0, "a water butt", "jardin")
-	for _, cp in ipairs({{54, 53}, {60, 53}, {54, 61}, {60, 61}}) do set(cp[1], CEIL - 1, cp[2], CHANDELIER) end
+	-- light: chandeliers hung from the top of the dome, lamps on posts
+	set(54, CEIL + 4, 56, CHANDELIER); set(59, CEIL + 4, 57, CHANDELIER)
+	for _, lp in ipairs({{50, 57}, {64, 57}, {57, 62}, {57, 54}}) do set(lp[1], NF, lp[2], "default:mese_post_light") end
 	-- (its doors: from the music room and the gallery)
 	doorway_z(48, 56, 57)
 	doorway_x(46, 56, 57)
@@ -503,7 +505,7 @@ local function bureau()
 	set(55, NF + 1, 22, "orthoverse_chateau:letter_opener", 0)
 	spot(56, NF + 1, 22, "spot_papers", 0, "the papers on the Comte's desk", "bureau", "study")
 	set(55, NF, 23, "orthoverse_chateau:chair", WALL.n)
-	spot(65, NF + 2, 26, "safe", WALL.e, "the wall safe", "bureau", "safe")
+	spot(65, NF + 2, 28, "safe", WALL.e, "the wall safe", "bureau", "safe")
 	spot(48, NF, 27, "spot_drawers", FACE.e, "the locked drawers (forced long ago)", "bureau", "study")
 	set(48, NF, 26, "orthoverse_chateau:drawers", FACE.e)
 	set(57, NF, 29, "default:bookshelf"); set(58, NF, 29, "default:bookshelf")
@@ -531,7 +533,7 @@ local function basement()
 	box(12, B + 1, 39, 17, B + 1, 40, "orthoverse_chateau:table")
 	set(13, B + 2, 39, CANDLES); set(16, B + 2, 40, CANDLES)
 	for _, x in ipairs({10, 13, 16, 19}) do set(x, B + 1, 33, "orthoverse_chateau:oven", FACE.n) end
-	for _, x in ipairs({10, 12, 14, 16, 18, 20}) do set(x, B + 3, 46, "orthoverse_chateau:copper", WALL.n) end
+	for _, x in ipairs({9, 11, 18, 20, 22}) do set(x, B + 3, 46, "orthoverse_chateau:copper", WALL.n) end
 	set(23, B + 3, 42, "orthoverse_chateau:keyhook", WALL.e)
 	spot(22, B + 1, 34, "spot_barrel", 0, "the flour barrel", "cuisine")
 	spot(20, B + 1, 46, "spot_drawers", FACE.s, "the pantry dresser", "cuisine")
@@ -712,6 +714,37 @@ function g.check_more(O, t)
 		if not near(vector.add(O, th.p)) then bad[#bad + 1] = th.n .. " at " .. core.pos_to_string(th.p) end
 	end
 	t.say(("clue places: %d; unreachable things: %s"):format(#g.spots, #bad > 0 and table.concat(bad, ", ") or "none"))
+	-- Everything hung on a wall has a wall behind it (not a doorway or a
+	-- window's niche)
+	local hung = {}
+	local BEHIND = {[0] = {0, 1}, [1] = {1, 0}, [2] = {0, -1}, [3] = {-1, 0}}
+	for x = 0, SX - 1 do for y = 0, SY - 1 do for z = 0, SZ - 1 do
+		local n = get(x, y, z)
+		local def = core.registered_nodes[n]
+		if def and def.node_box and def.node_box.fixed and type(def.node_box.fixed[1]) == "number"
+				and def.node_box.fixed[3] == 0.4375 and def.paramtype2 == "facedir" then
+			local b = BEHIND[(p2grid[idx(x, y, z)] or 0) % 4]
+			local w = get(x + b[1], y, z + b[2])
+			local wd = core.registered_nodes[w]
+			if not (wd and wd.walkable and wd.drawtype == "normal") then hung[#hung + 1] = n:gsub("^.*:", "") .. " at " .. core.pos_to_string({x = x, y = y, z = z}) end
+		end
+	end end end
+	-- Chandeliers hang from something; what stands or lies stands on something
+	local floating = {}
+	for x = 0, SX - 1 do for y = 1, SY - 2 do for z = 0, SZ - 1 do
+		local n = get(x, y, z)
+		local def = core.registered_nodes[n]
+		if n == CHANDELIER then
+			local up = core.registered_nodes[get(x, y + 1, z)]
+			if not (up and up.walkable) then floating[#floating + 1] = "chandelier at " .. core.pos_to_string({x = x, y = y, z = z}) end
+		elseif def and n:find("^orthoverse_chateau:") and (def.drawtype == "plantlike" or (def.node_box and def.node_box.fixed
+				and def.node_box.fixed[5] == -0.4375)) then
+			local down = core.registered_nodes[get(x, y - 1, z)]
+			if not (down and down.walkable) then floating[#floating + 1] = n:gsub("^.*:", "") .. " at " .. core.pos_to_string({x = x, y = y, z = z}) end
+		end
+	end end end
+	t.say("floating: " .. (#floating > 0 and table.concat(floating, ", ") or "none"))
+	t.say("hung with no wall behind: " .. (#hung > 0 and table.concat(hung, ", ") or "none"))
 	t.say("the bedrooms reachable by the grand staircase: " .. tostring(near(vector.add(O, {x = 30, y = UP + 1, z = 30})) == true))
 	local gated = 0
 	for _, s in ipairs(g.spots) do if s.gate then gated = gated + 1 end end
