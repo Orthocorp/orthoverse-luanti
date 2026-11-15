@@ -349,9 +349,27 @@ do
 		local data = core.parse_json(f:read("*a") or "", nil)
 		f:close()
 		if type(data) == "table" and type(data.characters) == "table" then sheets = data.characters end
+		-- (nobody is in the world yet, whatever a crash left)
+		for _, s in pairs(sheets) do if type(s) == "table" then s.online = nil end end
 	end
 end
 local sheets_dirty = false
+
+-- Time in the world: the seconds played in all, kept in the player's meta
+-- (added to every half minute, so a crash loses little), and when this
+-- visit began
+local PLAYED = "orthoverse_rank:played"
+local banked_at, joined_at = {}, {}
+local function bank_time(player)
+	local name = player:get_player_name()
+	local now = os.time()
+	if banked_at[name] then
+		local meta = player:get_meta()
+		meta:set_int(PLAYED, meta:get_int(PLAYED) + math.max(0, now - banked_at[name]))
+	end
+	banked_at[name] = now
+	joined_at[name] = joined_at[name] or now
+end
 
 local function sheet_of(player)
 	local name = player:get_player_name()
@@ -362,9 +380,12 @@ local function sheet_of(player)
 	local s = {rank = rank, xp = xp, next = NEEDS[rank + 1], hp = player:get_hp(),
 		hp_max = player:get_properties().hp_max or rank_api.hp_max(rank), at = os.date("!%Y-%m-%dT%H:%M:%SZ")}
 	for _, k in ipairs(STATS) do s[k] = meta:get_int("orthoverse_stats:" .. k) end
+	bank_time(player)
+	s.played = meta:get_int(PLAYED)
+	s.online = joined_at[name] and os.time() - joined_at[name] or nil
 	local old = sheets[name:lower()]
 	sheets[name:lower()] = s
-	if not old or old.xp ~= s.xp or old.hp ~= s.hp or old.hp_max ~= s.hp_max or old.insight ~= s.insight
+	if not old or old.played ~= s.played or old.online ~= s.online or old.xp ~= s.xp or old.hp ~= s.hp or old.hp_max ~= s.hp_max or old.insight ~= s.insight
 			or old.agility ~= s.agility or old.prowess ~= s.prowess then
 		sheets_dirty = true
 	end
@@ -377,10 +398,22 @@ local function write_sheets(force)
 end
 rank_api.update_sheet = function(player) sheet_of(player); write_sheets() end
 
-core.register_on_joinplayer(function(player) core.after(1, function()
-	if player:is_player() then sheet_of(player); write_sheets() end
-end) end)
-core.register_on_leaveplayer(function(player) sheet_of(player); write_sheets() end)
+core.register_on_joinplayer(function(player)
+	local name = player:get_player_name()
+	banked_at[name], joined_at[name] = os.time(), os.time()
+	core.after(1, function()
+		if player:is_player() then sheet_of(player); write_sheets() end
+	end)
+end)
+core.register_on_leaveplayer(function(player)
+	local name = player:get_player_name()
+	sheet_of(player)
+	-- (out of the world now: the total stays, the visit ends)
+	local s = sheets[name:lower()]
+	if s then s.online = nil; sheets_dirty = true end
+	banked_at[name], joined_at[name] = nil, nil
+	write_sheets()
+end)
 local sheet_timer = 0
 core.register_globalstep(function(dtime)
 	sheet_timer = sheet_timer + dtime
@@ -391,5 +424,6 @@ core.register_globalstep(function(dtime)
 end)
 core.register_on_shutdown(function()
 	for _, p in ipairs(core.get_connected_players()) do sheet_of(p) end
+	for _, s in pairs(sheets) do s.online = nil end
 	write_sheets(true)
 end)

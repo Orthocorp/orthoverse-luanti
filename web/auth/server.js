@@ -1403,20 +1403,25 @@ function lastLogins() {
 }
 const when = s => (s ? new Date(s * 1000).toISOString().slice(0, 16).replace('T', ' ') : null);
 
-function adminRow(p, logins) {
+function adminRow(p, logins, sheets) {
+	// (time in the world, from the game's character sheets: seconds in all,
+	// and in this visit if in the world now)
+	const c = (sheets && sheets[p.name.toLowerCase()]) || {};
 	return {
 		name: p.name, wallet: p.address || null, password: !!p.pw, since: p.since || null,
 		lastPlayed: when(logins.get(p.name)), locked: p.locked ? (p.locked.why || true) : false, skin: !!p.skin,
+		played: Number.isFinite(c.played) ? c.played : null, online: Number.isFinite(c.online) ? c.online : null,
 	};
 }
 
 const adminCommands = {
 	list({ text }) {
 		const logins = lastLogins();
+		const sheets = (charactersNow() || {}).characters;
 		const t = String(text || '').toLowerCase();
 		const rows = Object.values(registry.players)
 			.filter(p => p && p.name && (!t || p.name.toLowerCase().includes(t) || (p.address || '').toLowerCase().includes(t)))
-			.map(p => adminRow(p, logins))
+			.map(p => adminRow(p, logins, sheets))
 			.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 		let guests = 0;
 		for (const n of logins.keys()) if (GUEST_RE.test(n)) guests++;
@@ -1425,7 +1430,7 @@ const adminCommands = {
 	show({ name }) {
 		const p = entryOf(String(name || '').toLowerCase());
 		if (!p) return { error: `No character called ${name}.` };
-		const row = adminRow(p, lastLogins());
+		const row = adminRow(p, lastLogins(), (charactersNow() || {}).characters);
 		return {
 			...row,
 			gameAccount: accountExistsExact(p.name),

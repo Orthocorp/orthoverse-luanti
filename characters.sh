@@ -7,8 +7,10 @@
 #                                        wallet contains the text), and the guests;
 #                                        sorted by a column if one is named: name,
 #                                        wallet, password, since or last (newest
-#                                        first), locked
-#   ./characters.sh show <name>          one character in full
+#                                        first), time (most first), locked
+#   ./characters.sh show <name>          one character in full, with the time they
+#                                        have spent in the world (counted from patch
+#                                        1158), and in this visit if there now
 #   ./characters.sh lock <name> [reason] keep them out: signed out on the website,
 #                                        put out of the game, until unlocked
 #   ./characters.sh unlock <name>
@@ -100,7 +102,7 @@ fi
 SORT=
 if [ "$cmd" = list ]; then
 	case "$(printf '%s' "$2" | tr 'A-Z' 'a-z')" in
-		name|wallet|password|since|last|played|lastplayed|last_played|locked)
+		name|wallet|password|since|last|played|lastplayed|last_played|time|locked)
 			SORT=$(printf '%s' "$2" | tr 'A-Z' 'a-z')
 			shift 2
 			set -- list "$@"
@@ -124,6 +126,11 @@ fi
 printf '%s\n' "$out" | python3 -c '
 import json, sys
 r = json.load(sys.stdin)
+# Seconds as hours, minutes and seconds: 3h 05m 09s
+def hms(n):
+    if n is None: return "-"
+    n = int(n); h, m, s = n // 3600, n // 60 % 60, n % 60
+    return "%dh %02dm %02ds" % (h, m, s) if h else "%dm %02ds" % (m, s) if m else "%ds" % s
 if r.get("error"):
     print(r["error"]); sys.exit(1)
 if "characters" in r:
@@ -137,27 +144,33 @@ if "characters" in r:
     elif by == "since": rows.sort(key=lambda c: c["since"] or "", reverse=True)
     elif by in ("last", "played", "lastplayed", "last_played"):
         rows.sort(key=lambda c: c["lastPlayed"] or "", reverse=True)
+    elif by == "time": rows.sort(key=lambda c: c.get("played") or 0, reverse=True)
     elif by == "locked": rows.sort(key=lambda c: (not c["locked"], c["name"].lower()))
     def short(a): return a[:6] + "..." + a[-4:] if a else "-"
-    table = [("Name", "Wallet", "Password", "Since", "Last played", "Locked")]
+    table = [("Name", "Wallet", "Password", "Since", "Last played", "In the world", "Locked")]
     for c in rows:
+        t = hms(c.get("played"))
+        if c.get("online") is not None: t += " (here now)"
         table.append((c["name"], short(c["wallet"]), "yes" if c["password"] else "no",
-            (c["since"] or "-")[:10], c["lastPlayed"] or "never",
+            (c["since"] or "-")[:10], c["lastPlayed"] or "never", t,
             ("yes: " + c["locked"]) if isinstance(c["locked"], str) else ("yes" if c["locked"] else "")))
-    w = [max(len(t[i]) for t in table) for i in range(6)]
+    w = [max(len(t[i]) for t in table) for i in range(7)]
     for t in table:
-        print("  ".join(t[i].ljust(w[i]) for i in range(6)).rstrip())
+        print("  ".join(t[i].ljust(w[i]) for i in range(7)).rstrip())
     print("\n%d character%s; %d guest account%s in the game" % (len(rows), "" if len(rows) == 1 else "s",
         r["guests"], "" if r["guests"] == 1 else "s"))
 elif "done" in r:
     print(r["done"])
 else:
     labels = [("name", "Name"), ("wallet", "Wallet"), ("password", "Password"), ("since", "Made"),
-        ("lastPlayed", "Last played"), ("lastEntry", "Last entry from the site"), ("gameAccount", "Game account"),
+        ("lastPlayed", "Last played"), ("played", "Time in the world"), ("online", "In the world now"),
+        ("lastEntry", "Last entry from the site"), ("gameAccount", "Game account"),
         ("locked", "Locked"), ("skin", "Own skin"), ("admin", "The admin"), ("lands", "Lands held"), ("visit", "Arriving at")]
     for k, label in labels:
         v = r.get(k)
-        if isinstance(v, bool): v = "yes" if v else "no"
+        if k == "played": v = hms(v)
+        elif k == "online": v = ("yes, for " + hms(v)) if v is not None else "no"
+        elif isinstance(v, bool): v = "yes" if v else "no"
         elif isinstance(v, list): v = ", ".join(v) if v else "none"
         elif isinstance(v, dict): v = json.dumps(v)
         elif v is None: v = "-"
