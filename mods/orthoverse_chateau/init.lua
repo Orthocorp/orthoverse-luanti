@@ -119,7 +119,8 @@ on_wall("mirror", "Gilded mirror", tex("mirror"))
 
 C.PEOPLE = {
 	{id = "comte", name = "Le Comte Richard d'Améthyste", colour = "purple",
-		about = "Your host. Old nobility, an old name, and an old château that costs more each year than its vineyards bring in."},
+		about = "Your host. Old nobility with a sharp head for business: on Monday he signs the contract of his life, " ..
+			"and the Améthyste vintages will be poured at every court in Europe. Tonight's dinner was to celebrate it."},
 	{id = "marquise", name = "La Marquise Céleste Vermeil", colour = "crimson",
 		about = "Aristocratic and refined, with a fiery and dangerous reputation."},
 	{id = "general", name = "Le Général Gaston Safran", colour = "saffron",

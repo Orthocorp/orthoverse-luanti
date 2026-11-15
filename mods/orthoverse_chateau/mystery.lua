@@ -137,8 +137,8 @@ local DECOY = {
 }
 
 local MOTIVE = {
-	comte = "A bundle of unpaid bills, the oldest years overdue, tied with purple ribbon. A card on top: " ..
-		"\"I will take them all off your hands, and the château with them. S.L.\"",
+	comte = "A letter from a great Paris wine house: they will sign the Comte's contract on Monday, \"unless the " ..
+		"better offer Monsieur Lenoir has promised us arrives first.\" Lenoir meant to take the deal from under him.",
 	marquise = "A letter in a woman's hand, unsigned: \"He has my letters, and he means to sell them. I will not " ..
 		"be ruined by a dealer in pictures.\"",
 	general = "A gambling marker for forty thousand francs, signed by Le Général Safran and made over to " ..
@@ -163,8 +163,8 @@ local NOTHING = {
 	"Receipts for coal and candles. Nothing more.",
 }
 
-local TRACE = "Half hidden here, a black onyx cufflink engraved S.L.: Monsieur Lenoir's. Beside it, a patch of " ..
-	"carpet has been scrubbed so hard that the pile is worn."
+local TRACE = "Half hidden here, a black onyx cufflink engraved S.L.: Monsieur Lenoir's. Beside it, the floor " ..
+	"has been scrubbed, hard, and not long ago."
 local WEAPON_FOUND = "Pushed out of sight here: %s, wiped clean, but not clean enough. Whoever killed Monsieur " ..
 	"Lenoir hid it here."
 
@@ -189,7 +189,7 @@ local function draw(def)
 		T = 22 * 60 + math.random(5, 110),
 		vintage = math.random(1745, 1789), year = math.random(1730, 1760),
 		tune = {}, readings = READINGS, accusations = ACCUSATIONS,
-		facts = {}, found = {}, ticks = {}, sel = {}, opened = {}, played = {}, keys = {},
+		facts = {}, found = {}, ticks = {}, sel = {}, opened = {}, played = {},
 	}
 	for i = 1, TUNE_LENGTH do d.tune[i] = math.random(#NOTES) end
 	local T = d.T
@@ -800,7 +800,7 @@ end)
 
 local RULES = [[Monsieur Sébastien Lenoir is dead. One of the eight other guests killed him, with one of six weapons, in one of nine rooms. It is different every time you come.
 
-Search the château. Right-click drawers, papers, barrels, chairs, caskets and the like: what you find goes into your casebook. Use the casebook (left click with it in your hand) to read your clues and strike out names, weapons and rooms.
+Search the château. Right-click drawers, papers, barrels, armchairs, caskets and the like: what you find goes into your casebook. Use the casebook (left click with it in your hand) to read your clues and strike out names, weapons and rooms.
 
 His watch tells you when he died. A guest whom others saw somewhere at that moment did not kill him, and a room where people were at that moment is not where he died. Check the times: an alibi for the wrong hour clears no one.
 
