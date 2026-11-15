@@ -96,6 +96,9 @@
   .sheet-portrait canvas { display: block; margin: 0 auto; max-width: 100%; cursor: grab; }
   .sheet-line { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; }
   .sheet-line .label { font: 14px/1 "Midnight", monospace; color: #7a4a17; flex: none; width: 150px; }
+  .sheet-anim { justify-content: center; gap: 4px; margin: 6px 0 0; }
+  .sheet-anim .chip { color: #2b1d0e; background: #f7f0de; border-color: #7a4a17; font-size: 12px; padding: 3px 7px; }
+  .sheet-anim .chip[aria-pressed="true"] { background: #7a4a17; color: #f7f0de; }
   .sheet-portrait .none { margin: 0; padding: 40px 12px; text-align: center; font-size: 14px; color: #5b4630; }
   .sheet-line .big { font: 32px/1 "Midnight", monospace; color: #2b1d0e; }
   .meter { flex: 1; }
@@ -160,6 +163,12 @@
             </svg>
           </a>
           <canvas id="sheet-canvas" width="200" height="270" aria-label="Your character as you look in the game"></canvas>
+          <div class="row sheet-anim" role="group" aria-label="Pose">
+            <button type="button" class="chip" data-sheet-anim="still">Still</button>
+            <button type="button" class="chip" data-sheet-anim="idle">Idle</button>
+            <button type="button" class="chip" data-sheet-anim="walk" aria-pressed="true">Walk</button>
+            <button type="button" class="chip" data-sheet-anim="run">Run</button>
+          </div>
           <p id="sheet-nolook" class="none" hidden>No look saved yet: design one below, and it appears here.</p></div>
         <div>
           <div class="sheet-line"><span class="label">Rank</span><span id="sheet-rank" class="big">1</span></div>
@@ -917,6 +926,7 @@
       const d = info.design ? checkDesign(info.design, 7) : null;
       $('sheet-canvas').hidden = !d;
       $('sheet-nolook').hidden = !!d;
+      document.querySelector('.sheet-anim').hidden = !d;
       if (!d) return;
       const skin = toGame(paint(d, f => parts.get(f)));
       const cv = document.createElement('canvas');
@@ -927,12 +937,24 @@
         sheetViewer.zoom = 0.9;
         sheetViewer.camera.position.x = 20;
         sheetViewer.controls.enableZoom = false;
-        sheetViewer.animation = new skinview3d.IdleAnimation();
+        setSheetAnim(sheetAnim);
       }
       sheetViewer.loadSkin(cv, { model: 'default' });
     } catch (e) { /* the sheet without its picture */ }
   }
   OV.on(me => drawSheet(me));
+  // The portrait's pose: walking unless chosen otherwise
+  let sheetAnim = 'walk';
+  function setSheetAnim(kind) {
+    sheetAnim = kind;
+    if (sheetViewer) {
+      sheetViewer.animation = kind === 'walk' ? new skinview3d.WalkingAnimation() : kind === 'run' ? new skinview3d.RunningAnimation()
+        : kind === 'idle' ? new skinview3d.IdleAnimation() : null;
+    }
+    document.querySelectorAll('[data-sheet-anim]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sheetAnim === kind ? 'true' : 'false'));
+  }
+  document.querySelectorAll('[data-sheet-anim]').forEach(b => b.addEventListener('click', () => setSheetAnim(b.dataset.sheetAnim)));
+
   // The pencil: down to the look designer
   $('sheet-edit').addEventListener('click', e => {
     e.preventDefault();
