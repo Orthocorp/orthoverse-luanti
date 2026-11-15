@@ -29,7 +29,7 @@
 import http from 'node:http';
 import net from 'node:net';
 import { createHmac, createHash, randomBytes, timingSafeEqual, scrypt } from 'node:crypto';
-import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, unlinkSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -785,6 +785,19 @@ function highestLevel(address, name) {
 	return best;
 }
 
+// The game's character sheets, read again only when the file has changed
+// (so asking for a sheet costs no file read or parse most of the time)
+let charactersCache = { mtime: 0, data: null };
+function charactersNow() {
+	try {
+		const m = statSync(CHARACTERS_FILE).mtimeMs;
+		if (m !== charactersCache.mtime) charactersCache = { mtime: m, data: readJson(CHARACTERS_FILE, null) };
+	} catch (e) {
+		charactersCache = { mtime: 0, data: null };
+	}
+	return charactersCache.data;
+}
+
 // Prestige: the lands a wallet holds now, and their castle levels added up
 function prestigeOf(address) {
 	if (!owners || !address) return { lands: 0, levels: 0 };
@@ -1074,7 +1087,7 @@ const routes = {
 		const sess = readSession(req);
 		if (!sess) return send(res, 401, { error: 'Sign in first.' });
 		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
-		const all = readJson(CHARACTERS_FILE, null);
+		const all = charactersNow();
 		const c = (all && all.characters && all.characters[sess.entry.name.toLowerCase()]) || {};
 		const num = (v, d) => Number.isFinite(v) ? v : d;
 		const p = prestigeOf(sess.address);

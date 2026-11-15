@@ -16,7 +16,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # luanti-wasm needs Node 24 to build
-COPY --from=node:24.22.0-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24.22.3-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 
 ARG LUANTI_WASM_COMMIT=5bfae52b53605b39667dfc29cddd59c861e38111
 RUN git clone -q https://github.com/paradust7/luanti-wasm.git /luanti-wasm \
