@@ -634,8 +634,8 @@ local function upstairs()
 		local bx = r[1] < 34 and r[1] or r[3]
 		set(bx, UP + 1, zd - 1, "orthoverse_chateau:bed", r[1] < 34 and WALL.w or WALL.e)
 		set(bx, UP + 1, zd, "orthoverse_chateau:bed", r[1] < 34 and WALL.w or WALL.e)
-		set(bx, UP + 1, r[2], "orthoverse_chateau:drawers", r[1] < 34 and FACE.e or FACE.w)
-		set(bx, UP + 2, r[2], CANDLES)
+		set(bx, UP + 1, zd - 2, "orthoverse_chateau:drawers", r[1] < 34 and FACE.e or FACE.w)
+		set(bx, UP + 2, zd - 2, CANDLES)
 		set(math.floor((r[1] + r[3]) / 2), UPC - 1, zd, CHANDELIER)
 	end
 	for z = 18, 44, 6 do set(35, UPC - 1, z, CHANDELIER) end
