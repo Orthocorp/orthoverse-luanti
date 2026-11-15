@@ -332,3 +332,64 @@ core.register_chatcommand("rank", {
 		return true, who .. ": " .. progress_text(p)
 	end,
 })
+
+------------------------------------------------------------------------------
+-- The character sheet on the website (the Account page): each character's
+-- rank, experience, stamina (hit points) and stats, written to
+-- orthoverse_characters.json in the world (read by the auth service). Kept
+-- for characters not in the game; brought up to date for those who are,
+-- when they join or leave and every half minute. Guests are left out.
+
+local SHEET_FILE = core.get_worldpath() .. "/orthoverse_characters.json"
+local STATS = {"insight", "agility", "prowess"}   -- orthoverse_adventure keeps them
+local sheets = {}
+do
+	local f = io.open(SHEET_FILE, "r")
+	if f then
+		local data = core.parse_json(f:read("*a") or "", nil)
+		f:close()
+		if type(data) == "table" and type(data.characters) == "table" then sheets = data.characters end
+	end
+end
+local sheets_dirty = false
+
+local function sheet_of(player)
+	local name = player:get_player_name()
+	if orthoverse.wallets and orthoverse.wallets.is_guest and orthoverse.wallets.is_guest(name) then return end
+	local xp = xp_of(player)
+	local rank = rank_for(xp)
+	local meta = player:get_meta()
+	local s = {rank = rank, xp = xp, next = NEEDS[rank + 1], hp = player:get_hp(),
+		hp_max = player:get_properties().hp_max or rank_api.hp_max(rank), at = os.date("!%Y-%m-%dT%H:%M:%SZ")}
+	for _, k in ipairs(STATS) do s[k] = meta:get_int("orthoverse_stats:" .. k) end
+	local old = sheets[name:lower()]
+	sheets[name:lower()] = s
+	if not old or old.xp ~= s.xp or old.hp ~= s.hp or old.hp_max ~= s.hp_max or old.insight ~= s.insight
+			or old.agility ~= s.agility or old.prowess ~= s.prowess then
+		sheets_dirty = true
+	end
+end
+
+local function write_sheets(force)
+	if not (sheets_dirty or force) then return end
+	sheets_dirty = false
+	core.safe_file_write(SHEET_FILE, core.write_json({characters = sheets}))
+end
+rank_api.update_sheet = function(player) sheet_of(player); write_sheets() end
+
+core.register_on_joinplayer(function(player) core.after(1, function()
+	if player:is_player() then sheet_of(player); write_sheets() end
+end) end)
+core.register_on_leaveplayer(function(player) sheet_of(player); write_sheets() end)
+local sheet_timer = 0
+core.register_globalstep(function(dtime)
+	sheet_timer = sheet_timer + dtime
+	if sheet_timer < 30 then return end
+	sheet_timer = 0
+	for _, p in ipairs(core.get_connected_players()) do sheet_of(p) end
+	write_sheets()
+end)
+core.register_on_shutdown(function()
+	for _, p in ipairs(core.get_connected_players()) do sheet_of(p) end
+	write_sheets(true)
+end)

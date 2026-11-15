@@ -72,6 +72,8 @@ const CHAIN_ID = 1;
 
 // The adventures and their records, written by the game (orthoverse_adventure)
 const ADVENTURES_FILE = env.OV_ADVENTURES || '/world/orthoverse_adventures/adventures.json';
+// Each character's rank, experience, stamina and stats (orthoverse_rank)
+const CHARACTERS_FILE = env.OV_CHARACTERS || '/world/orthoverse_characters.json';
 
 // Cloudflare Turnstile on the registration form (both empty: no check)
 const TURNSTILE_SITEKEY = env.OV_TURNSTILE_SITEKEY || '';
@@ -783,6 +785,15 @@ function highestLevel(address, name) {
 	return best;
 }
 
+// Prestige: the lands a wallet holds now, and their castle levels added up
+function prestigeOf(address) {
+	if (!owners || !address) return { lands: 0, levels: 0 };
+	const a = address.toLowerCase();
+	let n = 0, levels = 0;
+	for (const l of lands) if (owners.owners[l.token] === a) { n++; levels += levelOf(l) % 8; }
+	return { lands: n, levels };
+}
+
 // ---------------------------------------------------------------------------
 // Skins: each character's design (registry.json, skin: { d: the design, h: its
 // picture's hash }) and the picture the game wears (skins/<name>.png, 64 x 32)
@@ -1054,6 +1065,26 @@ const routes = {
 			name: sess.entry.name,
 			design: sess.entry.skin ? sess.entry.skin.d : null,
 			level: highestLevel(sess.address, sess.entry.name),
+		});
+	},
+
+	// The character sheet: rank, experience, stamina and stats from the game
+	// (as the character last was there), and prestige from the chain
+	'GET /auth/character': async (req, res) => {
+		const sess = readSession(req);
+		if (!sess) return send(res, 401, { error: 'Sign in first.' });
+		if (!sess.entry) return send(res, 400, { error: 'Choose a player name first.' });
+		const all = readJson(CHARACTERS_FILE, null);
+		const c = (all && all.characters && all.characters[sess.entry.name.toLowerCase()]) || {};
+		const num = (v, d) => Number.isFinite(v) ? v : d;
+		const p = prestigeOf(sess.address);
+		send(res, 200, {
+			name: sess.entry.name,
+			rank: num(c.rank, 1), xp: num(c.xp, 0), next: num(c.next, null),
+			hp: num(c.hp, 20), hp_max: num(c.hp_max, 20),
+			insight: num(c.insight, 0), agility: num(c.agility, 0), prowess: num(c.prowess, 0),
+			prestige: p.lands + p.levels, lands: p.lands, levels: p.levels,
+			seen: c.at || null,
 		});
 	},
 

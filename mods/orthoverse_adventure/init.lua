@@ -683,6 +683,28 @@ local function start_or_join(name, key)
 	return true
 end
 
+-- Character stats (the sheet on the Account page): the first time a
+-- character completes an adventure, each of its tags puzzle, skill and combat
+-- raises Insight, Agility or Prowess by one. Only completions that are
+-- recorded count (not guests', nor the builders' own).
+local STAT_OF = {puzzle = "insight", skill = "agility", combat = "prowess"}
+local STAT_NAME = {insight = "Insight", agility = "Agility", prowess = "Prowess"}
+local STAT = "orthoverse_stats:"
+local function credit(player, key, def)
+	local meta = player:get_meta()
+	if meta:get_string(STAT .. "done:" .. key) ~= "" then return end
+	meta:set_string(STAT .. "done:" .. key, "1")
+	local up = {}
+	for _, t in ipairs(def.tags or {}) do
+		local s = STAT_OF[t]
+		if s then
+			meta:set_int(STAT .. s, meta:get_int(STAT .. s) + 1)
+			up[#up + 1] = STAT_NAME[s]
+		end
+	end
+	return up
+end
+
 local function finish(name, key)
 	local run = runs[key]
 	local def = adventures[key]
@@ -715,6 +737,15 @@ local function finish(name, key)
 	if first and names then
 		core.chat_send_all(("%s has been completed for the first time, by %s, in %s!"):format(
 			def.name, table.concat(names, ", "), format_time(secs)))
+	end
+	-- The first completion of this adventure raises a character's stats
+	for _, n in ipairs(names or {}) do
+		local p = core.get_player_by_name(n)
+		local up = p and credit(p, key, def)
+		if up and #up > 0 then
+			core.chat_send_player(n, ("Your first time through %s: %s +1 (see your character sheet on the Account page).")
+				:format(def.name, table.concat(up, " +1, ")))
+		end
 	end
 	-- Other mods (rank: the finishing bonus) hear of it: the adventure, the
 	-- run, and the members whose run counts
@@ -2070,4 +2101,23 @@ core.register_on_mods_loaded(function()
 		end
 	end
 	if changed then write_public() end
+end)
+
+-- Stats for completions from before there were stats: the first time each
+-- character joins, from the records (every version of every adventure)
+core.register_on_joinplayer(function(player)
+	local meta = player:get_meta()
+	if meta:get_string(STAT .. "v") == "1" then return end
+	meta:set_string(STAT .. "v", "1")
+	local name = player:get_player_name()
+	for key, versions in pairs(records) do
+		local def = adventures[key]
+		local done = false
+		for _, list in pairs(def and versions or {}) do
+			for _, r in ipairs(list) do
+				for _, n in ipairs(r.names or {}) do if n == name then done = true end end
+			end
+		end
+		if done then credit(player, key, def) end
+	end
 end)

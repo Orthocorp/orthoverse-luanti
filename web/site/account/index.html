@@ -79,7 +79,37 @@
   .swatch[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px var(--night); }
   .swatch:focus-visible, .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
   .accs { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* The character sheet: parchment, ink, ruled boxes */
+  .sheet { background: var(--parchment); color: #2b1d0e; border: 3px solid var(--outline); padding: 22px;
+    box-shadow: inset 0 0 0 3px #c9b98f, inset 0 0 40px rgba(122, 74, 23, 0.25), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .sheet h2 { margin: 0; color: #5a2a0c; text-shadow: none; }
+  .sheet-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px;
+    border-bottom: 3px double #7a4a17; padding-bottom: 8px; margin-bottom: 18px; }
+  .sheet-head .kind { font: 14px/1 "Midnight", monospace; color: #7a4a17; letter-spacing: 1px; }
+  .sheet-body { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
+  .sheet-portrait { background: #e2d4b0; border: 3px solid #7a4a17; padding: 6px; }
+  .sheet-portrait canvas { display: block; margin: 0 auto; max-width: 100%; cursor: grab; }
+  .sheet-line { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; }
+  .sheet-line .label { font: 14px/1 "Midnight", monospace; color: #7a4a17; flex: none; width: 150px; }
+  .sheet-portrait .none { margin: 0; padding: 40px 12px; text-align: center; font-size: 14px; color: #5b4630; }
+  .sheet-line .big { font: 32px/1 "Midnight", monospace; color: #2b1d0e; }
+  .meter { flex: 1; }
+  .meter .bar { height: 14px; border: 2px solid #7a4a17; background: #e2d4b0; }
+  .meter .bar > i { display: block; height: 100%; background: #b8860b; }
+  .meter.stamina .bar > i { background: #a5281b; }
+  .meter .num { font-size: 15px; margin-top: 2px; }
+  .scores { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 8px; }
+  .score { border: 3px solid #7a4a17; background: #f7f0de; text-align: center; padding: 8px 6px 10px; }
+  .score .name { font: 13px/1 "Midnight", monospace; color: #7a4a17; letter-spacing: 1px; }
+  .score .value { font: 36px/1.1 "Midnight", monospace; color: #2b1d0e; margin: 8px 0 6px; }
+  .score .how { font-size: 13px; line-height: 1.35; color: #5b4630; }
+  .sheet .note { font-size: 14px; color: #5b4630; margin: 8px 0 0; max-width: none; }
   @media (max-width: 760px) { .look { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) {
+    .sheet-body { grid-template-columns: 1fr; } .scores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sheet-portrait { max-width: 220px; margin: 0 auto; }
+    .sheet-line .label { width: 104px; font-size: 12px; }
+  }
   @media (max-width: 640px) {
     .tab { padding: 12px 10px 10px; font-size: 14px; }
     .land { grid-template-columns: 1fr; }
@@ -109,6 +139,32 @@
       <div class="row">
         <button id="signin" class="ov-btn" type="button">Sign in</button>
         <button id="register" class="ov-btn" type="button">Make a character</button>
+      </div>
+    </section>
+
+    <section id="sheet" class="sheet" hidden aria-labelledby="sheet-name">
+      <div class="sheet-head"><h2 id="sheet-name"></h2><span class="kind">CHARACTER SHEET</span></div>
+      <div class="sheet-body">
+        <div class="sheet-portrait"><canvas id="sheet-canvas" width="200" height="270" aria-label="Your character as you look in the game"></canvas>
+          <p id="sheet-nolook" class="none" hidden>No look saved yet: design one below, and it appears here.</p></div>
+        <div>
+          <div class="sheet-line"><span class="label">Rank</span><span id="sheet-rank" class="big">1</span></div>
+          <div class="sheet-line"><span class="label">Experience</span>
+            <div class="meter"><div class="bar"><i id="sheet-xp-bar" style="width:0"></i></div><div id="sheet-xp" class="num"></div></div></div>
+          <div class="sheet-line"><span class="label">Stamina</span>
+            <div class="meter stamina"><div class="bar"><i id="sheet-hp-bar" style="width:0"></i></div><div id="sheet-hp" class="num"></div></div></div>
+          <div class="scores">
+            <div class="score"><div class="name">INSIGHT</div><div id="sheet-insight" class="value">0</div>
+              <div class="how">+1 the first time you finish each puzzle adventure</div></div>
+            <div class="score"><div class="name">AGILITY</div><div id="sheet-agility" class="value">0</div>
+              <div class="how">+1 the first time you finish each skill adventure</div></div>
+            <div class="score"><div class="name">PROWESS</div><div id="sheet-prowess" class="value">0</div>
+              <div class="how">+1 the first time you finish each combat adventure</div></div>
+            <div class="score"><div class="name">PRESTIGE</div><div id="sheet-prestige" class="value">0</div>
+              <div id="sheet-prestige-how" class="how">Your lands, plus all their castle levels</div></div>
+          </div>
+          <p id="sheet-note" class="note"></p>
+        </div>
       </div>
     </section>
 
@@ -805,6 +861,8 @@
       const r = await OV.api('POST', '/auth/skin', { design });
       saved = r.design;
       say('Saved. You will wear it in the game within a few seconds.', 'good');
+      sheetFor = null;
+      drawSheet(OV.me);   // the sheet's picture too
     } catch (e) {
       say(e.message, 'bad');
     } finally {
@@ -813,6 +871,59 @@
   });
 
   OV.on(me => start(me));
+
+  // The character sheet: rank, experience, stamina and stats (from the game,
+  // as the character last was there), prestige (from the chain), and the
+  // character as they look, turning slowly
+  let sheetViewer = null, sheetFor = null;
+  async function drawSheet(me) {
+    const signedIn = me && me.signedIn && me.name;
+    $('sheet').hidden = !signedIn;
+    if (!signedIn || sheetFor === me.name) return;
+    sheetFor = me.name;
+    $('sheet-name').textContent = me.name;
+    let c;
+    try { c = await OV.api('GET', '/auth/character'); } catch (e) { $('sheet-note').textContent = 'Your sheet could not be loaded: ' + e.message; return; }
+    const n = v => Number(v || 0).toLocaleString('en-GB');
+    $('sheet-rank').textContent = c.rank;
+    if (c.next) {
+      $('sheet-xp').textContent = n(c.xp) + ' / ' + n(c.next) + ' to rank ' + (c.rank + 1);
+      $('sheet-xp-bar').style.width = Math.max(0, Math.min(100, 100 * c.xp / c.next)) + '%';
+    } else {
+      $('sheet-xp').textContent = n(c.xp) + ': the highest rank';
+      $('sheet-xp-bar').style.width = '100%';
+    }
+    $('sheet-hp').textContent = c.hp + ' / ' + c.hp_max;
+    $('sheet-hp-bar').style.width = Math.max(0, Math.min(100, 100 * c.hp / (c.hp_max || 1))) + '%';
+    for (const k of ['insight', 'agility', 'prowess', 'prestige']) $('sheet-' + k).textContent = c[k];
+    $('sheet-prestige-how').textContent = c.lands
+      ? c.lands + (c.lands === 1 ? ' land' : ' lands') + ', plus ' + c.levels + (c.levels === 1 ? ' castle level' : ' castle levels')
+      : 'Your lands, plus all their castle levels (link a wallet that holds lands)';
+    $('sheet-note').textContent = c.seen
+      ? 'Rank, stamina and stats as you were when last in the game (' + new Date(c.seen).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ').'
+      : 'Your rank and stats appear here once you have played.';
+    // the portrait
+    try {
+      const [info] = await Promise.all([OV.api('GET', '/auth/skin'), loadParts()]);
+      const d = info.design ? checkDesign(info.design, 7) : null;
+      $('sheet-canvas').hidden = !d;
+      $('sheet-nolook').hidden = !!d;
+      if (!d) return;
+      const skin = toGame(paint(d, f => parts.get(f)));
+      const cv = document.createElement('canvas');
+      cv.width = 64; cv.height = 32;
+      cv.getContext('2d').putImageData(new ImageData(skin, 64, 32), 0, 0);
+      if (!sheetViewer) {
+        sheetViewer = new skinview3d.SkinViewer({ canvas: $('sheet-canvas'), width: 200, height: 270 });
+        sheetViewer.zoom = 0.9;
+        sheetViewer.camera.position.x = 20;
+        sheetViewer.controls.enableZoom = false;
+        sheetViewer.animation = new skinview3d.IdleAnimation();
+      }
+      sheetViewer.loadSkin(cv, { model: 'default' });
+    } catch (e) { /* the sheet without its picture */ }
+  }
+  OV.on(me => drawSheet(me));
 </script>
 </body>
 </html>
