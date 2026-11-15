@@ -1785,6 +1785,8 @@ local HELP = table.concat({
 	"   land you stand on (north: turned round, its entrance at the north end; here: its south-west",
 	"   corner where you stand); /adventure place on its own lists them.",
 	"/adventure replace <name>   (Admin) Put the newer copy of a ready-made adventure in place of this one, saved as its next version (records kept)",
+	"/adventure template <name>   (Admin) Say which ready-made adventure this is (or none), for its tags,",
+	"   blurb and cover picture on the Adventures page.",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
 	"builder, the admin and guests are not recorded: test it with another character to",
@@ -1885,6 +1887,26 @@ core.register_chatcommand("adventure", {
 				core.chat_send_player(name, msg)
 			end, facing == "north")
 			return true, "Placing " .. tname .. "…"
+		end
+		-- Which ready-made adventure this is, for its tags, blurb and cover on
+		-- the Adventures page (for one placed before that was noted, and
+		-- renamed since, so not found by its name)
+		if cmd == "template" then
+			if not is_admin(name) then return false, "Saying which ready-made adventure this is is for the admin." end
+			if not def then return false, "Stand on the land of the adventure." end
+			if rest == "none" then
+				def.template = nil
+			else
+				local tname = rest:match("^([%w_%-]+)$")
+				local info = tname and core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+				if type(info) ~= "table" then return false, "No ready-made adventure called that: /adventure place lists them." end
+				def.template = tname
+				def.tags = def.tags or clean_tags(info.tags)
+			end
+			save_def(key)
+			write_public()
+			return true, def.template and (def.name .. " is now shown as the ready-made " .. def.template .. ".")
+				or (def.name .. " is now shown as built by a player.")
 		end
 		-- Putting a newer copy of a ready-made adventure where the old one is
 		-- (its records are kept); then /adventure save and open, as after placing
@@ -2119,26 +2141,22 @@ end
 
 -- Adventures placed from a template before it had tags take the template's.
 -- Those placed before the template's name was recorded get it first, by
--- their name and the size of their box (either way round), so they get its
--- tags, blurb and cover picture on the Adventures page.
+-- their name (the box is no guide: several templates have changed size
+-- since, and corners can be moved), so they get its tags, blurb and cover
+-- picture on the Adventures page.
 core.register_on_mods_loaded(function()
 	local changed = false
 	local by_name = {}
 	for _, tname in ipairs(template_names()) do
 		local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
-		if type(info) == "table" and info.name and info.corner1 and info.corner2 then by_name[info.name] = {tname, info} end
+		if type(info) == "table" and type(info.name) == "string" then by_name[info.name:sub(1, 60)] = tname end
 	end
 	for key, def in pairs(adventures) do
-		local t = not def.template and def.corner1 and def.corner2 and by_name[def.name]
-		if t then
-			local i1, i2 = t[2].corner1, t[2].corner2
-			local dx, dy, dz = def.corner2.x - def.corner1.x, def.corner2.y - def.corner1.y, def.corner2.z - def.corner1.z
-			local ix, iy, iz = i2.x - i1.x, i2.y - i1.y, i2.z - i1.z
-			if dy == iy and ((dx == ix and dz == iz) or (dx == iz and dz == ix)) then
-				def.template = t[1]
-				save_def(key); changed = true
-				core.log("action", "[orthoverse_adventure] " .. def.name .. " on " .. key .. " is the template " .. t[1])
-			end
+		local tname = not def.template and by_name[def.name]
+		if tname then
+			def.template = tname
+			save_def(key); changed = true
+			core.log("action", "[orthoverse_adventure] " .. def.name .. " on " .. key .. " is the template " .. tname)
 		end
 		if def.template and def.tags == nil then
 			local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. def.template .. ".json") or "", nil)
