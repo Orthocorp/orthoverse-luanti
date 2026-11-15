@@ -518,3 +518,5 @@ function C.show_text(player, title, text)
 		"button_exit[3.5,6.6;3,0.7;ok;" .. S("Close") .. "]"
 	core.show_formspec(player:get_player_name(), "orthoverse_chateau:text", fs)
 end
+
+dofile(modpath .. "/mystery.lua")

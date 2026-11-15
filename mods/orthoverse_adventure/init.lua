@@ -639,7 +639,10 @@ local function start_or_join(name, key)
 		end
 		local n = 0
 		for _ in pairs(run.members) do n = n + 1 end
-		if n >= PARTY_MAX then return false, "The party inside is full." end
+		if n >= (def.party_max or PARTY_MAX) then
+			return false, def.party_max == 1 and "Someone is inside, and this adventure is for one at a time."
+				or "The party inside is full."
+		end
 		run.members[name] = true
 	else
 		run = {members = {[name] = true}, started = now(), join_until = now() + JOIN_WINDOW,
@@ -648,8 +651,13 @@ local function start_or_join(name, key)
 		storage:set_string("dirty:" .. key, "1")
 		-- What the run does is not drawn on the map (orthoverse_lands)
 		orthoverse.land_changes.hold(key, true)
-		core.chat_send_player(name, ("The run has begun. Companions may follow you through the gate for the next %d " ..
-			"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
+		if def.party_max == 1 then
+			core.chat_send_player(name, ("The run has begun. You are on your own. Time limit: %d minutes.")
+				:format(def.limit or LIMIT_DEFAULT))
+		else
+			core.chat_send_player(name, ("The run has begun. Companions may follow you through the gate for the next %d " ..
+				"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
+		end
 	end
 	core.chat_send_player(name, "To give up: /adventure leave")
 	-- (not inside a companion already there: orthoverse_bodies)
@@ -696,6 +704,23 @@ local function finish(name, key)
 	-- Other mods (rank: the finishing bonus) hear of it: the adventure, the
 	-- run, and the members whose run counts
 	for _, f in ipairs(orthoverse.adventure.on_finish) do f(key, def, run, names or {}) end
+end
+
+-- A player fails an adventure and is put out of the run (Death at the
+-- Château: a second wrong accusation): out at the arrival, their own things
+-- back, no experience, and locked out as after dying there
+local function expel(name, key, why)
+	local run = runs[key]
+	local def = adventures[key]
+	if not run or not def or not run.members[name] then return end
+	run.members[name] = nil
+	local player = core.get_player_by_name(name)
+	if player and not may_manage(name, key) then
+		local secs = lock_out(player, key)
+		why = (why and why .. " " or "") .. ("You may go in again in %d minutes."):format(math.floor(secs / 60))
+	end
+	put_at_arrival(name, def, why)
+	out_of_run(name)
 end
 
 ------------------------------------------------------------------------------
@@ -1441,7 +1466,7 @@ local function place_template(tname, at, by, done, turned)
 				start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 				rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 				footprint = {min = offset(p1, fp.min), max = offset(p1, fp.max)},
-				kit = type(info.kit) == "table" and info.kit or nil,
+				kit = type(info.kit) == "table" and info.kit or nil, party_max = tonumber(info.party_max),
 				catch_falls = info.catch_falls and true or nil,
 				approach = info.approach and offset(p1, info.approach) or nil,
 				approach_line = info.approach_line and info.approach_line:sub(1, 200) or nil,
@@ -1491,7 +1516,7 @@ local function place_template(tname, at, by, done, turned)
 			start = offset(p1, info.start), arrival = offset(p1, info.arrival),
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 			footprint = {min = vector.new(p1.x, ground, p1.z), max = p2},
-			kit = type(info.kit) == "table" and info.kit or nil,
+			kit = type(info.kit) == "table" and info.kit or nil, party_max = tonumber(info.party_max),
 		}
 		save_def(key)
 		write_public()
@@ -1992,6 +2017,8 @@ orthoverse.adventure.list = adventures
 -- For tests: what the gate's Enter button and the finish block do
 orthoverse.adventure.enter = start_or_join
 orthoverse.adventure.finish = finish
+-- A mod's way to fail a player out of a run (orthoverse_chateau)
+orthoverse.adventure.expel = expel
 -- A finish of another look (orthoverse_scifi's black box) does what this does
 orthoverse.adventure.at_finish = at_finish
 orthoverse.adventure.place = place_template
