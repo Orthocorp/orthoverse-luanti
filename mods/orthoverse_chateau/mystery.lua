@@ -37,6 +37,9 @@ local function names(list)
 	if #n <= 1 then return n[1] or "" end
 	return table.concat(n, ", ", 1, #n - 1) .. " and " .. n[#n]
 end
+-- The latest time any clue gives (just before midnight, so no time in the
+-- clues crosses it)
+local LATEST = 23 * 60 + 55
 local function them(list)
 	if #list > 1 then return "them" end
 	return FEMALE[list[1]] and "her" or "him"
@@ -186,7 +189,7 @@ end
 local function draw(def)
 	local d = {
 		murderer = pick(C.PEOPLE).id, weapon = pick(C.WEAPONS).id, room = pick(C.ROOMS).id,
-		T = 22 * 60 + math.random(5, 110),
+		T = 22 * 60 + math.random(5, 75),     -- (22:05 to 23:20: every time in the clues is before midnight)
 		vintage = math.random(1745, 1789), year = math.random(1730, 1760),
 		tune = {}, readings = READINGS, accusations = ACCUSATIONS,
 		facts = {}, found = {}, ticks = {}, sel = {}, opened = {}, played = {},
@@ -210,8 +213,8 @@ local function draw(def)
 		local n = (i < #innocent and math.random(3) > 1) and 2 or 1
 		local who = {innocent[i], n == 2 and innocent[i + 1] or nil}
 		local room = table.remove(rooms, 1)
-		local t1 = T - math.random(20, 70)
-		local t2 = T + math.random(10, 50)
+		local t1 = T - math.random(20, 60)
+		local t2 = math.min(T + math.random(10, 40), LATEST)
 		facts[#facts + 1] = {text = alibi_text(room, who, t1, t2)}
 		used[room] = true
 		alibi_rooms[#alibi_rooms + 1] = room
@@ -229,8 +232,8 @@ local function draw(def)
 		t2 = T - math.random(8, 35)
 		t1 = t2 - math.random(30, 60)
 	else
-		t1 = T + math.random(10, 30)
-		t2 = t1 + math.random(30, 50)
+		t1 = T + math.random(10, 25)
+		t2 = math.min(t1 + math.random(20, 40), LATEST)
 	end
 	facts[#facts + 1] = {text = alibi_text(hroom, {d.murderer}, t1, t2)}
 	-- A weapon taken for an innocent reason
