@@ -87,7 +87,12 @@
     border-bottom: 3px double #7a4a17; padding-bottom: 8px; margin-bottom: 18px; }
   .sheet-head .kind { font: 14px/1 "Midnight", monospace; color: #7a4a17; letter-spacing: 1px; }
   .sheet-body { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
-  .sheet-portrait { background: #e2d4b0; border: 3px solid #7a4a17; padding: 6px; }
+  .sheet-portrait { position: relative; background: #e2d4b0; border: 3px solid #7a4a17; padding: 6px; }
+  .sheet-portrait .pencil { position: absolute; top: 6px; right: 6px; z-index: 1; display: grid; place-items: center;
+    width: 36px; height: 36px; background: #f7f0de; border: 2px solid #7a4a17; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25); }
+  .sheet-portrait .pencil:hover { background: #fff8e6; }
+  .sheet-portrait .pencil:focus-visible { outline: 2px solid #5a2a0c; outline-offset: 2px; }
+  #look:focus { outline: none; }
   .sheet-portrait canvas { display: block; margin: 0 auto; max-width: 100%; cursor: grab; }
   .sheet-line { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; }
   .sheet-line .label { font: 14px/1 "Midnight", monospace; color: #7a4a17; flex: none; width: 150px; }
@@ -145,7 +150,16 @@
     <section id="sheet" class="sheet" hidden aria-labelledby="sheet-name">
       <div class="sheet-head"><h2 id="sheet-name"></h2><span class="kind">CHARACTER SHEET</span></div>
       <div class="sheet-body">
-        <div class="sheet-portrait"><canvas id="sheet-canvas" width="200" height="270" aria-label="Your character as you look in the game"></canvas>
+        <div class="sheet-portrait">
+          <a class="pencil" href="#look" id="sheet-edit" aria-label="Change your look" title="Change your look">
+            <svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true" shape-rendering="crispEdges">
+              <path fill="#2b1d0e" d="M11 1h2v1h1v1h1v2h-1v1h-1v-1h-1v-1h-1v-1h-1v-1h1z"/>
+              <path fill="#f5c64a" d="M9 3h2v1h1v1h1v2h-1v1h-1v1h-1v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-1h1v-1h1v-1h1v-1h1v-1h1v-1h1z"/>
+              <path fill="#7a4a17" d="M3 11h1v1h1v1h1v1h-3z"/>
+              <path fill="#2b1d0e" d="M2 13h1v1h1v1h-2z"/>
+            </svg>
+          </a>
+          <canvas id="sheet-canvas" width="200" height="270" aria-label="Your character as you look in the game"></canvas>
           <p id="sheet-nolook" class="none" hidden>No look saved yet: design one below, and it appears here.</p></div>
         <div>
           <div class="sheet-line"><span class="label">Rank</span><span id="sheet-rank" class="big">1</span></div>
@@ -169,8 +183,6 @@
     </section>
 
     <section id="character" class="panel" hidden>
-      <h2>Your character</h2>
-      <p id="char-name"></p>
       <h3>Password</h3>
       <p id="char-pw" class="quiet"></p>
       <form id="pw-form" novalidate>
@@ -187,8 +199,7 @@
       </form>
     </section>
 
-    <section id="look" class="panel" hidden>
-      <h2>Your look</h2>
+    <section id="look" class="panel" hidden tabindex="-1" aria-label="Your look">
       <p class="quiet">How your character looks in the game. Drag the figure to turn it round. When you save, it
         is what you wear in the game within a few seconds, and what everyone there sees.</p>
       <div class="look">
@@ -438,8 +449,6 @@
     $('character').hidden = !signedIn;
     $('wallet').hidden = !signedIn;
     if (!signedIn) return;
-    $('char-name').textContent = 'You are ' + me.name + ' in the game, signed in here with ' +
-      (me.signedInWith === 'wallet' ? 'your wallet.' : 'your password.');
     $('char-wallet').textContent = me.address
       ? 'Linked to ' + me.address + '. Its lands are yours in the game.'
       : 'No wallet linked. Link one to hold lands, build on them and reveal your own. A wallet can belong to only one character.';
@@ -924,6 +933,12 @@
     } catch (e) { /* the sheet without its picture */ }
   }
   OV.on(me => drawSheet(me));
+  // The pencil: down to the look designer
+  $('sheet-edit').addEventListener('click', e => {
+    e.preventDefault();
+    $('look').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('look').focus({ preventScroll: true });
+  });
 </script>
 </body>
 </html>
