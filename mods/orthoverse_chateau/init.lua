@@ -284,6 +284,8 @@ local DOOR = {type = "fixed", fixed = {-0.5, -0.5, -0.0625, 0.5, 0.5, 0.0625}}
 for _, half in ipairs({"low", "high"}) do
 	node("door_" .. half, {
 		description = S("A locked door"), drawtype = "nodebox", node_box = DOOR, paramtype = "light",
+		-- (solid through the whole block: nobody outside can lean into the area)
+		collision_box = {type = "fixed", fixed = {-0.5, -0.5, -0.5, 0.5, 0.5, 0.5}},
 		paramtype2 = "facedir", tiles = {tex("panel"), tex("panel"), tex("panel"), tex("panel"), tex("door_" .. half),
 			tex("door_" .. half)},
 		groups = {choppy = 2}, sounds = SND.wood,

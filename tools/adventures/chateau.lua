@@ -45,7 +45,7 @@ local PARQUET = "orthoverse_chateau:parquet"
 local PANEL = "orthoverse_chateau:panel"
 local WOOD = "orthoverse_chateau:panel_wood"
 local FLAG = "orthoverse_chateau:flagstone"
-local PANE = "xpanes:pane_flat"
+local PANE = "default:glass"   -- (windows: whole blocks, so nobody outside can lean into the area)
 local GLASS = "default:glass"
 local FENCE = "default:fence_wood"
 local CHANDELIER = "orthoverse_chateau:chandelier"
@@ -268,7 +268,6 @@ local function hall()
 		local z = 17 + k
 		box(27, NF, z, 28, NG + k, z, PARQUET)
 		box(27, NG + k, z, 28, NG + k, z, "stairs:stair_wood", 0)
-		if k == 8 then box(27, NG + k, z, 28, NG + k, z, PARQUET) end
 	end
 	air(27, CEIL, 21, 28, CEIL, 23)
 	air(27, UP, 21, 28, UP, 24)
@@ -278,18 +277,17 @@ local function hall()
 	-- the stair down to the cellar: down the east side, northwards
 	for k = 1, 7 do
 		local z = 22 + k
-		air(43, NG - k + 1, z, 44, NG, z)
-		set(43, NG - k, z, "stairs:stair_stone", 2); set(44, NG - k, z, "stairs:stair_stone", 2)
-		upto(43, B + 1, z, 44, NG - k - 1, z, ROCK)
+		air_upto(43, NG - k + 2, z, 44, NG, z)
+		set(43, NG - k + 1, z, "stairs:stair_stone", 2); set(44, NG - k + 1, z, "stairs:stair_stone", 2)
+		upto(43, B + 1, z, 44, NG - k, z, ROCK)
 	end
 	box(42, NF, 23, 42, NF, 29, FENCE)
 	-- fittings: the clock, mirrors, the notice, light
 	set(32, NF, 16, "orthoverse_chateau:clock_case", FACE.n)
 	set(32, NF + 1, 16, "orthoverse_chateau:clock", FACE.n)
-	set(36, NF + 2, 29, "orthoverse_chateau:notice", WALL.n)
-	set(37, NF + 2, 29, "orthoverse_chateau:notice", WALL.n)
-	set(33, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
-	set(40, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
+	set(44, NF + 2, 18, "orthoverse_chateau:notice", WALL.e)
+	set(32, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
+	set(39, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
 	chandeliers("hall", {{35, 19}, {35, 26}, {40, 19}})
 	set(39, NF, 16, "orthoverse_chateau:table", 0); set(39, NF + 1, 16, CANDLES)
 end
@@ -343,12 +341,12 @@ local function salle_a_manger()
 	-- the service stair down to the kitchen: down the west side, northwards
 	for k = 1, 7 do
 		local z = 33 + k
-		air(6, NG - k + 1, z, 7, NG, z)
-		set(6, NG - k, z, "stairs:stair_wood", 2); set(7, NG - k, z, "stairs:stair_wood", 2)
-		upto(6, B + 1, z, 7, NG - k - 1, z, ROCK)
+		air_upto(6, NG - k + 2, z, 7, NG, z)
+		set(6, NG - k + 1, z, "stairs:stair_wood", 2); set(7, NG - k + 1, z, "stairs:stair_wood", 2)
+		upto(6, B + 1, z, 7, NG - k, z, ROCK)
 	end
 	box(8, NF, 34, 8, NF, 40, FENCE)
-	box(6, NF, 41, 7, NF, 41, FENCE)
+	box(6, NF, 41, 8, NF, 41, FENCE)
 	set(23, NF + 2, 36, "orthoverse_chateau:mirror", WALL.e)
 	set(23, NF + 2, 43, "orthoverse_chateau:mirror", WALL.e)
 	chandeliers("salle_a_manger", {{13, 39}, {18, 40}})
@@ -494,8 +492,8 @@ local function jardin()
 		set(x, B + k, 57, "stairs:stair_cobble", 1); set(x, B + k, 58, "stairs:stair_cobble", 1)
 		upto(x, B + 1, 57, x, B + k - 1, 58, ROCK)
 	end
-	box(52, NF, 56, 57, NF, 56, FENCE)
-	box(52, NF, 59, 57, NF, 59, FENCE)
+	box(51, NF, 56, 57, NF, 56, FENCE)
+	box(51, NF, 59, 57, NF, 59, FENCE)
 	box(51, NF, 57, 51, NF, 58, FENCE)
 end
 
@@ -513,8 +511,8 @@ local function bureau()
 	set(50, NF, 18, "orthoverse_chateau:armchair", FACE.e)
 	chandeliers("bureau", {{55, 20}, {55, 26}})
 	-- the hole over the secret stair, railed
-	box(63, NF, 17, 63, NF, 23, FENCE)
-	box(64, NF, 24, 65, NF, 24, FENCE)
+	box(63, NF, 17, 63, NF, 24, FENCE)
+	box(63, NF, 24, 65, NF, 24, FENCE)
 end
 
 -- Below ground: the kitchen, the cellar, the tunnel, the secret stair
@@ -526,9 +524,9 @@ local function basement()
 	-- (the service stair comes down its west side: keep its steps)
 	for k = 1, 7 do
 		local z = 33 + k
-		set(6, NG - k, z, "stairs:stair_wood", 2); set(7, NG - k, z, "stairs:stair_wood", 2)
-		upto(6, B + 1, z, 7, NG - k - 1, z, STONE)
-		air_upto(6, NG - k + 1, z, 7, B + 6, z)
+		set(6, NG - k + 1, z, "stairs:stair_wood", 2); set(7, NG - k + 1, z, "stairs:stair_wood", 2)
+		upto(6, B + 1, z, 7, NG - k, z, STONE)
+		air_upto(6, NG - k + 2, z, 7, B + 6, z)
 	end
 	box(12, B + 1, 39, 17, B + 1, 40, "orthoverse_chateau:table")
 	set(13, B + 2, 39, CANDLES); set(16, B + 2, 40, CANDLES)
@@ -568,9 +566,9 @@ local function basement()
 	-- (the hall's stair comes down at its west side)
 	for k = 1, 7 do
 		local z = 22 + k
-		set(43, NG - k, z, "stairs:stair_stone", 2); set(44, NG - k, z, "stairs:stair_stone", 2)
-		upto(43, B + 1, z, 44, NG - k - 1, z, ROCK)
-		air_upto(43, NG - k + 1, z, 44, B + 6, z)
+		set(43, NG - k + 1, z, "stairs:stair_stone", 2); set(44, NG - k + 1, z, "stairs:stair_stone", 2)
+		upto(43, B + 1, z, 44, NG - k, z, ROCK)
+		air_upto(43, NG - k + 2, z, 44, B + 6, z)
 	end
 	box(43, B + 1, 16, 44, B + 6, 22, ROCK)
 	-- racks along the walls, barrels in rows
@@ -595,7 +593,6 @@ local function basement()
 		air_upto(64, B + k + 1, z, 65, B + 6, z)
 	end
 	-- (the last step is the study's floor; the floor is open over the rest)
-	box(64, NG, 17, 65, NG, 17, PARQUET)
 	air(64, NG, 18, 65, NG, 23)
 	air(64, B + 1, 24, 65, B + 6, 24)
 	set(64, B + 1, 24, "orthoverse_chateau:rack_door", FACE.n); set(65, B + 1, 24, "orthoverse_chateau:rack_door", FACE.n)
@@ -621,6 +618,8 @@ local function upstairs()
 	box(26, UP + 1, 15, 26, UPC - 1, 26, PANEL)
 	air(27, CEIL, 21, 28, CEIL, 23)
 	air(27, UP, 21, 28, UP, 24)
+	-- (the staircase's top step, in the floor)
+	set(27, UP, 25, "stairs:stair_wood", 0); set(28, UP, 25, "stairs:stair_wood", 0)
 	box(29, UP + 1, 20, 29, UP + 1, 24, FENCE)
 	box(27, UP + 1, 20, 28, UP + 1, 20, FENCE)
 	-- bedrooms: west of the corridor (south of the landing is the stair) and east

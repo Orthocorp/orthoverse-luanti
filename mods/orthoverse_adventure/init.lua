@@ -91,8 +91,10 @@ end
 local function inside(def, pos)
 	local p1, p2 = area_of(def)
 	if not p1 then return false end
-	return pos.x >= p1.x and pos.x <= p2.x + 0.99 and pos.y >= p1.y - 0.5 and pos.y <= p2.y + 0.99 and
-		pos.z >= p1.z and pos.z <= p2.z + 0.99
+	-- (a block at x spans x - 0.5 to x + 0.5: the area is exactly its blocks,
+	-- so someone pressed against its outside wall is not inside)
+	return pos.x >= p1.x - 0.5 and pos.x < p2.x + 0.5 and pos.y >= p1.y - 0.5 and pos.y < p2.y + 0.5 and
+		pos.z >= p1.z - 0.5 and pos.z < p2.z + 0.5
 end
 
 -- The adventure whose area holds `pos`: key, definition
