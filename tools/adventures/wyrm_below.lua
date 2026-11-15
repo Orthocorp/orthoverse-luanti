@@ -62,6 +62,7 @@ g.info = {
 	line = "Goblins and orcs hold the old halls under Karn Dolm, and far below them a wyrm sleeps on a ring made " ..
 		"in the lake of fire. The lake keeps what lies beyond: give the ring back to it.",
 	limit = 90,
+	tags = {"combat", "explore"},   -- for the Adventures page (at most three)
 	rank_min = 6, rank_max = 12,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

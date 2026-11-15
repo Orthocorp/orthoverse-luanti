@@ -90,6 +90,8 @@ g.info = {
 	dig = {{min = ..., max = ...}}, -- what placing clears below the ground
 	corner1 = {...}, corner2 = {...},   -- the adventure's box (relative)
 	start = {...}, arrival = {...},     -- inside start; outside arrival
+	tags = {"combat", "explore"},  -- at most three of: combat, puzzle, skill,
+	                                -- explore, mystery, spooky, sci-fi, solo
 	-- optional: kit = {item, ...}, finish_xp, catch_falls, whole_land, ...
 }
 g.compact = true                    -- save as .ovt (big adventures)

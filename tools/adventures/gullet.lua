@@ -56,6 +56,7 @@ g.info = {
 	name = "The Gullet",
 	line = "Tribes dig into the walls of a ravine below Thornwatch fort, and an orc warlord rules them from a temple at its head.",
 	limit = 60,
+	tags = {"combat", "explore"},   -- for the Adventures page (at most three)
 	rank_min = 1, rank_max = 5,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

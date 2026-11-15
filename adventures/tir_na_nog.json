@@ -485,5 +485,9 @@
 		"y": 5,
 		"z": 22.5
 	},
+	"tags": [
+		"skill",
+		"explore"
+	],
 	"whole_land": true
 }

@@ -61,6 +61,7 @@ g.info = {
 	name = "Death at the Château",
 	line = "Monsieur Lenoir came to dinner. He did not leave. Who killed him, with what, and where?",
 	limit = 45,
+	tags = {"mystery", "puzzle", "solo"},   -- for the Adventures page (at most three)
 	rank_min = 1, rank_max = 20,
 	party_max = 1,
 	finish_xp = 250,

@@ -83,6 +83,7 @@ g.info = {
 	line = "High over the land the castle of Tir Na Nog floats on the wind. The way up is from stone to stone: " ..
 		"no monsters, only the long fall, and the wind that catches you.",
 	limit = 40,
+	tags = {"skill", "explore"},   -- for the Adventures page (at most three)
 	rank_min = 1, rank_max = 20,
 	size = {x = SX, y = SY, z = SZ},
 	-- placed over the whole land, its floor this far above the ground; the

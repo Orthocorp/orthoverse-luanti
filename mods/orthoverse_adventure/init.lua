@@ -309,6 +309,19 @@ local function format_time(secs)
 end
 
 -- For the website: the adventures and their records
+-- Tags shown on the Adventures page, at most three an adventure
+local TAGS = {"combat", "puzzle", "skill", "explore", "mystery", "spooky", "sci-fi", "solo"}
+local TAG_OK = {}
+for _, t in ipairs(TAGS) do TAG_OK[t] = true end
+local function clean_tags(list)
+	local out, seen = {}, {}
+	for _, t in ipairs(type(list) == "table" and list or {}) do
+		t = tostring(t):lower()
+		if TAG_OK[t] and not seen[t] and #out < 3 then out[#out + 1] = t; seen[t] = true end
+	end
+	return #out > 0 and out or nil
+end
+
 local function write_public()
 	local list = {}
 	for key, def in pairs(adventures) do
@@ -321,7 +334,7 @@ local function write_public()
 		list[#list + 1] = {key = key, land = land and land.name, name = def.name, line = def.line,
 			open = def.open == true, version = def.version, limit = def.limit, completions = #vrec,
 			rank_min = def.rank_min or RANK_MIN_DEFAULT, rank_max = def.rank_max or RANK_MAX_DEFAULT,
-			first = vrec[1], best = best, records = vrec}
+			first = vrec[1], best = best, records = vrec, tags = def.tags}
 	end
 	table.sort(list, function(a, b) return (a.name or "") < (b.name or "") end)
 	core.safe_file_write(DIR .. "/adventures.json", core.write_json({updated = os.date("!%Y-%m-%dT%H:%M:%SZ"),
@@ -1469,6 +1482,7 @@ local function place_template(tname, at, by, done, turned)
 				rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 				footprint = {min = offset(p1, fp.min), max = offset(p1, fp.max)},
 				kit = type(info.kit) == "table" and info.kit or nil, party_max = tonumber(info.party_max),
+				tags = clean_tags(info.tags),
 				catch_falls = info.catch_falls and true or nil,
 				approach = info.approach and offset(p1, info.approach) or nil,
 				approach_line = info.approach_line and info.approach_line:sub(1, 200) or nil,
@@ -1519,6 +1533,7 @@ local function place_template(tname, at, by, done, turned)
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 			footprint = {min = vector.new(p1.x, ground, p1.z), max = p2},
 			kit = type(info.kit) == "table" and info.kit or nil, party_max = tonumber(info.party_max),
+				tags = clean_tags(info.tags),
 		}
 		save_def(key)
 		write_public()
@@ -1702,6 +1717,8 @@ local HELP = table.concat({
 	"",
 	"Other commands:",
 	"/adventure limit <minutes>   The time limit, " .. LIMIT_MIN .. " to " .. LIMIT_MAX .. " minutes (60 at first).",
+	"/adventure tags <tag> ...   Up to three tags for the Adventures page: combat, puzzle, skill, explore,",
+	"      mystery, spooky, sci-fi, solo (or none).",
 	"/adventure ranks <lowest> <highest>   Who may go in, by character rank (1 to 5 at",
 	"   first); its loot chests give metals up to the highest.",
 	"/adventure name <text>   Rename it.",
@@ -1928,6 +1945,18 @@ core.register_chatcommand("adventure", {
 				return false, "Give the lowest and highest rank that may go in, 1 to 20 (e.g. /adventure ranks 1 5)."
 			end
 			def.rank_min, def.rank_max = lo, hi
+		elseif cmd == "tags" then
+			if rest == "none" then
+				def.tags = nil
+			else
+				local words = {}
+				for w in rest:gmatch("%S+") do words[#words + 1] = w end
+				local tags = clean_tags(words)
+				if #words == 0 or #words > 3 or not tags or #tags ~= #words then
+					return false, "Up to three of: " .. table.concat(TAGS, ", ") .. " (or none). E.g. /adventure tags combat explore"
+				end
+				def.tags = tags
+			end
 		elseif cmd == "save" then
 			if def.open or run_active then return false, "Close it first (and wait for any run to end)." end
 			if not area_of(def) or not def.start then return false, "Set the corners and the start first." end
@@ -2029,3 +2058,16 @@ orthoverse.adventure.in_run = function(name)
 		if run.members[name] then return key end
 	end
 end
+
+-- Adventures placed from a template before it had tags take the template's
+core.register_on_mods_loaded(function()
+	local changed = false
+	for key, def in pairs(adventures) do
+		if def.template and def.tags == nil then
+			local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. def.template .. ".json") or "", nil)
+			def.tags = info and clean_tags(info.tags)
+			if def.tags then save_def(key); changed = true end
+		end
+	end
+	if changed then write_public() end
+end)

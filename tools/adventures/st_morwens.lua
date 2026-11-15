@@ -70,6 +70,7 @@ g.info = {
 	name = "St Morwen's",
 	line = "The bell of St Morwen's has not rung in forty years. The dead there do not lie still.",
 	limit = 75,
+	tags = {"combat", "spooky", "explore"},   -- for the Adventures page (at most three)
 	rank_min = 4, rank_max = 8,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

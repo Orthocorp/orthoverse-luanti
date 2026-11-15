@@ -57,6 +57,7 @@ g.info = {
 	name = "The Mill at Withy Ford",
 	line = "Lights in the old mill at night, and screams. The miller vanished last spring. Nobody goes there now.",
 	limit = 60,
+	tags = {"combat", "spooky"},   -- for the Adventures page (at most three)
 	rank_min = 1, rank_max = 5,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

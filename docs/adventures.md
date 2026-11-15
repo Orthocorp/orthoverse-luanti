@@ -31,6 +31,7 @@ On a land at castle level 5 or more (the admin anywhere). `/adventure` with no a
 1. `/adventure create <name>`: make an adventure on the land you stand on.
 2. `/adventure line <text>`: a one-line description for the gate and the website.
    `/adventure ranks <lowest> <highest>`: who may go in, by character rank (1 to 5 at first). Its loot chests give metals up to the highest.
+   `/adventure tags <tag> ...`: up to three tags, shown in coloured boxes beside Open or Closed on the Adventures page: combat, puzzle, skill (jumping, climbing, timing), explore, mystery, spooky, sci-fi, solo (or `none`). A ready-made adventure brings its own (`"tags"` in its JSON).
 3. `/adventure corner1` at one corner of the dungeon, `/adventure corner2` at the opposite corner (higher or lower too). The dungeon is the box between them, within the land.
 4. `/adventure start` where players appear when they go in, inside the dungeon.
 5. `/adventure arrival` at the entrance, outside the dungeon, where players gather and come back to.

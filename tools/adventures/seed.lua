@@ -79,6 +79,7 @@ g.info = {
 	name = "The Seed",
 	line = "Something fell, and the ground round it is growing. The survey team went down after it.",
 	limit = 60,
+	tags = {"combat", "puzzle", "sci-fi"},   -- for the Adventures page (at most three)
 	rank_min = 5, rank_max = 10,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

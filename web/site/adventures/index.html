@@ -31,6 +31,11 @@
   .tag { display: inline-block; padding: 2px 8px; margin-left: 8px; font: 13px/20px var(--body-font);
     border: 2px solid var(--outline); vertical-align: middle; }
   .tag.open { background: #2e6b2a; } .tag.closed { background: #5a4630; }
+  /* what kind of adventure it is: up to three, each its own colour */
+  .tag.kind { margin-left: 6px; color: #fff; }
+  .tag.k-combat { background: #8b2a2a; } .tag.k-puzzle { background: #2f4f8f; } .tag.k-skill { background: #8a6a12; }
+  .tag.k-explore { background: #2c6e64; } .tag.k-mystery { background: #5d3a7a; } .tag.k-spooky { background: #3d3d4a; }
+  .tag.k-sci-fi { background: #1f6f8b; } .tag.k-solo { background: #6b4a2e; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 14px; font-size: 15px; color: var(--quiet); }
   .facts b { color: var(--parchment); font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -77,6 +82,8 @@
 <div id="ov-footer"></div>
 <script>
   const $ = id => document.getElementById(id);
+  // The tags an adventure may have (orthoverse_adventure: TAGS)
+  const KINDS = ['combat', 'puzzle', 'skill', 'explore', 'mystery', 'spooky', 'sci-fi', 'solo'];
   const el = (tag, attrs = {}, ...kids) => {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -115,7 +122,9 @@
     return el('article', { class: 'adv', id: 'a-' + a.key.replace(':', '_') },
       el('div', { class: 'top' },
         el('div', { class: 'about' },
-          el('h2', {}, a.name || 'Adventure', el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed')),
+          el('h2', {}, a.name || 'Adventure', el('span', { class: 'tag ' + (a.open ? 'open' : 'closed') }, a.open ? 'Open' : 'Closed'),
+            ...(Array.isArray(a.tags) ? a.tags : []).slice(0, 3).filter(t => KINDS.includes(t))
+              .map(t => el('span', { class: 'tag kind k-' + t }, t))),
           el('div', { class: 'where' }, 'On ', el('a', { href: '/map/#' + a.key }, (a.land || 'a land') + ' (' + a.key + ')')),
           a.line ? el('div', { class: 'line' }, a.line) : null,
           facts,

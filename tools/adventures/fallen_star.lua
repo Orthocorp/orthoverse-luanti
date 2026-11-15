@@ -58,6 +58,7 @@ g.info = {
 	name = "The Fallen Star",
 	line = "A ship from the futuristic realm came down in the hills. Its machines are still running.",
 	limit = 60,
+	tags = {"combat", "puzzle", "sci-fi"},   -- for the Adventures page (at most three)
 	rank_min = 3, rank_max = 7,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,
