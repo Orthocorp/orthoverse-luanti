@@ -1,0 +1,52 @@
+{
+	"arrival": {
+		"x": 36.5,
+		"y": 9,
+		"z": 4.5
+	},
+	"corner1": {
+		"x": 4,
+		"y": 0,
+		"z": 14
+	},
+	"corner2": {
+		"x": 67,
+		"y": 29,
+		"z": 65
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 71,
+				"y": 7,
+				"z": 69
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"finish_xp": 250,
+	"ground": 8,
+	"kit": [
+		"orthoverse_chateau:casebook"
+	],
+	"limit": 45,
+	"line": "Monsieur Lenoir came to dinner. He did not leave. Who killed him, with what, and where?",
+	"name": "Death at the Ch\u00e2teau",
+	"party_max": 1,
+	"rank_max": 20,
+	"rank_min": 1,
+	"size": {
+		"x": 72,
+		"y": 30,
+		"z": 70
+	},
+	"start": {
+		"x": 36.5,
+		"y": 9,
+		"z": 18.5
+	}
+}

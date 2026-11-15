@@ -88,3 +88,14 @@ The ghost steps are `orthoverse_props:ghost_step` (param2 0 to 7 sets when each 
 Expected: `unreachable: none` (also for each valve), every gated place `false`, falling too.
 
 Its blocks, gear and crane are in `mods/orthoverse_seed`, its monsters (husks, crawlers, spitters, spore puffs, ganglia, the Heart's nodules and tendrils) in `mods/orthoverse_monsters`, their textures and sounds from `tools/seed/make_textures.py`.
+
+## Death at the Château
+
+`chateau.lua` builds it the same way, with `orthoverse_generate_adventure = chateau` (`max_forceloaded_blocks = 400`), and writes `chateau.ovt`. Besides the walk checks, it checks that every clue place, weapon place and puzzle can be reached from the start with the secret ways open, and that the library's closet and the study cannot be reached without them. Expected: `unreachable: none`, both gated places `false`, `clue places: 20; unreachable things: none` and `clue places behind a puzzle: 5`.
+
+```
+cp /tmp/gu/world/chateau.ovt adventures/
+python3 -m json.tool --tab --sort-keys /tmp/gu/world/chateau.json > adventures/chateau.json
+```
+
+Its blocks, the guests' skins and the sounds are in `mods/orthoverse_chateau`, made by `tools/chateau/make_textures.py`. The mystery is drawn at the start of each run by `mods/orthoverse_chateau/mystery.lua`, which finds the clue places by their metadata.

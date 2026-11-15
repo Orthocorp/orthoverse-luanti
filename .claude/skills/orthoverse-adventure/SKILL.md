@@ -7,7 +7,8 @@ description: Write a ready-made Orthoverse adventure (a generator script, its .j
 
 The Orthoverse is a Luanti (5.18) game on Minetest Game. Its ready-made
 adventures (The Three Bells, The Gullet, The Fallen Star, The Mill at Withy
-Ford, St Morwen's, The Wyrm Below, Tir Na Nog, The Seed) are not built by hand:
+Ford, St Morwen's, The Wyrm Below, Tir Na Nog, The Seed, Death at the
+Château) are not built by hand:
 each is a Lua script that builds it block by block, run on a local server that
 saves it as a template and checks it. The admin places a template on a land
 with `/adventure place <name>`.
@@ -28,7 +29,8 @@ Read these first, in the repository:
 - one builder close to what you are making, as the pattern to follow:
   `wyrm_below.lua` (big, underground, compact form), `seed.lua` (surface and
   underground, its own extra checks), `st_morwens.lua` (surface, buildings),
-  `fallen_star.lua` (sci-fi, keycards);
+  `fallen_star.lua` (sci-fi, keycards), `chateau.lua` (a building of rooms,
+  no monsters, its content drawn per run by a mod);
 - `docs/adventures.md`: how adventures work in the game, and every block,
   item and fitting the mods offer;
 - `adventures/README.md`: how each one is placed, and what it says to players.
@@ -60,7 +62,9 @@ Read these first, in the repository:
   one-line theme and the ranks. Nothing inside explains how to solve
   anything. The adventure's section in `adventures/README.md` advertises (what
   waits there, new gear, new monsters with levels) and never gives the
-  solution.
+  solution. (The exception so far: Death at the Château, a mystery drawn anew
+  each run, has a notice that explains its rules, at the owner's wish: the
+  puzzle is the case, not working out how to play.)
 - No talking monsters, no dialogue, no quests given by characters: the place
   tells the story.
 - What makes adventures good (see `docs/adventure-design.md`): a safe start;

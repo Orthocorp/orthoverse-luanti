@@ -205,3 +205,17 @@ The camp's gear: **fire pots** (thrown), a **breathing mask**, and the **plasma 
 The new monsters: the **husk** (level 5, a survey team member the growth has taken over), the **crawler** (level 4, small and quick), the **spitter** (level 5, a pod in a wall that lobs acid), the **spore puff** (level 4), the **tendril** (level 6), the **ganglion** (level 6) and the Heart's **nodules** (level 8).
 
 Everything is put back after each run.
+
+## Death at the Château
+
+Monsieur Lenoir came to dinner. He did not leave. A murder mystery for one player, any rank (1 to 20), no fighting; 45 minutes. Finishing is worth 250 experience, once a day. The kit is a casebook.
+
+It is a château in the style of Versailles, 64 blocks by 52, with a forecourt in front (the gate, the board and the title sign) and a cellar and kitchen below; `/adventure place chateau` builds it in the middle of the land. The guests sit at dinner in the dining room, still and silent, and Monsieur Lenoir lies at the foot of the grand staircase.
+
+Each run draws a new murderer (one of eight guests), a new weapon (one of six) and a new room (one of nine), and the evidence in the house is written to fit, so no two runs are alike and no answer can be passed on. Search the rooms, read what you find, strike names out in the casebook, ask Madame Or's cards (twice), and make your accusation in Le Grand Salon. Wrong once is forgiven; wrong twice and you are shown out, with nothing.
+
+There are puzzles too: locked places and secret ways, whose answers are somewhere in the house. Unlike the other adventures, this one explains its rules: the notice in the entrance hall says how to play.
+
+The guests: Le Comte Richard d'Améthyste, La Marquise Céleste Vermeil, Le Général Gaston Safran, Mademoiselle Geneviève Ivoire, Monsieur Lucien Émeraude, Le Duc Henri Azur, Docteur Émile Cendre and Madame Solange Or.
+
+Everything is put back after each run, and the next run is a new mystery.
