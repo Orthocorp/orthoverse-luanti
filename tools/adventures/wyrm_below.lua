@@ -63,8 +63,8 @@ g.info = {
 		"in the lake of fire. The lake keeps what lies beyond: give the ring back to it.",
 	limit = 90,
 	tags = {"combat", "explore"},   -- for the Adventures page (at most three)
-	-- (the Adventures page, under the cover picture: a few sentences, no answers)
-	blurb = "Under the ruins of Karn Dolm goblins and orcs hold the old halls, and deeper still a wyrm sleeps on a ring in a cavern of fire. Gather a strong party, fight down through halls, mines and caves, and wake it if you dare. The hardest of the ready-made adventures.",
+	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
+	blurb = "Under the ruins of Karn Dolm goblins and orcs hold the old halls, and deeper still a wyrm sleeps on a ring in a cavern of fire. Gather a strong party, fight your way down, and wake it if you dare.",
 	rank_min = 6, rank_max = 12,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,

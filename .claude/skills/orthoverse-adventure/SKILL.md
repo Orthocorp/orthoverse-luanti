@@ -92,7 +92,7 @@ g.info = {
 	start = {...}, arrival = {...},     -- inside start; outside arrival
 	tags = {"combat", "explore"},  -- at most three of: combat, puzzle, skill,
 	                                -- explore, mystery, spooky, sci-fi, solo
-	blurb = "Two or three sentences for the Adventures page, under its cover picture: what draws a player in, no answers.",
+	blurb = "About 35 words for the Adventures page, under its cover picture: what draws a player in, no answers.",
 	-- optional: kit = {item, ...}, finish_xp, catch_falls, whole_land, ...
 }
 g.compact = true                    -- save as .ovt (big adventures)

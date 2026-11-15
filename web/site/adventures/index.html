@@ -233,10 +233,11 @@
     return t;
   }
 
-  // The featured adventure: the open one opened most recently (else the
-  // least known), so a new one gets seen
+  // The featured adventure: of those open and within the character's rank
+  // (any rank, signed out), the one opened most recently (else the least
+  // known), so a new one gets seen. None if there is nothing to play.
   function featured() {
-    const open = adventures.filter(a => a.open);
+    const open = adventures.filter(a => a.open && reach(a) === 0);
     if (!open.length) return null;
     return open.slice().sort((x, y) => ((y.opened || 0) - (x.opened || 0)) ||
       ((x.completions || 0) - (y.completions || 0)) || (x.name || '').localeCompare(y.name || ''))[0];
@@ -255,7 +256,7 @@
         el('div', { class: 'tags' }, ...status(a)),
         el('p', { class: 'blurb' }, a.blurb || a.line || ''),
         el('div', { class: 'acts' },
-          reach(a) === 0 ? el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play') : null,
+          el('a', { class: 'ov-btn', href: '/play/?adventure=' + encodeURIComponent(a.key) }, 'Play'),
           el('a', { class: 'ov-btn info', href: '#' + idOf(a),
             onclick: e => { e.preventDefault(); show(a.key, true); } }, 'More about it')))));
   }

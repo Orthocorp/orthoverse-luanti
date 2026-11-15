@@ -62,8 +62,8 @@ g.info = {
 	line = "Monsieur Lenoir came to dinner. He did not leave. Who killed him, with what, and where?",
 	limit = 45,
 	tags = {"mystery", "puzzle", "solo"},   -- for the Adventures page (at most three)
-	-- (the Adventures page, under the cover picture: a few sentences, no answers)
-	blurb = "Eight guests at dinner, one body at the foot of the stairs, and a storm outside. Search a Versailles château room by room, read every letter and alibi, and name the murderer, the weapon and the room. A new mystery every run, no fighting, and only two chances to be right.",
+	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
+	blurb = "Eight guests at dinner, one body at the foot of the stairs, and a storm outside. Search the château, read every letter and alibi, and name the murderer, weapon and room. A new mystery every run.",
 	rank_min = 1, rank_max = 20,
 	party_max = 1,
 	finish_xp = 250,

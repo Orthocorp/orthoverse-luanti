@@ -2117,10 +2117,29 @@ orthoverse.adventure.in_run = function(name)
 	end
 end
 
--- Adventures placed from a template before it had tags take the template's
+-- Adventures placed from a template before it had tags take the template's.
+-- Those placed before the template's name was recorded get it first, by
+-- their name and the size of their box (either way round), so they get its
+-- tags, blurb and cover picture on the Adventures page.
 core.register_on_mods_loaded(function()
 	local changed = false
+	local by_name = {}
+	for _, tname in ipairs(template_names()) do
+		local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. tname .. ".json") or "", nil)
+		if type(info) == "table" and info.name and info.corner1 and info.corner2 then by_name[info.name] = {tname, info} end
+	end
 	for key, def in pairs(adventures) do
+		local t = not def.template and def.corner1 and def.corner2 and by_name[def.name]
+		if t then
+			local i1, i2 = t[2].corner1, t[2].corner2
+			local dx, dy, dz = def.corner2.x - def.corner1.x, def.corner2.y - def.corner1.y, def.corner2.z - def.corner1.z
+			local ix, iy, iz = i2.x - i1.x, i2.y - i1.y, i2.z - i1.z
+			if dy == iy and ((dx == ix and dz == iz) or (dx == iz and dz == ix)) then
+				def.template = t[1]
+				save_def(key); changed = true
+				core.log("action", "[orthoverse_adventure] " .. def.name .. " on " .. key .. " is the template " .. t[1])
+			end
+		end
 		if def.template and def.tags == nil then
 			local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. def.template .. ".json") or "", nil)
 			def.tags = info and clean_tags(info.tags)

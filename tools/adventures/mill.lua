@@ -58,8 +58,8 @@ g.info = {
 	line = "Lights in the old mill at night, and screams. The miller vanished last spring. Nobody goes there now.",
 	limit = 60,
 	tags = {"combat", "spooky"},   -- for the Adventures page (at most three)
-	-- (the Adventures page, under the cover picture: a few sentences, no answers)
-	blurb = "Nobody goes to the old mill at Withy Ford any more: not since the lights, the screams, and the miller who vanished. Search the mill from the attic to the cellar and find out what really walks there at night. Nothing in this tale is quite what it seems.",
+	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
+	blurb = "Nobody goes to the old mill at Withy Ford any more: not since the lights, the screams, and the miller who vanished. Search it from the attic to the cellar. Nothing in this tale is quite what it seems.",
 	rank_min = 1, rank_max = 5,
 	size = {x = SX, y = SY, z = SZ},
 	ground = NG,
