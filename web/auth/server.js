@@ -1078,9 +1078,13 @@ const routes = {
 		const c = (all && all.characters && all.characters[sess.entry.name.toLowerCase()]) || {};
 		const num = (v, d) => Number.isFinite(v) ? v : d;
 		const p = prestigeOf(sess.address);
+		// (experience to reach each rank: orthoverse_rank's NEEDS)
+		const NEEDS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
+			85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+		const rank = Math.min(20, Math.max(1, num(c.rank, 1)));
 		send(res, 200, {
 			name: sess.entry.name,
-			rank: num(c.rank, 1), xp: num(c.xp, 0), next: num(c.next, null),
+			rank, xp: num(c.xp, 0), next: rank < 20 ? NEEDS[rank] : null,
 			hp: num(c.hp, 20), hp_max: num(c.hp_max, 20),
 			insight: num(c.insight, 0), agility: num(c.agility, 0), prowess: num(c.prowess, 0),
 			prestige: p.lands + p.levels, lands: p.lands, levels: p.levels,

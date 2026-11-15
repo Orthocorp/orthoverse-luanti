@@ -895,7 +895,7 @@
     try { c = await OV.api('GET', '/auth/character'); } catch (e) { $('sheet-note').textContent = 'Your sheet could not be loaded: ' + e.message; return; }
     const n = v => Number(v || 0).toLocaleString('en-GB');
     $('sheet-rank').textContent = c.rank;
-    if (c.next) {
+    if (c.rank < 20 && c.next) {
       $('sheet-xp').textContent = n(c.xp) + ' / ' + n(c.next) + ' to rank ' + (c.rank + 1);
       $('sheet-xp-bar').style.width = Math.max(0, Math.min(100, 100 * c.xp / c.next)) + '%';
     } else {
