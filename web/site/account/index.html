@@ -99,7 +99,10 @@
   .sheet-anim { justify-content: center; gap: 4px; margin: 6px 0 0; }
   .sheet-anim .chip { color: #2b1d0e; background: #f7f0de; border-color: #7a4a17; font-size: 12px; padding: 3px 7px; }
   .sheet-anim .chip[aria-pressed="true"] { background: #7a4a17; color: #f7f0de; }
-  .sheet-portrait .none { margin: 0; padding: 40px 12px; text-align: center; font-size: 14px; color: #5b4630; }
+  /* no look yet: the note takes the picture's place, at the picture's size */
+  .sheet-portrait .none { margin: 0; height: 270px; padding: 0 12px; display: flex; align-items: center;
+    justify-content: center; text-align: center; font-size: 14px; color: #5b4630; }
+  .sheet-portrait .none[hidden] { display: none; }
   .sheet-line .big { font: 32px/1 "Midnight", monospace; color: #2b1d0e; }
   .meter { flex: 1; }
   .meter .bar { height: 14px; border: 2px solid #7a4a17; background: #e2d4b0; }
@@ -163,13 +166,14 @@
             </svg>
           </a>
           <canvas id="sheet-canvas" width="200" height="270" aria-label="Your character as you look in the game"></canvas>
+          <p id="sheet-nolook" class="none" hidden>No look saved yet: design one below, and it appears here.</p>
           <div class="row sheet-anim" role="group" aria-label="Pose">
             <button type="button" class="chip" data-sheet-anim="still">Still</button>
             <button type="button" class="chip" data-sheet-anim="idle">Idle</button>
             <button type="button" class="chip" data-sheet-anim="walk" aria-pressed="true">Walk</button>
             <button type="button" class="chip" data-sheet-anim="run">Run</button>
           </div>
-          <p id="sheet-nolook" class="none" hidden>No look saved yet: design one below, and it appears here.</p></div>
+        </div>
         <div>
           <div class="sheet-line"><span class="label">Rank</span><span id="sheet-rank" class="big">1</span></div>
           <div class="sheet-line"><span class="label">Experience</span>
@@ -926,7 +930,8 @@
       const d = info.design ? checkDesign(info.design, 7) : null;
       $('sheet-canvas').hidden = !d;
       $('sheet-nolook').hidden = !!d;
-      document.querySelector('.sheet-anim').hidden = !d;
+      // (the pose buttons keep their room, so the box stays the same size)
+      document.querySelector('.sheet-anim').style.visibility = d ? '' : 'hidden';
       if (!d) return;
       const skin = toGame(paint(d, f => parts.get(f)));
       const cv = document.createElement('canvas');
