@@ -262,18 +262,19 @@ local function hall()
 	doorway_z(31, 34, 37, 4)
 	-- a carpet up the middle
 	box(34, NG, 16, 37, NG, 29, "orthoverse_chateau:carpet")
-	-- the grand staircase: up the west side from z 16 to the landing
+	-- the grand staircase: up the west side from z 18 to the landing (room
+	-- to walk on to it from the south)
 	for k = 1, 8 do
-		local z = 15 + k
+		local z = 17 + k
 		box(27, NF, z, 28, NG + k, z, PARQUET)
 		box(27, NG + k, z, 28, NG + k, z, "stairs:stair_wood", 0)
 		if k == 8 then box(27, NG + k, z, 28, NG + k, z, PARQUET) end
 	end
-	air(27, CEIL, 19, 28, CEIL, 21)
-	air(27, UP, 19, 28, UP, 22)
-	box(29, NF, 17, 29, NF, 23, FENCE)      -- the banister
+	air(27, CEIL, 21, 28, CEIL, 23)
+	air(27, UP, 21, 28, UP, 24)
+	box(29, NF, 19, 29, NF, 25, FENCE)      -- the banister
 	-- Lenoir, at its foot
-	set(30, NF, 16, "orthoverse_chateau:rug", FACE.e)
+	set(30, NF, 17, "orthoverse_chateau:rug", FACE.e)
 	-- the stair down to the cellar: down the east side, northwards
 	for k = 1, 7 do
 		local z = 22 + k
@@ -283,8 +284,8 @@ local function hall()
 	end
 	box(42, NF, 23, 42, NF, 29, FENCE)
 	-- fittings: the clock, mirrors, the notice, light
-	set(31, NF, 16, "orthoverse_chateau:clock", FACE.n)
-	set(31, NF + 1, 16, "orthoverse_chateau:clock", FACE.n)
+	set(32, NF, 16, "orthoverse_chateau:clock_case", FACE.n)
+	set(32, NF + 1, 16, "orthoverse_chateau:clock", FACE.n)
 	set(36, NF + 2, 29, "orthoverse_chateau:notice", WALL.n)
 	set(37, NF + 2, 29, "orthoverse_chateau:notice", WALL.n)
 	set(33, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
@@ -396,7 +397,7 @@ local function galerie()
 		set(x, NF + 2, 63, "orthoverse_chateau:mirror", WALL.n)
 	end
 	chandeliers("galerie", {{30, 56}, {35, 56}, {40, 56}})
-	set(36, NF, 63, "orthoverse_chateau:clock", FACE.s)
+	set(36, NF, 63, "orthoverse_chateau:clock_case", FACE.s)
 	set(36, NF + 1, 63, "orthoverse_chateau:clock", FACE.s)
 end
 
@@ -558,7 +559,7 @@ local function basement()
 	air(14, B + 1, 57, 15, B + 3, 58)
 	for x = 17, 49, 4 do set(x, B + 1, (x % 8 == 1) and 57 or 58, "orthoverse_chateau:ivy") end
 	for z = 50, 56, 3 do set(15, B + 1, z, "orthoverse_chateau:ivy") end
-	for x = 20, 48, 9 do set(x, B + 3, 57, "default:torch_wall", 4) end
+	for x = 20, 48, 9 do set(x, B + 3, 57, "default:torch_wall", 5) end   -- (on the wall to the south)
 	set(14, B + 3, 52, "default:torch_wall", 3)
 	-- the cellar, under the study and the hall's east side
 	box(42, B, 15, 67, B + 6, 32, STONE)
@@ -618,10 +619,10 @@ local function upstairs()
 	air(34, UP + 1, 15, 37, UPC - 1, 47)
 	box(26, UP + 1, 15, 33, UPC - 1, 15, PANEL)
 	box(26, UP + 1, 15, 26, UPC - 1, 26, PANEL)
-	air(27, CEIL, 19, 28, CEIL, 21)
-	air(27, UP, 19, 28, UP, 22)
-	box(29, UP + 1, 18, 29, UP + 1, 22, FENCE)
-	box(27, UP + 1, 18, 28, UP + 1, 18, FENCE)
+	air(27, CEIL, 21, 28, CEIL, 23)
+	air(27, UP, 21, 28, UP, 24)
+	box(29, UP + 1, 20, 29, UP + 1, 24, FENCE)
+	box(27, UP + 1, 20, 28, UP + 1, 20, FENCE)
 	-- bedrooms: west of the corridor (south of the landing is the stair) and east
 	local rooms = {{27, 28, 32, 33}, {27, 35, 32, 40}, {27, 42, 32, 46}, {39, 16, 44, 21}, {39, 23, 44, 29},
 		{39, 31, 44, 37}, {39, 39, 44, 46}}
@@ -712,6 +713,7 @@ function g.check_more(O, t)
 		if not near(vector.add(O, th.p)) then bad[#bad + 1] = th.n .. " at " .. core.pos_to_string(th.p) end
 	end
 	t.say(("clue places: %d; unreachable things: %s"):format(#g.spots, #bad > 0 and table.concat(bad, ", ") or "none"))
+	t.say("the bedrooms reachable by the grand staircase: " .. tostring(near(vector.add(O, {x = 30, y = UP + 1, z = 30})) == true))
 	local gated = 0
 	for _, s in ipairs(g.spots) do if s.gate then gated = gated + 1 end end
 	t.say(("clue places behind a puzzle: %d"):format(gated))

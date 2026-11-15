@@ -870,19 +870,37 @@ def clock(u, v):
     if u in (2, 13) or v in (0, 15):
         return jit(MAHOG, u, v, 68, 5)
     if 3 <= u <= 12 and 1 <= v <= 14:
-        d = math.hypot(u - 7.5, v - 5.5)
-        if d < 4:
+        d = math.hypot(u - 7.5, v - 7.5)
+        if d < 4.5:
             c = (245, 240, 225)
-            if d > 3.2:
+            if d > 3.7:
                 c = GOLD
-            if u == 7 and 3 <= v <= 5 or v == 5 and 7 <= u <= 10:
+            if u == 7 and 4 <= v <= 7 or v == 7 and 7 <= u <= 10:
                 c = (20, 20, 20)
             return c
-        return jit(MAHOG_D, u, v, 69, 5) if not (u == 7 and 10 <= v <= 13) else GOLD
+        return jit(MAHOG_D, u, v, 69, 5)
     return None
 
 
 save(tile(clock), "clock")
+
+
+def clock_case(u, v):
+    # the case under the face: a glass door, the pendulum behind it
+    if u in (2, 13):
+        return jit(MAHOG, u, v, 77, 5)
+    if 3 <= u <= 12:
+        if u in (3, 12) or v in (0, 15):
+            return jit(MAHOG_D, u, v, 78, 5)
+        if u in (7, 8) and v <= 9:
+            return GOLD_D
+        if 9 <= v <= 12 and 6 <= u <= 9 and abs(u - 7.5) + abs(v - 10.5) < 2.6:
+            return GOLD
+        return mix((60, 40, 30), (150, 140, 120), 0.15 + 0.1 * ((u + v) % 3 == 0))
+    return None
+
+
+save(tile(clock_case), "clock_case")
 
 # --- the people -------------------------------------------------------------------
 

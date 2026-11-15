@@ -566,6 +566,9 @@ core.override_item("orthoverse_chateau:keyhook", {
 			core.swap_node(pos, {name = "orthoverse_chateau:keyhook_empty", param2 = node.param2})
 			core.chat_send_player(clicker:get_player_name(), S("You take the gardener's key from its hook."))
 		end
+		-- (what is in the hand now: the key may have gone into the slot held,
+		-- and returning nothing would put back what was there before)
+		return clicker:get_wielded_item()
 	end,
 })
 

@@ -260,8 +260,13 @@ node("drawers", {
 		tex("desk_side"), tex("drawers")}, paramtype2 = "facedir", groups = {choppy = 2}, sounds = SND.wood,
 })
 node("clock", {
-	description = S("Long-case clock"), tiles = {tex("panel_wood"), tex("panel_wood"), tex("panel_wood"),
+	description = S("Long-case clock (its face)"), tiles = {tex("panel_wood"), tex("panel_wood"), tex("panel_wood"),
 		tex("panel_wood"), tex("panel_wood"), tex("clock")}, paramtype2 = "facedir", groups = {choppy = 2}, sounds = SND.wood,
+})
+node("clock_case", {
+	description = S("Long-case clock (its case, under the face)"), tiles = {tex("panel_wood"), tex("panel_wood"),
+		tex("panel_wood"), tex("panel_wood"), tex("panel_wood"), tex("clock_case")}, paramtype2 = "facedir",
+	groups = {choppy = 2}, sounds = SND.wood,
 })
 node("bed", {
 	description = S("Bed"), drawtype = "nodebox", paramtype = "light", paramtype2 = "facedir",
