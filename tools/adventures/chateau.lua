@@ -285,7 +285,7 @@ local function hall()
 	-- fittings: the clock, mirrors, the notice, light
 	set(32, NF, 16, "orthoverse_chateau:clock_case", FACE.n)
 	set(32, NF + 1, 16, "orthoverse_chateau:clock", FACE.n)
-	set(44, NF + 2, 18, "orthoverse_chateau:notice", WALL.e)
+	set(30, NF + 2, 16, "orthoverse_chateau:notice", WALL.s)   -- (above Lenoir)
 	set(32, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
 	set(39, NF + 2, 29, "orthoverse_chateau:mirror", WALL.n)
 	chandeliers("hall", {{35, 19}, {35, 26}, {40, 19}})
