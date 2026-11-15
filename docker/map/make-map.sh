@@ -7,7 +7,10 @@
 #   make-map update   draw again only the lands that changed: blocks placed or
 #                     dug, lands made again or added (the game lists them in
 #                     /world/orthoverse_changed_lands.json), and cards whose
-#                     level or crest changed on the chain. Seconds per land
+#                     level or crest changed on the chain. Seconds per land.
+#                     A land with an adventure run on waits until the run is
+#                     over and the adventure restored
+
 #   make-map watch    update every 5 minutes (the mapwatch service)
 #
 # Each drawing of the tiles is its own folder, tiles/<version>/, named in

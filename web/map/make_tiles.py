@@ -15,7 +15,9 @@ MAP_VERSION.
 
 update: only what changed since it was drawn: the lands the game has reported
 changed (CHANGES.json, written by orthoverse_lands: blocks placed or dug, lands
-made again or added) and the lands whose card would show another level or crest.
+made again or added, adventures placed or restored) and the lands whose card
+would show another level or crest. Lands the game holds (an adventure run on
+there) wait until it lets them go.
 For each, its map tiles (and the zoomed-out tiles above them), its picture and
 its card are drawn again, into a new tiles version made of hard links to the
 current one. Seconds per land. Does nothing if nothing changed.
@@ -221,17 +223,24 @@ def update(db, lands_path, new_lands_path, tokens_path, heraldry_dir, out, chang
     state = read_json(os.path.join(out, ".drawn.json"), {"drawn_at": 0, "lands": {}})
     data, lands = all_lands(lands_path, new_lands_path)
     tokens = read_json(tokens_path, {}).get("tokens", {})
-    changes = read_json(changes_path, {}).get("lands", {})
+    change_file = read_json(changes_path, {})
+    changes = change_file.get("lands") or {}
+    if not isinstance(changes, dict):
+        changes = {}
+    # Lands with an adventure run on: left alone until the run is over and the
+    # adventure restored (then the game reports them changed)
+    hold = change_file.get("hold") or []
+    held = set(hold) if isinstance(hold, (list, dict)) else set()
 
     todo = set()
     for key, at in changes.items():
         seen = max(state.get("drawn_at", 0), (state["lands"].get(key) or {}).get("at", 0))
-        if at > seen and now - at >= QUIET:
+        if at > seen and now - at >= QUIET and key not in held:
             todo.add(key)
     # Cards whose level or crest has changed on the chain
     for key, land in lands.items():
         card = (state["lands"].get(key) or {}).get("card")
-        if card is not None and list(card_inputs(land, tokens)) != card:
+        if card is not None and list(card_inputs(land, tokens)) != card and key not in held:
             todo.add(key)
     if not todo:
         # Nothing to draw, but the names may have changed (the henges'

@@ -92,10 +92,13 @@ local function tell_members(run, text)
 	for n in pairs(run.members) do core.chat_send_player(n, text) end
 end
 
--- Several blocks set at once, in steps (a big area changed without a pause)
-local function in_steps(list, per, fn, done)
+-- Several blocks set at once, in steps (a big area changed without a pause).
+-- With `key` and `run`, the steps stop if that run is over (the adventure is
+-- being restored, and must not be changed under it)
+local function in_steps(list, per, fn, done, key, run)
 	local i = 1
 	local function step()
+		if run and orthoverse.adventure.runs[key] ~= run then return end
 		local last = math.min(#list, i + per - 1)
 		for j = i, last do fn(list[j]) end
 		i = last + 1
@@ -483,13 +486,13 @@ node("core", S("The Heart's core (opens when its last nodule bursts)"), {tiles =
 	end,
 })
 
-local function open_nodes(def, names, effect)
+local function open_nodes(def, names, effect, key, run)
 	local p1, p2 = area(def)
 	local list = core.find_nodes_in_area(p1, p2, names)
 	in_steps(list, 200, function(p)
 		core.remove_node(p)
 		if effect and math.random(3) == 1 then burn_effect(p) end
-	end)
+	end, nil, key, run)
 	return #list
 end
 
@@ -505,7 +508,7 @@ function orthoverse.seed.ganglion_cut(pos)
 		if p then core.sound_play("orthoverse_seed_heartbeat", {to_player = n, gain = 0.8, pitch = 0.7}, true) end
 	end
 	if data.ganglia == 3 then
-		open_nodes(def, {"orthoverse_seed:shell"}, true)
+		open_nodes(def, {"orthoverse_seed:shell"}, true, key, run)
 		tell_members(run, S("The whole growth shudders, and somewhere below something tears open."))
 	else
 		tell_members(run, S("The growth shudders."))
@@ -513,7 +516,8 @@ function orthoverse.seed.ganglion_cut(pos)
 end
 
 -- The growth withers to ash, the monsters of the growth fall
-local function wither(def)
+local function wither(def, key, run)
+	if run and orthoverse.adventure.runs[key] ~= run then return end
 	local p1, p2 = area(def)
 	local names = {}
 	for n in pairs(WITHER) do names[#names + 1] = n end
@@ -522,7 +526,7 @@ local function wither(def)
 	in_steps(list, 400, function(p)
 		local to = WITHER[core.get_node(p).name]
 		if to == "air" then core.remove_node(p) elseif to then core.swap_node(p, {name = to}) end
-	end)
+	end, nil, key, run)
 	for _, obj in ipairs(core.get_objects_in_area(p1, vector.offset(p2, 1, 1, 1))) do
 		local ent = obj:get_luaentity()
 		if ent and ent._seed_growth then
@@ -541,6 +545,9 @@ orthoverse.seed.wither = wither
 function orthoverse.seed.nodule_burst(pos, self_obj)
 	local key, def, run = adventure(pos)
 	if not run then return end
+	-- (nobody left in the run: it is about to end and be restored. A nodule
+	-- burnt by fire still alight after its thrower fell does not count)
+	if next(run.members) == nil then return end
 	local data = run_data(run)
 	if data.dead then return end
 	for _, obj in ipairs(core.get_objects_inside_radius(pos, 24)) do
@@ -558,11 +565,11 @@ function orthoverse.seed.nodule_burst(pos, self_obj)
 		end
 	end
 	data.dead = true
-	local n = open_nodes(def, {"orthoverse_seed:core"}, true)
+	local n = open_nodes(def, {"orthoverse_seed:core"}, true, key, run)
 	core.log("action", "[orthoverse_seed] the Heart of " .. key .. " died: " .. n .. " blocks of its core opened")
 	sound("wither", pos, 1.0, 96)
 	tell_members(run, S("The Heart bursts. All round you the growth greys and crumbles."))
-	core.after(1.5, function() wither(def) end)
+	core.after(1.5, function() wither(def, key, run) end)
 end
 
 ------------------------------------------------------------------------------

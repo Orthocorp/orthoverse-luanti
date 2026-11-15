@@ -124,7 +124,15 @@ local changed = (function()
 	local ok, parsed = pcall(core.parse_json, raw)
 	return ok and type(parsed) == "table" and type(parsed.lands) == "table" and parsed.lands or {}
 end)()
-local changes_unsaved = false
+-- (true at the start: the lands held, below, are written out empty again)
+local changes_unsaved = true
+
+-- Lands held: an adventure run is on there, and what a run does (doors
+-- opened, the growth withered) is not a change to draw. The map leaves a held
+-- land alone, and when it is let go (its adventure restored) the land counts
+-- as changed once. Its picture then comes out as before, under the same name,
+-- so OpenSea is not asked to refresh it. {key = true}
+local held = {}
 
 local function note_changed(lx, lz)
 	if math.max(math.abs(lx), math.abs(lz)) > C.MAP_RADIUS then return end
@@ -132,11 +140,29 @@ local function note_changed(lx, lz)
 	changes_unsaved = true
 end
 
+orthoverse.land_changes = {}
+-- The land at `pos` has changed (blocks set without placing them)
+function orthoverse.land_changes.note(pos)
+	note_changed(C.land_of(pos.x, pos.z))
+end
+-- Hold the land `key` (on) or let it go (counting it as changed)
+function orthoverse.land_changes.hold(key, on)
+	held[key] = on and true or nil
+	changes_unsaved = true
+	if not on then
+		local lx, lz = key:match("^(%-?%d+):(%-?%d+)$")
+		if lx then note_changed(tonumber(lx), tonumber(lz)) end
+	end
+end
+
 local function write_changes()
 	if not changes_unsaved then return end
 	local f = io.open(CHANGED_FILE .. ".tmp", "w")
 	if not f then return end
-	f:write(core.write_json({ updated = os.time(), lands = changed }))
+	local hold = {}
+	for key in pairs(held) do hold[#hold + 1] = key end
+	table.sort(hold)
+	f:write(core.write_json({ updated = os.time(), lands = changed, hold = hold }))
 	f:close()
 	os.rename(CHANGED_FILE .. ".tmp", CHANGED_FILE)
 	changes_unsaved = false
@@ -183,8 +209,8 @@ core.register_on_shutdown(save_built)
 
 local function note_node(pos)
 	local lx, lz = C.land_of(pos.x, pos.z)
-	note_changed(lx, lz)
 	local key = C.key(lx, lz)
+	if not held[key] then note_changed(lx, lz) end
 	if orthoverse.lands[key] then
 		local tile = C.tile_index(C.local_uv(pos.x, pos.z))
 		built[key] = built[key] or {}

@@ -218,6 +218,7 @@ local function restore(key, done)
 	local def = adventures[key]
 	local tpl = def and load_template(key, def)
 	if not tpl then
+		if not runs[key] then orthoverse.land_changes.hold(key, false) end
 		if done then done(false) end
 		return
 	end
@@ -289,6 +290,8 @@ core.register_globalstep(function()
 			jobs[key] = nil
 			restocking[key] = nil
 			storage:set_string("dirty:" .. key, "")
+			-- (the map may draw the land again, now it is as it was)
+			if not runs[key] then orthoverse.land_changes.hold(key, false) end
 			if job.done then job.done(ok) end
 		end
 	end
@@ -643,6 +646,8 @@ local function start_or_join(name, key)
 			version = def.version, away = {}}
 		runs[key] = run
 		storage:set_string("dirty:" .. key, "1")
+		-- What the run does is not drawn on the map (orthoverse_lands)
+		orthoverse.land_changes.hold(key, true)
 		core.chat_send_player(name, ("The run has begun. Companions may follow you through the gate for the next %d " ..
 			"seconds. Time limit: %d minutes."):format(JOIN_WINDOW, def.limit or LIMIT_DEFAULT))
 	end
@@ -1446,6 +1451,7 @@ local function place_template(tname, at, by, done, turned)
 			}
 			save_def(key)
 			write_public()
+			orthoverse.land_changes.note(p1)
 			return done(true, ("%s placed on %s (%d blocks). It is closed: look round and change what you like, then " ..
 				"/adventure save and /adventure open."):format(adventures[key].name, land.name, n))
 		end
@@ -1489,6 +1495,7 @@ local function place_template(tname, at, by, done, turned)
 		}
 		save_def(key)
 		write_public()
+		orthoverse.land_changes.note(p1)
 		done(true, ("%s placed on %s (%d blocks)%s. It is closed: look round and change what you like, then " ..
 			"/adventure save and /adventure open."):format(adventures[key].name, land.name, n,
 			turned and ", turned round (its entrance at the north end)" or ""))

@@ -260,6 +260,7 @@ local function on_blow(self, blow)
 		end
 	end
 	self.health = self.health - blow.damage
+	self._struck_at = now()   -- (a death that follows was a blow's)
 	if blow.slow then slow(self, blow.slow) end
 	if self._on_struck then self._on_struck(self, blow) end
 	local a = blow.attacker
@@ -1311,7 +1312,9 @@ monster("nodule", {
 	collisionbox = {-0.5, -0.5, -0.5, 0.5, 0.5, 0.5}, walk = 0, run = 0, heavy = true, view_range = 8,
 	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, fall_damage = false,
 		on_die = function(self, pos)
-			if seed() then seed().nodule_burst(pos, self.object) end
+			-- Only a nodule killed by a blow bursts: not one smothered in a wall or
+	-- the floor, or removed some other way
+	if seed() and self._struck_at and now() - self._struck_at < 2 then seed().nodule_burst(pos, self.object) end
 			local key = self._adventure
 			local _, def = orthoverse.adventure and orthoverse.adventure.at(pos)
 			if def and not (seed() and orthoverse.adventure.runs[key] and (orthoverse.adventure.runs[key].seed or {}).dead) then
