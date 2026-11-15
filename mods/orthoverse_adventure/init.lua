@@ -1015,9 +1015,17 @@ end)
 
 -- A window title in the Midnight font (the game's "mono" font in the browser
 -- client), and buttons in it too
+-- The Midnight font has plain letters only: any other character (é, â,
+-- ...) is written in the normal font, between runs of Midnight (a missing
+-- letter showed as a gap, and pushed the end of the title out of sight)
 local function title(x, y, w, text)
-	return ("hypertext[%s,%s;%s,0.9;title;<global size=16><mono>%s</mono>]"):format(x, y, w,
-		core.formspec_escape(core.hypertext_escape(text)))
+	local out = {}
+	for plain, other in text:gmatch("([%z\1-\127]*)([\128-\255]*)") do
+		if plain ~= "" then out[#out + 1] = "<mono>" .. core.hypertext_escape(plain) .. "</mono>" end
+		if other ~= "" then out[#out + 1] = core.hypertext_escape(other) end
+	end
+	return ("hypertext[%s,%s;%s,0.9;title;<global size=16>%s]"):format(x, y, w,
+		core.formspec_escape(table.concat(out)))
 end
 local MONO_BUTTONS = "style_type[button,button_exit;font=mono]"
 
