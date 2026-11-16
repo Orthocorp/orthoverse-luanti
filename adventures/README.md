@@ -239,3 +239,13 @@ It covers the whole land: a desert of dunes on a plateau three blocks above the 
 The tomb is full of traps, and the worst of them are deadly to a rank 8 character; the tomb gives warnings, for those who look. Its builders also wrote things on the walls. There are mummies, scarabs, skeleton warriors, stone guardians, statues that are not always statues and a stone golem. The more of you there are, the more of them there are. Not every passage goes somewhere.
 
 `/adventure place tahna` places it over the whole land (it cannot be turned round). Everything is put back after each run.
+
+## The Silent Ark
+
+Far above the Orthoverse a generation ship hangs in the dark, its colonists asleep for three hundred years. For ranks 10 to 16, up to four players; 90 minutes. Finishing is worth 600 experience, once a day.
+
+It covers the whole land. On the ground stands a launch terminal (the gate, the board and the title sign); the lift from it docks with the ship, and the ship hangs in space under the land, hollowed out from side to side: black, starred, a red giant burning on one side and a green and blue world below. The ship has windows everywhere.
+
+Aboard: decks without gravity, decks without air (the suit holds a minute; find more), doors that close behind you and stay closed, colonists who did not wake well, and the Fallen Star's robots in tougher forms: hunter drones (level 9), heavy turrets (10), enforcers (11). The more of you there are, the more of them there are. Some of it is different every time.
+
+`/adventure place silent_ark` places it over the whole land (it cannot be turned round). Everything is put back after each run.

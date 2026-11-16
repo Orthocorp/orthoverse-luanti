@@ -8,7 +8,7 @@ description: Write a ready-made Orthoverse adventure (a generator script, its .j
 The Orthoverse is a Luanti (5.18) game on Minetest Game. Its ready-made
 adventures (The Three Bells, The Gullet, The Fallen Star, The Mill at Withy
 Ford, St Morwen's, The Wyrm Below, Tir Na Nog, The Seed, Death at the
-Château, Eight Queens, the Tomb of Tahna) are not built by hand:
+Château, Eight Queens, the Tomb of Tahna, The Silent Ark) are not built by hand:
 each is a Lua script that builds it block by block, run on a local server that
 saves it as a template and checks it. The admin places a template on a land
 with `/adventure place <name>`.
@@ -126,7 +126,9 @@ Monsters (`orthoverse_monsters`, kind = the name after the colon) with their
 levels: kobold 1, mossling 1, goblin 2, skeleton 3, wisp 3, orc 4, hexer 4,
 warlord 5, drone 3, secbot 5, turret 5, warden 7, masked (kobolds in masks),
 ringmaster 5, zombie 4, ghoul 5, wight 8, cutthroat 6, deep_orc 8, wyrm 12,
-husk 5, crawler 4, spitter 5, spore_puff 4, tendril 6, ganglion 6, nodule 8.
+husk 5, crawler 4, spitter 5, spore_puff 4, tendril 6, ganglion 6, nodule 8, scarab 6,
+skeleton_warrior 8, mummy 9, hunter_drone 9, statue 10, heavy_turret 10, sleeper 10,
+guardian 11, enforcer 11, golem 13, custodian 15, tahna.
 Check `mods/orthoverse_monsters/init.lua` for the current list.
 
 ## New blocks, items and monsters

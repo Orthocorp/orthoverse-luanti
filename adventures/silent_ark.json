@@ -1,0 +1,56 @@
+{
+	"arrival": {
+		"x": 48.5,
+		"y": 73,
+		"z": 3.5
+	},
+	"blurb": "Far above the Orthoverse a generation ship hangs in the dark, its colonists asleep for three hundred years. Its airlocks still open. Its lights still burn. And something aboard has noticed you come in.",
+	"corner1": {
+		"x": 1,
+		"y": 0,
+		"z": 1
+	},
+	"corner2": {
+		"x": 94,
+		"y": 66,
+		"z": 94
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 95,
+				"y": 71,
+				"z": 95
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"finish_xp": 600,
+	"ground": 72,
+	"limit": 90,
+	"line": "A ship hangs dead in the dark above the world, and something aboard is still awake.",
+	"name": "The Silent Ark",
+	"party_max": 4,
+	"rank_max": 16,
+	"rank_min": 10,
+	"size": {
+		"x": 96,
+		"y": 80,
+		"z": 96
+	},
+	"start": {
+		"x": 48.5,
+		"y": 45,
+		"z": 50.5
+	},
+	"tags": [
+		"sci-fi",
+		"explore",
+		"combat"
+	],
+	"whole_land": true
+}
