@@ -90,6 +90,7 @@ tools/render_map.py          offline top-down render from map.sqlite
 tools/mapslice.py            offline node counts and vertical slices (debugging)
 tools/split_crests.py        one PNG per crest, for orthoverse_landhud (run by the image build)
 tools/midnight_atlas.py      the Midnight font as a picture of its letters, for orthoverse_landhud
+tools/midnight_accents.py    accented letters (French above all) added to the Midnight font
 tools/make_logo.py           the Orthoverse logo and site icon, from the Midnight font
 tools/make_desktop_art.py    the pixel-art computer on the play page for phones
 tools/make_cave.py           the cave wall round the web map, from the game's textures

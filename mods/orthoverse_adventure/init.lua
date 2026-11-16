@@ -1044,15 +1044,26 @@ end)
 
 -- A window title in the Midnight font (the game's "mono" font in the browser
 -- client), and buttons in it too
--- The Midnight font has plain letters only: any other character (é, â,
--- ...) is written in the normal font, between runs of Midnight (a missing
--- letter showed as a gap, and pushed the end of the title out of sight)
+-- Midnight has ASCII and the accented letters and signs below
+-- (tools/midnight_accents.py): anything else is written in the normal font,
+-- between runs of Midnight (a missing letter shows as a gap, and pushes the
+-- end of the title out of sight)
+local IN_MIDNIGHT = {}
+for ch in ("¡£«°·»¿ÀÁÂÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÖ×ØÙÚÛÜÝßàáâäåæçèéêëìíîïñòóôöøùúûüýÿŒœŸ–‘’“”′€"):gmatch("[\192-\247][\128-\191]*") do IN_MIDNIGHT[ch] = true end
 local function title(x, y, w, text)
-	local out = {}
-	for plain, other in text:gmatch("([%z\1-\127]*)([\128-\255]*)") do
-		if plain ~= "" then out[#out + 1] = "<mono>" .. core.hypertext_escape(plain) .. "</mono>" end
-		if other ~= "" then out[#out + 1] = core.hypertext_escape(other) end
+	local out, run, mono = {}, {}, nil
+	local function flush()
+		if #run == 0 then return end
+		local t = core.hypertext_escape(table.concat(run))
+		out[#out + 1] = mono and ("<mono>" .. t .. "</mono>") or t
+		run = {}
 	end
+	for ch in text:gmatch("[%z\1-\127\192-\247][\128-\191]*") do
+		local m = #ch == 1 or IN_MIDNIGHT[ch] == true
+		if m ~= mono then flush(); mono = m end
+		run[#run + 1] = ch
+	end
+	flush()
 	return ("hypertext[%s,%s;%s,0.9;title;<global size=16>%s]"):format(x, y, w,
 		core.formspec_escape(table.concat(out)))
 end
