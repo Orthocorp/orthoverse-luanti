@@ -229,3 +229,13 @@ It is the Queen's hall, 38 blocks by 36, with her throne room behind it and wall
 Every run lays a new floor, and every floor has exactly one answer, found by reasoning (no guessing needed). Set the eight queens, mark the squares that cannot hold one with crosses, and when all eight stand where they should, the doors of the throne room open: the Queen waits on her throne, and the crown before her finishes the adventure. Like Death at the Château, it explains its rules: the notices by the start say how to play.
 
 Everything is put back after each run, and the next run is a new floor.
+
+## Tomb of Tahna
+
+A queen sleeps under the desert, and her tomb is built to keep her sleeping. For ranks 8 to 15, up to four players; 90 minutes. Finishing is worth 500 experience, once a day, and the first time a character finishes, they carry out the Sceptre of Tahna.
+
+It covers the whole land: a desert of dunes on a plateau three blocks above the land round it (whoever steps off its edge has left the run), with a small pyramid, a rock-cut doorway and a great sphinx. Somewhere among them is the way in. Below lie three levels of passages and rooms, each further down and back the other way, and at the bottom the queen herself.
+
+The tomb is full of traps, and the worst of them are deadly to a rank 8 character; the tomb gives warnings, for those who look. Its builders also wrote things on the walls. There are mummies, scarabs and stone guardians, and Tahna does not stay dead easily.
+
+`/adventure place tahna` places it over the whole land (it cannot be turned round). Everything is put back after each run.

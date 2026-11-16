@@ -1,0 +1,56 @@
+{
+	"arrival": {
+		"x": 48.5,
+		"y": 45,
+		"z": 2.5
+	},
+	"blurb": "Under the dunes lies the tomb of Tahna, the mummy queen, three levels deep. Traps, false doors and the walking dead guard her rest, and she does not stay dead easily. Her sceptre waits for whoever can.",
+	"corner1": {
+		"x": 1,
+		"y": 0,
+		"z": 6
+	},
+	"corner2": {
+		"x": 94,
+		"y": 63,
+		"z": 94
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 95,
+				"y": 43,
+				"z": 95
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"finish_xp": 500,
+	"ground": 44,
+	"limit": 90,
+	"line": "A queen sleeps under the desert, and her tomb is built to keep her sleeping: false doors, falling stone, fire and the dead. Find the way in first.",
+	"name": "Tomb of Tahna",
+	"party_max": 4,
+	"rank_max": 15,
+	"rank_min": 8,
+	"size": {
+		"x": 96,
+		"y": 64,
+		"z": 96
+	},
+	"start": {
+		"x": 48.5,
+		"y": 48,
+		"z": 9.5
+	},
+	"tags": [
+		"combat",
+		"puzzle",
+		"explore"
+	],
+	"whole_land": true
+}
