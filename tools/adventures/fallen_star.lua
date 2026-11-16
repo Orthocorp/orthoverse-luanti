@@ -58,7 +58,7 @@ g.info = {
 	name = "The Fallen Star",
 	line = "A ship from the futuristic realm came down in the hills. Its machines are still running.",
 	limit = 60,
-	tags = {"combat", "puzzle", "sci-fi"},   -- for the Adventures page (at most three)
+	tags = {"combat", "skill", "sci-fi"},   -- for the Adventures page (at most three)
 	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
 	blurb = "Something came down in the hills and buried itself under the crater. Its drones still patrol the decks and its floors still carry a charge. Find the keycards and reach the black box at its heart.",
 	rank_min = 3, rank_max = 7,
