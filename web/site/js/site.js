@@ -244,7 +244,12 @@
         el('button', { class: 'ov-btn', type: 'button', onclick: async () => {
           try { await navigator.clipboard.writeText(codeBox.textContent); copied.textContent = 'Copied.'; } catch (e) { copied.textContent = 'Select it and copy it by hand.'; }
         } }, 'Copy'),
-        el('button', { class: 'ov-btn', type: 'button', onclick: () => dialog.close() }, 'I have written it down'),
+        el('button', { class: 'ov-btn', type: 'button', onclick: () => {
+          dialog.close();
+          // (made from the play page: back there, to play)
+          const b = backTo();
+          if (b) location.href = b;
+        } }, 'I have written it down'),
         copied));
 
     dialog = el('dialog', { class: 'ov-dialog', 'aria-label': 'Sign in' },
@@ -260,18 +265,20 @@
 
   // Cloudflare Turnstile on the registration form, when the site uses it.
   // Its script comes from Cloudflare, which a cross-origin isolated page (the
-  // play page) cannot load: there, registration is sent to the Account page.
+  // play page) cannot load: from there, making a character goes to the
+  // Account page, which comes back here once the recovery code is written down.
   let robotToken = null, robotWidget = null;
+  const mustRegisterElsewhere = async () => window.crossOriginIsolated && !!(await getConfig()).turnstile;
+  // Where to go back to after making a character: only a play page of this site
+  const backTo = () => {
+    const b = new URLSearchParams(location.search).get('back') || '';
+    return /^\/play\/(\?[\w=:%&.-]*)?$/.test(b) ? b : null;
+  };
   async function robotCheck() {
     const c = await getConfig();
     dialog.robot.innerHTML = '';
     robotToken = null;
     if (!c.turnstile) return true;
-    if (window.crossOriginIsolated) {
-      dialog.robot.append(el('p', {}, 'Make your character on the ', el('a', { href: '/account/#new' }, 'Account page'),
-        ', then come back here to play.'));
-      return false;
-    }
     if (!window.turnstile) {
       await new Promise((resolve, reject) => {
         const sc = el('script', { src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', async: true });
@@ -287,6 +294,10 @@
   // Open the panel at a step: 'signin', 'register', 'recover', or the one
   // that is due (sign in, or choose a name)
   OV.signIn = async (step) => {
+    if (step === 'register' && await mustRegisterElsewhere()) {
+      location.href = '/account/?back=' + encodeURIComponent(location.pathname + location.search) + '#new';
+      return;
+    }
     if (!dialog) buildDialog();
     if (typeof step !== 'string') step = OV.me && OV.me.signedIn && !OV.me.name ? 'name' : 'signin';
     dialog.step1.hidden = step !== 'signin';
@@ -334,6 +345,9 @@
       OV.set(await OV.api('POST', '/auth/login', { name, password }));
       dialog.lPass.value = '';
       dialog.close();
+      // (sent here from the play page to make a character, but had one)
+      const b = backTo();
+      if (b) location.href = b;
     });
   }
 
