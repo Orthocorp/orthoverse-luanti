@@ -364,7 +364,8 @@ local function rock_tomb()
 		local z = 73 + k
 		box(18, PG - k, z, 20, PG - k, z, DSBLOCK)
 		air(18, PG - k + 1, z, 20, PG - k + 4, z)
-		set(18, PG - k + 1, z, STAIR, 0); set(19, PG - k + 1, z, STAIR, 0); set(20, PG - k + 1, z, STAIR, 0)
+		-- (param2 2: the high side to the south, the way up)
+		set(18, PG - k + 1, z, STAIR, 2); set(19, PG - k + 1, z, STAIR, 2); set(20, PG - k + 1, z, STAIR, 2)
 	end
 	-- the chamber: bare, a tablet on the far wall
 	local fy = PG - 6
