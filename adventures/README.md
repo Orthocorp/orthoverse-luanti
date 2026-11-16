@@ -232,10 +232,10 @@ Everything is put back after each run, and the next run is a new floor.
 
 ## Tomb of Tahna
 
-A queen sleeps under the desert, and her tomb is built to keep her sleeping. For ranks 8 to 15, up to four players; 90 minutes. Finishing is worth 500 experience, once a day, and the first time a character finishes, they carry out the Sceptre of Tahna.
+You meet a traveller from an antique land, who says, "A tomb lies far off in the desert. Enter its darkness, ye mighty, and despair." For ranks 8 to 15, up to four players; 90 minutes. Finishing is worth 500 experience, once a day.
 
-It covers the whole land: a desert of dunes on a plateau three blocks above the land round it (whoever steps off its edge has left the run), with a small pyramid, a rock-cut doorway and a great sphinx. Somewhere among them is the way in. Below lie three levels of passages and rooms, each further down and back the other way, and at the bottom the queen herself.
+It covers the whole land: a desert of dunes on a plateau three blocks above the land round it (whoever steps off its edge has left the run), with a small pyramid, a rock-cut doorway and a great sphinx. Somewhere among them is the way in. Below lie three levels of passages and rooms, each further down and back the other way.
 
-The tomb is full of traps, and the worst of them are deadly to a rank 8 character; the tomb gives warnings, for those who look. Its builders also wrote things on the walls. There are mummies, scarabs, skeleton warriors, stone guardians, statues that are not always statues and a stone golem, and Tahna does not stay dead easily. The more of you there are, the more of them there are. Not every passage goes somewhere.
+The tomb is full of traps, and the worst of them are deadly to a rank 8 character; the tomb gives warnings, for those who look. Its builders also wrote things on the walls. There are mummies, scarabs, skeleton warriors, stone guardians, statues that are not always statues and a stone golem. The more of you there are, the more of them there are. Not every passage goes somewhere.
 
 `/adventure place tahna` places it over the whole land (it cannot be turned round). Everything is put back after each run.

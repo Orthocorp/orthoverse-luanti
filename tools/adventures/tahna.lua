@@ -46,8 +46,7 @@ local T = function(id) return "orthoverse_tahna:" .. id end
 
 g.info = {
 	name = "Tomb of Tahna",
-	line = "A queen sleeps under the desert, and her tomb is built to keep her sleeping: false doors, " ..
-		"falling stone, fire and the dead. Find the way in first.",
+	line = "A tomb lies far off in the desert. Enter its darkness, ye mighty, and despair.",
 	limit = 90,
 	tags = {"combat", "puzzle", "explore"},   -- for the Adventures page (at most three)
 	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
@@ -240,7 +239,7 @@ local function forecourt()
 	set(g.gate.x, g.gate.y, g.gate.z, "orthoverse_adventure:gate", 0)
 	set(51, NG + 1, 4, "orthoverse_adventure:board", 0)
 	box(43, NG + 1, 5, 45, NG + 2, 5, SANDSTONE)
-	sign(44, NG + 2, 4, "+z", "TOMB OF TAHNA\nThe desert keeps a queen, and her tomb keeps her.\n" ..
+	sign(44, NG + 2, 4, "+z", "TOMB OF TAHNA\nEnter its darkness, ye mighty, and despair.\n" ..
 		"Ranks 8 to 15. Up to four together.")
 	for _, x in ipairs({40, 56}) do set(x, NG + 1, 3, "default:mese_post_light") end
 	-- steps up onto the desert, for the way back (inside the box, nobody needs them)
