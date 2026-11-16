@@ -171,9 +171,9 @@ core.register_node("orthoverse_tahna:return", {
 	pointable = false, buildable_to = false, is_ground_content = false, inventory_image = tex("flag"),
 })
 -- The endless passage's floor: stone brick to look at, but whoever treads on
--- it is set back along the passage (east: west by 24; west: east by 8), so
+-- it is set back along the passage (east: west by 60; west: east by 12), so
 -- the passage seems to go on for ever
-for id, d in pairs({loop_east = {S("east"), -24}, loop_west = {S("west"), 8}}) do
+for id, d in pairs({loop_east = {S("east"), -60}, loop_west = {S("west"), 12}}) do
 	block(id, S("Endless passage's floor (@1 end: sends players back along it)", d[1]), {
 		tiles = {"default_stone_brick.png"}, _tahna_shift = d[2]})
 end

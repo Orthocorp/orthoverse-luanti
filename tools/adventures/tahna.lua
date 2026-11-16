@@ -642,11 +642,13 @@ end
 -- The endless passage: north from the hall of guardians to a crossway, and
 -- east and west from it in plain stone brick. Near each end the floor sends
 -- whoever treads on it back along the passage, so it never ends.
-local LOOP = {z = 70, west = {3, 5, 8}, east = {60, 62, -24}}
+-- (it runs the whole width of the land, all but a wall at each end; the
+-- floor that sends players back starts five blocks in from each end)
+local LOOP = {z = 70, west = {1, 6}, east = {89, 94}}
 
 local function endless(f)
 	corridor({{21, 52}, {21, LOOP.z}}, f, BRICK)
-	corridor({{4, LOOP.z}, {63, LOOP.z}}, f, BRICK)
+	corridor({{2, LOOP.z}, {93, LOOP.z}}, f, BRICK)
 	for _, side in ipairs({"west", "east"}) do
 		local l = LOOP[side]
 		box(l[1], f, LOOP.z - 1, l[2], f, LOOP.z + 1, T("loop_" .. side))

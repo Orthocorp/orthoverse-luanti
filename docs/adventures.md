@@ -172,7 +172,7 @@ For the Tomb of Tahna and any builder's adventure, in the Creative tab: walls of
 * **False door:** touched, it brings spears up through the spear floor within 3 of it (28 to whoever stands on it).
 * **Archway:** its mark (invisible) sends whoever walks into it to the nearest **return mark**.
 * **The drowning room:** **buttons** in its wall (each pops out again 0.6 s after it is pressed). When as many are in at once as there are living players in the run, the **slab marks** round the room come down as slabs and the room (marked out by its **drowning room floor**, which looks like a flagged floor) fills with water a layer every 1.5 s; whoever has water over their head takes 5 a second as well as drowning. No way out.
-* **Endless passage floor** (looks like stone brick, an east end and a west end): whoever treads on it is set back along the passage (24 blocks west from the east end, 8 east from the west end), with no sign.
+* **Endless passage floor** (looks like stone brick, an east end and a west end): whoever treads on it is set back along the passage (60 blocks west from the east end, 12 east from the west end), with no sign.
 * **The pyramid's sarcophagus:** opened, it drops the slabs within 14 into their places (the slab marks) and wakes two mummies; a **lever** lifts the slabs again.
 
 Trap damage is set straight on health: armour does not help. Also: three **canopic jars** (struck, they break), a **pedestal**, **Tahna's sarcophagus** (a finish: shut until she is slain in the run, then each player who touches it takes the **Sceptre of Tahna**, once a character ever, as treasure that comes out with them, and completes the adventure), and the sceptre itself, which stands like a torch, for show.
