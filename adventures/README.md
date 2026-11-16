@@ -219,3 +219,13 @@ There are puzzles too: locked places and secret ways, whose answers are somewher
 The guests: Le Comte Richard d'Améthyste, La Marquise Céleste Vermeil, Le Général Gaston Safran, Mademoiselle Geneviève Ivoire, Monsieur Lucien Émeraude, Le Duc Henri Azur, Docteur Émile Cendre and Madame Solange Or.
 
 Everything is put back after each run, and the next run is a new mystery.
+
+## Eight Queens
+
+A queen in every row, column and colour, and none may touch. A puzzle for one player, any rank (1 to 20), no fighting; 30 minutes. Finishing is worth 300 experience, once a day. The kit is eight queens and a stack of crosses.
+
+It is the Queen's hall, 38 blocks by 36, with her throne room behind it and walled gardens either side, and a forecourt in front (the gate, the board and the title sign); `/adventure place queens` builds it in the middle of the land. The floor of the hall is a board of eight squares by eight in eight colours, each colour with its own pattern; a gallery runs round the hall above it, to see the floor whole.
+
+Every run lays a new floor, and every floor has exactly one answer, found by reasoning (no guessing needed). Set the eight queens, mark the squares that cannot hold one with crosses, and when all eight stand where they should, the doors of the throne room open: the Queen waits on her throne, and the crown before her finishes the adventure. Like Death at the Château, it explains its rules: the notices by the start say how to play.
+
+Everything is put back after each run, and the next run is a new floor.

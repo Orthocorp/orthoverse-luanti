@@ -8,7 +8,7 @@ description: Write a ready-made Orthoverse adventure (a generator script, its .j
 The Orthoverse is a Luanti (5.18) game on Minetest Game. Its ready-made
 adventures (The Three Bells, The Gullet, The Fallen Star, The Mill at Withy
 Ford, St Morwen's, The Wyrm Below, Tir Na Nog, The Seed, Death at the
-Château) are not built by hand:
+Château, Eight Queens) are not built by hand:
 each is a Lua script that builds it block by block, run on a local server that
 saves it as a template and checks it. The admin places a template on a land
 with `/adventure place <name>`.

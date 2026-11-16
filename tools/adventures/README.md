@@ -99,3 +99,5 @@ python3 -m json.tool --tab --sort-keys /tmp/gu/world/chateau.json > adventures/c
 ```
 
 Its blocks, the guests' skins and the sounds are in `mods/orthoverse_chateau`, made by `tools/chateau/make_textures.py`. The mystery is drawn at the start of each run by `mods/orthoverse_chateau/mystery.lua`, which finds the clue places by their metadata.
+
+`queens.lua` builds Eight Queens the same way, with `orthoverse_generate_adventure = queens`, and writes `queens.ovt`; its floor is coloured with a sample puzzle (each run colours its own). Besides the walk checks it checks the floor and the gallery. Expected: `unreachable: none`, the throne room `false` with its doors shut, `board tiles: 576 (want 576)`, `board squares walked to: 64 of 64`, the gallery reachable on all four sides, and the dais before the crown reachable. Its blocks, the Queen's skin and the sounds are in `mods/orthoverse_queens`, made by `tools/queens/make_textures.py`; the puzzles are made by `mods/orthoverse_queens/puzzle.lua` (pure Lua: it can be tried outside the game).

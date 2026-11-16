@@ -1,0 +1,58 @@
+{
+	"arrival": {
+		"x": 23.5,
+		"y": 9,
+		"z": 2.5
+	},
+	"blurb": "The Queen's floor is eight squares by eight, in eight colours. Set eight queens on it: one in every row, column and colour, none touching. A new floor every time, and only one way to solve it.",
+	"corner1": {
+		"x": 5,
+		"y": 0,
+		"z": 8
+	},
+	"corner2": {
+		"x": 42,
+		"y": 29,
+		"z": 61
+	},
+	"dig": [
+		{
+			"max": {
+				"x": 47,
+				"y": 7,
+				"z": 63
+			},
+			"min": {
+				"x": 0,
+				"y": 0,
+				"z": 0
+			}
+		}
+	],
+	"finish_xp": 300,
+	"ground": 8,
+	"kit": [
+		"orthoverse_queens:queen 8",
+		"orthoverse_queens:cross 99"
+	],
+	"limit": 30,
+	"line": "A queen in every row, column and colour, and none may touch. Solve the Queen's floor to reach her throne.",
+	"name": "Eight Queens",
+	"party_max": 1,
+	"rank_max": 20,
+	"rank_min": 1,
+	"size": {
+		"x": 48,
+		"y": 30,
+		"z": 64
+	},
+	"start": {
+		"x": 23.5,
+		"y": 9,
+		"z": 10.5
+	},
+	"tags": [
+		"puzzle",
+		"solo"
+	]
+}
