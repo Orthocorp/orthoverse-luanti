@@ -329,8 +329,9 @@ local function pyramid()
 	box(66, PF + 5, 75, 78, PF + 5, 85, T("sandstone_block"))
 	air(cx - 1, PF, PYR.z1, cx + 1, PF + 2, 75)
 	box(cx - 1, PF - 1, PYR.z1, cx + 1, PF - 1, 75, T("sandstone_block"))
-	-- the slab's place, just inside the doorway
-	box(cx - 1, PF, PYR.z1 + 1, cx + 1, PF + 2, PYR.z1 + 1, T("slab_open"))
+	-- the slab's place: inside the doorway, where the pyramid is over the
+	-- passage (nearer the face its steps leave the passage open to the sky)
+	box(cx - 1, PF, PYR.z1 + 4, cx + 1, PF + 2, PYR.z1 + 4, T("slab_open"))
 	-- the empty sarcophagus, the painting, the lever, torches
 	set(cx, PF, 80, T("decoy"), 0)
 	fresco("sphinx", 71, PF + 2, 84, "n")
@@ -382,10 +383,12 @@ local function rock_tomb()
 		if x == 16 or x == 22 or z == 81 or z == 87 then box(x, fy - 4, z, x, fy - 1, z, DSBLOCK) end
 	end end
 	box(17, fy - 4, 82, 21, fy - 4, 86, T("spikes"))
-	for y = fy - 4, fy do set(19, y, 86, LADDER, 4) end
+	-- the way out: a column in a corner, its top just under the floor, a
+	-- ladder up its side (from it, a jump up to the floor)
+	box(17, fy - 4, 86, 17, fy - 1, 86, DSBLOCK)
+	for y = fy - 4, fy - 1 do set(18, y, 86, LADDER, 3) end
 	box(17, fy, 82, 21, fy, 86, T("false_floor"))
 	set(19, fy, 84, T("plate_pit"))
-	set(19, fy, 86, LADDER, 4)
 end
 
 ------------------------------------------------------------------------------
@@ -623,7 +626,10 @@ local function level2()
 		if x == 24 or x == 30 or z == 13 or z == 17 then box(x, f - 4, z, x, f - 1, z, COBBLE) end
 	end end
 	box(25, f - 4, 14, 29, f - 4, 16, T("spikes"))
-	for y = f - 4, f - 1 do set(25, y, 15, LADDER, 3) end
+	-- the way out: a column in a corner, its top just under the floor, a
+	-- ladder up its side (from it, a jump up to the floor)
+	box(25, f - 4, 14, 25, f - 1, 14, COBBLE)
+	for y = f - 4, f - 1 do set(26, y, 14, LADDER, 3) end
 	box(25, f, 14, 29, f, 16, T("false_floor"))
 	set(27, f, 15, T("plate_pit"))
 	-- E: the stair room, and the golem that keeps it (too big for the passages)
