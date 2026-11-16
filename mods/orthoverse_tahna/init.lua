@@ -19,6 +19,7 @@
 --     the archway: walk through it and you are back at the level's start
 --       (the nearest "return" mark).
 --   Damage is set straight on health (armour does not help).
+-- * The endless passage: floor that quietly sets players back along it.
 -- * False walls: look like the wall beside them, and can be walked through.
 -- * The pyramid's trap: its empty sarcophagus, opened, seals the doorway
 --   with a slab and wakes two mummies; a lever opens the slab again.
@@ -167,6 +168,13 @@ core.register_node("orthoverse_tahna:return", {
 	drawtype = "airlike", paramtype = "light", sunlight_propagates = true, walkable = false,
 	pointable = false, buildable_to = false, is_ground_content = false, inventory_image = tex("flag"),
 })
+-- The endless passage's floor: stone brick to look at, but whoever treads on
+-- it is set back along the passage (east: west by 24; west: east by 8), so
+-- the passage seems to go on for ever
+for id, d in pairs({loop_east = {S("east"), -24}, loop_west = {S("west"), 8}}) do
+	block(id, S("Endless passage's floor (@1 end: sends players back along it)", d[1]), {
+		tiles = {"default_stone_brick.png"}, _tahna_shift = d[2]})
+end
 -- Where the slab will fall (an open doorway until the pyramid's trap)
 core.register_node("orthoverse_tahna:slab_open", {
 	description = S("Slab's place (open until the trap seals it)"),
@@ -657,6 +665,9 @@ core.register_globalstep(function(dtime)
 				local fn = core.get_node(feet).name
 				local fire = SPRUNG[fn]
 				if fire and once(run, fn, feet) then fire(feet, key, run) end
+				-- the endless passage: back along it, without a sign
+				local shift = core.registered_nodes[fn] and core.registered_nodes[fn]._tahna_shift
+				if shift then pl:set_pos(vector.offset(p, shift, 0, 0)) end
 				-- the archway: back to the nearest return mark
 				local body = vector.round(vector.offset(p, 0, 0.6, 0))
 				if (core.get_node(body).name == "orthoverse_tahna:arch" or core.get_node(vector.round(p)).name == "orthoverse_tahna:arch")

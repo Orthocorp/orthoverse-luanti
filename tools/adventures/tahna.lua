@@ -70,7 +70,7 @@ g.compact = true
 g.spawners = {}
 g.chests = {}
 g.signs = {}
-g.finish = {x = 82, y = L3 + 2, z = 42}
+g.finish = {x = 84, y = L3 + 2, z = 42}
 g.gate = {x = 48, y = NG + 1, z = 4}
 g.surface = NG + 1
 g.outside = {x = 30, y = NG + 1, z = 2}
@@ -136,10 +136,13 @@ local function sign(x, y, z, dir, text)
 	meta(x, y, z, {text = text, infotext = '"' .. text .. '"'})
 end
 
-local function spawner(x, y, z, kind, count, wake)
+-- (at: where in the room its monsters come, if not round it)
+local function spawner(x, y, z, kind, count, wake, at)
 	set(x, y, z, SPAWNER)
 	metas[#metas + 1] = {x = x, y = y, z = z, construct = true, fields = {
 		kind = "orthoverse_monsters:" .. kind, count = tostring(count), wake = tostring(wake),
+		at = at and ("(%d,0,%d)"):format(at.x - x, at.z - z) or "",
+		per_player = "0.5",   -- half as many again for each player after the first
 		infotext = "Monster spawner: " .. count .. " × " .. kind}}
 	g.spawners[#g.spawners + 1] = {x = x, y = y, z = z, kind = kind, count = count, wake = wake}
 end
@@ -390,6 +393,12 @@ end
 -- The tomb: rooms and passages cut in the rock, walled with cobble (moss
 -- here and there), floored with stone brick
 
+-- What a room's or a passage's shell may replace: the rock it is cut in,
+-- never another room's wall (so a passage along a room keeps the room's
+-- carved wall on its side, and a doorway keeps the room's floor)
+local ROCK = {[STONE] = true, [SANDSTONE] = true, [SAND] = true, ["default:desert_sandstone"] = true,
+	["default:dirt"] = true, [DSSTONE] = true}
+
 -- A room: x1..x2, z1..z2 inside, floor at fy, h blocks high inside; walls,
 -- floor and ceiling round it. wall: a fixed wall block (or a mix of cobble
 -- and moss)
@@ -399,7 +408,7 @@ local function room(x1, z1, x2, z2, fy, h, wall, floor)
 			for y = fy, fy + h + 1 do
 				local edge = x < x1 or x > x2 or z < z1 or z > z2 or y == fy or y == fy + h + 1
 				if edge then
-					if get(x, y, z) ~= "air" then
+					if ROCK[get(x, y, z)] then
 						if y == fy then set(x, y, z, floor or BRICK)
 						else set(x, y, z, wall or ((hash(x, y, z) > 0.75) and MOSSY or COBBLE)) end
 					end
@@ -412,7 +421,18 @@ local function room(x1, z1, x2, z2, fy, h, wall, floor)
 end
 
 -- A passage (a room three wide, or as given)
-local function passage(x1, z1, x2, z2, fy, h) room(x1, z1, x2, z2, fy, h or 3) end
+local function passage(x1, z1, x2, z2, fy, h, wall) room(x1, z1, x2, z2, fy, h or 3, wall) end
+
+-- A passage three wide along a line of points (x, z: its middle), each leg
+-- straight along x or z. Where it meets a room it cuts through the wall.
+local function corridor(pts, fy, wall)
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local x1, x2 = math.min(a[1], b[1]), math.max(a[1], b[1])
+		local z1, z2 = math.min(a[2], b[2]), math.max(a[2], b[2])
+		passage(x1 - 1, z1 - 1, x2 + 1, z2 + 1, fy, 3, wall)
+	end
+end
 
 -- A doorway through a wall: the wall's blocks between, made air
 local function opening(x1, z1, x2, z2, fy, h)
@@ -423,17 +443,13 @@ end
 -- Stairs: from (x1..x2) at z0, `n` steps, each one down and one along dz
 local function stairs_down(x1, x2, z0, fy, n, dz)
 	local p2 = dz > 0 and 2 or 0     -- a stair node faces its high side (param2 0: high to +z)
-	if dz > 0 then p2 = 2 else p2 = 0 end
 	for k = 1, n do
 		local z = z0 + k * dz
 		local y = fy - k             -- the step's top
 		for x = x1 - 1, x2 + 1 do
-			for yy = y - 1, y + 5 do
-				local side = x < x1 or x > x2
-				if side then
-					if get(x, yy, z) ~= "air" or yy <= y + 4 then
-						if yy <= y + 4 and get(x, yy, z) ~= "air" then set(x, yy, z, (hash(x, yy, z) > 0.7) and MOSSY or COBBLE) end
-					end
+			if x < x1 or x > x2 then
+				for yy = y - 1, y + 4 do
+					if get(x, yy, z) ~= "air" then set(x, yy, z, (hash(x, yy, z) > 0.7) and MOSSY or COBBLE) end
 				end
 			end
 		end
@@ -446,6 +462,15 @@ end
 
 local function torch(x, y, z, wall) set(x, y, z, TORCH, TW[wall]) end
 
+-- The way into a room with monsters in it: the passage turns, runs along the
+-- room's wall, and turns in. The room's spawners stand by the wall just
+-- inside, opposite the first turn: whoever comes along the passage wakes
+-- them (through the wall), and the monsters are in the room before them.
+-- (Each spawner: x, z, kind, count, and where in the room they come: ax, az)
+local function guards(fy, list)
+	for _, s in ipairs(list) do spawner(s[1], fy, s[2], s[3], s[4], 5, {x = s[5], z = s[6]}) end
+end
+
 ------------------------------------------------------------------------------
 -- Level 1 (floor 35): west to east
 
@@ -455,212 +480,236 @@ local function level1()
 	air(DOOR.x1, PF, DOOR.z + 1, DOOR.x2, PF + 3, DOOR.z + 1)
 	stairs_down(DOOR.x1, DOOR.x2, DOOR.z, PG, 12, 1)
 	-- A: the entry hall (the queen's painting and her tablet)
-	room(14, 43, 24, 53, f, 5)
-	opening(17, 42, 19, 42, f)
-	fresco("jars", 18, f + 2, 53, "n")
-	tablet(15, f + 2, 53, "n", "Here sleeps Tahna, who was queen. Her heart, her breath and her name were " ..
+	room(14, 47, 30, 57, f, 5)
+	corridor({{18, 43}, {18, 44}, {27, 44}, {27, 47}}, f)
+	fresco("jars", 21, f + 2, 57, "n")
+	tablet(17, f + 2, 57, "n", "Here sleeps Tahna, who was queen. Her heart, her breath and her name were " ..
 		"sealed in three jars and given to the deep places of her house. While the jars endure, she endures.")
-	set(19, f + 1, 46, T("return"))
-	torch(14, f + 3, 44, "w"); torch(24, f + 3, 44, "e"); torch(14, f + 3, 52, "w"); torch(24, f + 3, 52, "e")
-	spawner(19, f, 50, "mummy", 2, 7)
-	chest(15, f + 1, 44, "common", 1)
-	-- the darts passage east
-	passage(25, 47, 34, 49, f)
-	opening(25, 47, 25, 49, f)
-	set(30, f, 48, T("plate_darts"))
-	for x = 28, 32, 2 do
-		set(x, f + 1, 46, T("dart_hole"), 2); set(x, f + 2, 46, T("dart_hole"), 2)     -- (face north: param2 2)
-		set(x, f + 1, 50, T("dart_hole"), 0); set(x, f + 2, 50, T("dart_hole"), 0)     -- (face south)
+	set(27, f + 1, 49, T("return"))
+	torch(14, f + 3, 49, "w"); torch(30, f + 3, 49, "e"); torch(14, f + 3, 55, "w"); torch(30, f + 3, 55, "e")
+	guards(f, {{18, 47, "skeleton_warrior", 3, 22, 52}})
+	chest(15, f + 1, 56, "common", 1)
+	-- the darts passage east, turning south along B's wall
+	corridor({{30, 53}, {41, 53}, {41, 48}, {44, 48}}, f)
+	set(36, f, 53, T("plate_darts"))
+	for x = 34, 38, 2 do
+		set(x, f + 1, 51, T("dart_hole"), 2); set(x, f + 2, 51, T("dart_hole"), 2)     -- (face north: param2 2)
+		set(x, f + 1, 55, T("dart_hole"), 0); set(x, f + 2, 55, T("dart_hole"), 0)     -- (face south)
 	end
-	fresco("ceiling", 33, f + 1, 50, "n")
-	-- B: the falling ceiling's room (bones on its floor)
-	room(35, 42, 45, 54, f, 6)
-	opening(35, 47, 35, 49, f)
-	box(35, f + 6, 42, 45, f + 6, 54, T("crusher"))
-	for x = 36, 44 do set(x, f, 48, T("plate_crush")) end
-	for _, p in ipairs({{37, 44}, {42, 51}, {40, 47}}) do set(p[1], f + 1, p[2], "orthoverse_props:bones") end
-	torch(35, f + 3, 44, "w"); torch(45, f + 3, 52, "e")
-	-- on to D
-	passage(46, 47, 56, 49, f)
-	opening(45, 47, 46, 49, f)
+	fresco("ceiling", 39, f + 1, 54, "n")
+	-- B: the falling ceiling's room (bones on its floor, and the dead up and about)
+	room(44, 42, 54, 54, f, 6)
+	box(44, f + 6, 42, 54, f + 6, 54, T("crusher"))
+	for x = 45, 53 do set(x, f, 48, T("plate_crush")) end
+	for _, p in ipairs({{46, 44}, {51, 51}, {49, 46}}) do set(p[1], f + 1, p[2], "orthoverse_props:bones") end
+	torch(44, f + 3, 44, "w"); torch(54, f + 3, 52, "e")
+	guards(f, {{44, 53, "skeleton_warrior", 2, 49, 51}})
+	-- on to D, turning north along its wall
+	corridor({{55, 48}, {60, 48}, {60, 53}, {63, 53}}, f)
 	-- D: the hall of the archway (its east way is the archway: back to A)
-	room(57, 42, 67, 54, f, 5, COBBLE)     -- (plain cobble: its false wall must not stand out)
-	opening(56, 47, 57, 49, f)
-	-- the archway's corridor, a few blocks into the dark
-	passage(68, 47, 74, 49, f)
-	opening(67, 47, 68, 49, f)
-	box(67, f + 1, 47, 67, f + 3, 49, T("arch"))
-	box(67, f + 4, 47, 67, f + 4, 49, T("arch_eye"), 3)
-	torch(57, f + 3, 44, "w"); torch(67, f + 3, 52, "e")
-	spawner(62, f, 46, "mummy", 1, 8)
-	-- the false wall north, to the first jar
-	passage(61, 56, 63, 58, f)
-	box(61, f + 1, 55, 63, f + 3, 55, T("false_cobble"))
+	room(63, 42, 73, 54, f, 5, COBBLE)     -- (plain cobble: its false wall must not stand out)
+	corridor({{74, 48}, {81, 48}}, f)
+	box(74, f + 1, 47, 74, f + 3, 49, T("arch"))
+	box(74, f + 4, 47, 74, f + 4, 49, T("arch_eye"), 3)
+	torch(63, f + 3, 44, "w"); torch(73, f + 3, 52, "e")
+	guards(f, {{63, 48, "mummy", 1, 68, 46}, {63, 47, "statue", 2, 69, 51}})
+	-- the false wall north, to the first jar, turning west along E's wall
+	corridor({{68, 55}, {68, 59}, {61, 59}, {61, 62}}, f)
+	box(67, f + 1, 55, 69, f + 3, 55, T("false_cobble"))
 	-- E: the jackal's jar, on its pedestal
-	room(56, 59, 68, 69, f, 5)
-	opening(61, 58, 63, 59, f)
-	set(62, f + 1, 66, T("pedestal"))
-	set(62, f + 2, 66, T("jar_jackal"))
-	spawner(62, f, 62, "scarab", 6, 7)
-	chest(57, f + 1, 68, "weapon", 1)
-	torch(56, f + 3, 64, "w"); torch(68, f + 3, 64, "e")
+	room(55, 62, 67, 72, f, 5)
+	set(61, f + 1, 69, T("pedestal"))
+	set(61, f + 2, 69, T("jar_jackal"))
+	guards(f, {{67, 62, "scarab", 6, 62, 66}, {66, 62, "mummy", 1, 58, 67}})
+	chest(56, f + 1, 71, "weapon", 1)
+	torch(55, f + 3, 67, "w"); torch(67, f + 3, 67, "e")
 	-- east, to the stair room
-	passage(69, 63, 80, 65, f)
-	opening(68, 63, 69, 65, f)
-	room(81, 56, 87, 66, f, 5)
-	opening(80, 63, 81, 65, f)
-	torch(87, f + 3, 60, "e")
+	corridor({{68, 69}, {77, 69}, {77, 64}, {80, 64}}, f)
+	room(80, 58, 88, 70, f, 5)
+	torch(88, f + 3, 62, "e")
 	-- down to level 2: twelve steps south from its south wall
-	opening(83, 55, 85, 55, f)
-	stairs_down(83, 85, 55, f, 12, -1)
+	opening(83, 57, 85, 57, f)
+	stairs_down(83, 85, 57, f, 12, -1)
 end
 
 ------------------------------------------------------------------------------
 -- Level 2 (floor 23): east to west
 
+-- The spiral: a passage one wide, two high, winding in to its middle, and
+-- nothing there
+local function spiral(f)
+	local ox, oz = 17, 24
+	box(ox, f, oz, ox + 18, f, oz + 18, BRICK)
+	box(ox, f + 1, oz, ox + 18, f + 3, oz + 18, COBBLE)
+	local pts = {{17, 17}, {1, 17}, {1, 1}, {17, 1}, {17, 15}, {3, 15}, {3, 3}, {15, 3}, {15, 13}, {5, 13}, {5, 5},
+		{13, 5}, {13, 11}, {7, 11}, {7, 7}, {11, 7}, {11, 9}, {9, 9}}
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		air(ox + a[1], f + 1, oz + a[2], ox + b[1], f + 2, oz + b[2])
+	end
+	-- the way in, from the false door's room
+	air(ox + 18, f + 1, oz + 17, 37, f + 2, oz + 17)
+	set(36, f, oz + 17, BRICK)
+end
+
 local function level2()
 	local f = L2
-	-- A: the guard room (the stair comes in through its north wall)
-	room(78, 30, 90, 41, f, 5)
-	opening(83, 42, 85, 42, f)
-	spawner(84, f, 34, "guardian", 1, 8)
-	spawner(80, f, 38, "mummy", 2, 8)
-	chest(89, f + 1, 31, "armour", 3)
-	torch(78, f + 3, 33, "w"); torch(90, f + 3, 38, "e")
-	tablet(79, f + 2, 30, "s", "Ra's light lies on the floor of fire. Tread only where it shines.")
+	-- A: the guard room (the stair comes down north of it; the way turns east
+	-- along its north wall)
+	room(78, 28, 91, 39, f, 5)
+	corridor({{84, 44}, {84, 42}, {89, 42}, {89, 39}}, f)
+	guards(f, {{84, 39, "guardian", 1, 84, 33}, {83, 39, "skeleton_warrior", 2, 81, 35}})
+	chest(90, f + 1, 29, "armour", 3)
+	torch(78, f + 3, 32, "w"); torch(91, f + 3, 36, "e")
+	tablet(80, f + 2, 28, "s", "Ra's light lies on the floor of fire. Tread only where it shines.")
 	-- B: the hall of fire: gold tiles make the one safe way across; every
 	-- other tile is a plate. Jets in the north and south walls
-	room(60, 32, 76, 40, f, 5)
-	opening(77, 35, 77, 37, f)
-	fresco("gold", 76, f + 2, 41, "n")
-	for x = 60, 76 do for z = 32, 40 do set(x, f, z, T("plate_flame")) end end
+	corridor({{77, 31}, {75, 31}, {75, 36}, {72, 36}}, f)
+	room(56, 30, 72, 38, f, 5)
+	fresco("gold", 70, f + 2, 38, "n")
+	for x = 56, 72 do for z = 30, 38 do set(x, f, z, T("plate_flame")) end end
 	-- the gold way: winding from the east door to the west door
-	local way = {{76, 36}, {75, 36}, {74, 36}, {74, 35}, {74, 34}, {73, 34}, {72, 34}, {71, 34}, {71, 35}, {71, 36},
-		{71, 37}, {71, 38}, {70, 38}, {69, 38}, {68, 38}, {68, 37}, {68, 36}, {67, 36}, {66, 36}, {65, 36}, {65, 35},
-		{65, 34}, {64, 34}, {63, 34}, {62, 34}, {62, 35}, {62, 36}, {61, 36}, {60, 36}}
+	local way = {{72, 36}, {71, 36}, {70, 36}, {70, 35}, {70, 34}, {70, 33}, {69, 33}, {68, 33}, {67, 33}, {67, 34},
+		{67, 35}, {67, 36}, {67, 37}, {66, 37}, {65, 37}, {64, 37}, {63, 37}, {63, 36}, {63, 35}, {63, 34}, {62, 34},
+		{61, 34}, {60, 34}, {60, 35}, {60, 36}, {60, 37}, {59, 37}, {58, 37}, {57, 37}, {56, 37}}
 	for _, w in ipairs(way) do set(w[1], f, w[2], T("gold_tile")) end
-	for x = 61, 75, 2 do
-		set(x, f + 1, 31, T("nozzle"), 2)       -- in the south wall, facing north
-		set(x, f + 1, 41, T("nozzle"), 0)       -- in the north wall, facing south
+	for x = 57, 71, 2 do
+		set(x, f + 1, 29, T("nozzle"), 2)       -- in the south wall, facing north
+		set(x, f + 1, 39, T("nozzle"), 0)       -- in the north wall, facing south
 	end
-	for _, p in ipairs({{70, 33}, {64, 39}}) do set(p[1], f + 1, p[2], "orthoverse_props:bones") end
-	torch(60, f + 4, 33, "w"); torch(76, f + 4, 39, "e")
+	for _, p in ipairs({{66, 31}, {61, 38}}) do set(p[1], f + 1, p[2], "orthoverse_props:bones") end
+	torch(56, f + 4, 31, "w"); torch(72, f + 4, 33, "e")
 	-- C: the false door's room
-	room(46, 30, 58, 42, f, 5)
-	opening(59, 35, 59, 37, f)
-	box(51, f + 1, 43, 53, f + 3, 43, T("false_door"), 0)
-	for x = 50, 54 do for z = 40, 42 do set(x, f, z, T("spear_floor")) end end
-	set(52, f + 1, 41, "orthoverse_props:bones")
-	fresco("spears", 46, f + 2, 43, "n")
-	torch(46, f + 3, 32, "w"); torch(58, f + 3, 40, "e")
-	-- the true way: a false wall in the south wall
-	box(46, f + 1, 29, 58, f + 5, 29, COBBLE)
-	passage(51, 22, 53, 28, f)
-	box(51, f + 1, 29, 53, f + 3, 29, T("false_cobble"))
+	corridor({{55, 37}, {53, 37}, {53, 31}, {50, 31}}, f)
+	room(38, 30, 50, 42, f, 5)
+	box(43, f + 1, 43, 45, f + 3, 43, T("false_door"), 0)
+	for x = 42, 46 do for z = 40, 42 do set(x, f, z, T("spear_floor")) end end
+	set(44, f + 1, 41, "orthoverse_props:bones")
+	fresco("spears", 38, f + 2, 42, "n")
+	torch(38, f + 3, 32, "w"); torch(50, f + 3, 40, "e")
+	guards(f, {{50, 37, "statue", 2, 44, 37}})
+	-- off its west wall, the spiral
+	spiral(f)
+	-- the true way: a false wall in the south wall, then west along D's wall
+	box(38, f + 1, 29, 50, f + 5, 29, COBBLE)
+	corridor({{44, 29}, {44, 25}, {38, 25}, {38, 22}}, f)
+	box(43, f + 1, 29, 45, f + 3, 29, T("false_cobble"))
 	-- D: the falcon's jar
-	room(46, 12, 58, 21, f, 5)
-	opening(51, 21, 53, 22, f)
-	set(52, f + 1, 14, T("pedestal"))
-	set(52, f + 2, 14, T("jar_falcon"))
-	spawner(48, f, 17, "mummy", 2, 7)
-	spawner(56, f, 17, "scarab", 5, 7)
-	chest(57, f + 1, 13, "common", 3)
-	torch(46, f + 3, 16, "w"); torch(58, f + 3, 16, "e")
-	-- west: the pit passage
-	passage(30, 15, 45, 17, f)
-	opening(45, 15, 46, 17, f)
+	room(32, 12, 48, 22, f, 5)
+	set(40, f + 1, 14, T("pedestal"))
+	set(40, f + 2, 14, T("jar_falcon"))
+	guards(f, {{44, 22, "mummy", 2, 36, 17}, {45, 22, "scarab", 5, 44, 16}})
+	chest(47, f + 1, 13, "common", 3)
+	torch(32, f + 3, 16, "w"); torch(48, f + 3, 16, "e")
+	-- west: the pit passage, turning north along E's wall
+	corridor({{31, 15}, {21, 15}, {21, 20}, {18, 20}}, f)
 	-- the pit under its middle
-	air(36, f - 4, 15, 40, f - 1, 17)
-	box(35, f - 5, 14, 41, f - 5, 18, COBBLE)
-	for x = 35, 41 do for z = 14, 18 do
-		if x == 35 or x == 41 or z == 14 or z == 18 then box(x, f - 4, z, x, f - 1, z, COBBLE) end
+	air(25, f - 4, 14, 29, f - 1, 16)
+	box(24, f - 5, 13, 30, f - 5, 17, COBBLE)
+	for x = 24, 30 do for z = 13, 17 do
+		if x == 24 or x == 30 or z == 13 or z == 17 then box(x, f - 4, z, x, f - 1, z, COBBLE) end
 	end end
-	box(36, f - 4, 15, 40, f - 4, 17, T("spikes"))
-	for y = f - 4, f - 1 do set(36, y, 16, LADDER, 3) end
-	box(36, f, 15, 40, f, 17, T("false_floor"))
-	set(38, f, 16, T("plate_pit"))
-	-- E: the stair room
-	room(16, 10, 29, 22, f, 5)
-	opening(29, 15, 30, 17, f)
-	torch(16, f + 3, 14, "w"); torch(29, f + 3, 20, "e")
+	box(25, f - 4, 14, 29, f - 4, 16, T("spikes"))
+	for y = f - 4, f - 1 do set(25, y, 15, LADDER, 3) end
+	box(25, f, 14, 29, f, 16, T("false_floor"))
+	set(27, f, 15, T("plate_pit"))
+	-- E: the stair room, and the golem that keeps it (too big for the passages)
+	room(6, 10, 18, 22, f, 5)
+	guards(f, {{18, 15, "golem", 1, 11, 16}})
+	torch(6, f + 3, 14, "w"); torch(18, f + 3, 13, "e")
 	-- down to level 3: twelve steps north from its north wall
-	opening(20, 23, 22, 23, f)
-	stairs_down(20, 22, 23, f, 12, 1)
+	opening(11, 23, 13, 23, f)
+	stairs_down(11, 13, 23, f, 12, 1)
 end
 
 ------------------------------------------------------------------------------
 -- Level 3 (floor 11): west to east, to the burial chamber
 
+-- The endless passage: north from the hall of guardians to a crossway, and
+-- east and west from it in plain stone brick. Near each end the floor sends
+-- whoever treads on it back along the passage, so it never ends.
+local LOOP = {z = 70, west = {3, 5, 8}, east = {60, 62, -24}}
+
+local function endless(f)
+	corridor({{21, 52}, {21, LOOP.z}}, f, BRICK)
+	corridor({{4, LOOP.z}, {63, LOOP.z}}, f, BRICK)
+	for _, side in ipairs({"west", "east"}) do
+		local l = LOOP[side]
+		box(l[1], f, LOOP.z - 1, l[2], f, LOOP.z + 1, T("loop_" .. side))
+	end
+end
+
 local function level3()
 	local f = L3
-	-- A: the hall of guardians
-	room(14, 36, 28, 48, f, 5)
-	opening(20, 35, 22, 35, f)
-	spawner(17, f, 44, "guardian", 1, 8)
-	spawner(25, f, 44, "guardian", 1, 8)
-	torch(14, f + 3, 40, "w"); torch(28, f + 3, 40, "e")
-	tablet(21, f + 2, 48, "n", "Whoever wakes the queen, the sand will have him. She was dust once, " ..
+	-- A: the hall of guardians (the stair comes down south-west of it; the
+	-- way turns east along its south wall)
+	room(14, 40, 28, 52, f, 5)
+	corridor({{12, 36}, {12, 37}, {22, 37}, {22, 40}}, f)
+	guards(f, {{14, 40, "guardian", 2, 21, 46}})
+	torch(14, f + 3, 49, "w"); torch(28, f + 3, 49, "e"); torch(14, f + 3, 44, "w")
+	tablet(17, f + 2, 52, "n", "Whoever wakes the queen, the sand will have him. She was dust once, " ..
 		"and she remembers how.")
-	-- B: the darts passage east, a false wall north to the third jar
-	passage(29, 41, 39, 43, f)
-	opening(28, 41, 29, 43, f)
-	set(36, f, 42, T("plate_darts"))
+	-- north: the endless passage
+	endless(f)
+	-- B: the darts passage east, a false wall north to the third jar, turning
+	-- south along C's wall
+	corridor({{29, 45}, {41, 45}, {41, 40}, {44, 40}}, f)
+	box(28, f + 1, 47, 39, f + 3, 47, COBBLE)
+	set(36, f, 45, T("plate_darts"))
 	for x = 35, 37 do
-		set(x, f + 1, 40, T("dart_hole"), 2); set(x, f + 2, 40, T("dart_hole"), 2)
-		set(x, f + 1, 44, T("dart_hole"), 0); set(x, f + 2, 44, T("dart_hole"), 0)
+		set(x, f + 1, 43, T("dart_hole"), 2); set(x, f + 2, 43, T("dart_hole"), 2)
+		set(x, f + 1, 47, T("dart_hole"), 0); set(x, f + 2, 47, T("dart_hole"), 0)
 	end
-	box(29, f + 1, 44, 39, f + 3, 44, COBBLE)
-	for x = 35, 37 do set(x, f + 1, 44, T("dart_hole"), 0); set(x, f + 2, 44, T("dart_hole"), 0) end
-	passage(32, 45, 34, 52, f)
-	box(32, f + 1, 44, 34, f + 3, 44, T("false_cobble"))
+	corridor({{32, 47}, {32, 51}, {38, 51}, {38, 53}}, f)
+	box(31, f + 1, 47, 33, f + 3, 47, T("false_cobble"))
 	-- the woman's jar
-	room(27, 53, 39, 63, f, 5)
-	opening(32, 52, 34, 53, f)
-	set(33, f + 1, 61, T("pedestal"))
-	set(33, f + 2, 61, T("jar_woman"))
-	spawner(29, f, 57, "mummy", 1, 7)
-	spawner(37, f, 57, "scarab", 6, 7)
-	chest(38, f + 1, 62, "common", 1)
-	torch(27, f + 3, 58, "w"); torch(39, f + 3, 58, "e")
-	-- C: the antechamber, its two guardians, the great doorway (gold) east
-	room(40, 36, 50, 48, f, 6, T("glyphs"), T("sandstone_block"))
-	opening(39, 41, 40, 43, f)
-	spawner(45, f, 38, "guardian", 1, 8)
-	spawner(45, f, 46, "guardian", 1, 8)
-	torch(40, f + 4, 38, "w"); torch(40, f + 4, 46, "w")
+	room(30, 54, 42, 64, f, 5)
+	set(36, f + 1, 62, T("pedestal"))
+	set(36, f + 2, 62, T("jar_woman"))
+	guards(f, {{32, 54, "mummy", 2, 35, 59}, {33, 54, "scarab", 4, 39, 60}})
+	chest(41, f + 1, 63, "common", 1)
+	torch(30, f + 3, 59, "w"); torch(42, f + 3, 59, "e")
+	-- C: the antechamber, its statues and the tomb's soldiers
+	room(44, 38, 54, 50, f, 6, T("glyphs"), T("sandstone_block"))
+	guards(f, {{44, 45, "statue", 2, 49, 46}, {44, 44, "skeleton_warrior", 2, 50, 41}})
+	torch(44, f + 4, 48, "w"); torch(54, f + 4, 40, "e")
+	-- out of its east wall, south along the burial chamber's wall, and in
+	-- through the great doorway (gold)
+	corridor({{55, 48}, {57, 48}, {57, 42}, {60, 42}}, f)
 	-- D: the burial chamber: walls of carved signs, pillars, braziers, the
 	-- sarcophagus on its dais at the east end, the queen's resting place
-	room(52, 28, 86, 56, f, 8, T("glyphs"), T("sandstone_block"))
-	opening(51, 41, 51, 43, f, 4)
-	box(51, f + 1, 40, 51, f + 5, 40, GOLD); box(51, f + 1, 44, 51, f + 5, 44, GOLD)
-	box(51, f + 5, 40, 51, f + 5, 44, GOLD)
+	room(60, 28, 88, 56, f, 8, T("glyphs"), T("sandstone_block"))
+	opening(59, 41, 59, 43, f, 4)
+	box(59, f + 1, 40, 59, f + 5, 40, GOLD); box(59, f + 1, 44, 59, f + 5, 44, GOLD)
+	box(59, f + 5, 40, 59, f + 5, 44, GOLD)
 	-- a gold border on the floor, the way to the dais in gold
-	for x = 52, 86 do for z = 28, 56 do
-		if x == 52 or x == 86 or z == 28 or z == 56 then set(x, f, z, T("gold_tile")) end
+	for x = 60, 88 do for z = 28, 56 do
+		if x == 60 or x == 88 or z == 28 or z == 56 then set(x, f, z, T("gold_tile")) end
 	end end
-	for x = 53, 77 do set(x, f, 42, T("gold_tile")) end
-	-- pillars: four rows, glyph-carved, gold-capped
-	for _, px in ipairs({58, 66, 74}) do
+	for x = 61, 78 do set(x, f, 42, T("gold_tile")) end
+	-- pillars: glyph-carved, gold-capped
+	for _, px in ipairs({64, 71}) do
 		for _, pz in ipairs({33, 51}) do
 			box(px, f + 1, pz, px + 1, f + 8, pz + 1, T("glyphs"))
 			box(px, f + 8, pz, px + 1, f + 8, pz + 1, GOLD)
 		end
 	end
 	-- braziers between the pillars
-	for _, p in ipairs({{62, 34}, {70, 34}, {62, 50}, {70, 50}}) do
+	for _, p in ipairs({{68, 34}, {75, 34}, {68, 50}, {75, 50}}) do
 		set(p[1], f + 1, p[2], GOLD); set(p[1], f + 2, p[2], "fire:permanent_flame")
 	end
 	-- the dais
-	box(78, f + 1, 36, 85, f + 1, 48, T("sandstone_block"))
-	box(78, f + 1, 41, 78, f + 1, 43, "stairs:stair_sandstone_block", 3)
+	box(79, f + 1, 36, 87, f + 1, 48, T("sandstone_block"))
+	box(79, f + 1, 41, 79, f + 1, 43, "stairs:stair_sandstone_block", 3)
 	set(g.finish.x, g.finish.y, g.finish.z, T("sarcophagus"), 1)
 	-- the jars' empty niches behind the sarcophagus, and the queen's painting
-	fresco("jars", 86, f + 3, 41, "e")
-	for _, z in ipairs({38, 46}) do set(85, f + 2, z, T("pedestal")) end
-	chest(84, f + 2, 40, "finish", 3)
-	torch(52, f + 5, 31, "w"); torch(52, f + 5, 53, "w"); torch(86, f + 5, 31, "e"); torch(86, f + 5, 53, "e")
-	-- Tahna, waking when someone comes near
-	spawner(70, f, 42, "tahna", 1, 13)
+	fresco("jars", 88, f + 3, 41, "e")
+	for _, z in ipairs({38, 46}) do set(87, f + 2, z, T("pedestal")) end
+	chest(86, f + 2, 40, "finish", 3)
+	torch(60, f + 5, 31, "w"); torch(60, f + 5, 53, "w"); torch(88, f + 5, 31, "e"); torch(88, f + 5, 53, "e")
+	-- Tahna, already up when they come in: her spawner by the corner, woken
+	-- from the passage
+	guards(f, {{60, 48, "tahna", 1, 72, 42}})
 end
 
 ------------------------------------------------------------------------------
@@ -701,13 +750,15 @@ function g.check_more(O, t)
 	local seen, key = t.reach(O, start)
 	local function at(x, y, z) return seen[key(vector.add(O, {x = x, y = y, z = z}))] == true end
 	t.say("the sphinx's door, walked to: " .. tostring(at(18, PF, 29)))
-	t.say("level 1, the entry hall: " .. tostring(at(19, L1 + 1, 48)))
-	t.say("the jackal's jar (beside it): " .. tostring(at(62, L1 + 1, 64)))
-	t.say("level 2, the guard room: " .. tostring(at(84, L2 + 1, 36)))
-	t.say("the falcon's jar (beside it): " .. tostring(at(52, L2 + 1, 16)))
-	t.say("level 3, the hall of guardians: " .. tostring(at(21, L3 + 1, 42)))
-	t.say("the woman's jar (beside it): " .. tostring(at(33, L3 + 1, 59)))
-	t.say("the dais (before the sarcophagus): " .. tostring(at(80, L3 + 2, 42)))
+	t.say("level 1, the entry hall: " .. tostring(at(22, L1 + 1, 52)))
+	t.say("the jackal's jar (beside it): " .. tostring(at(61, L1 + 1, 67)))
+	t.say("level 2, the guard room: " .. tostring(at(84, L2 + 1, 34)))
+	t.say("the spiral's middle: " .. tostring(at(26, L2 + 1, 33)))
+	t.say("the falcon's jar (beside it): " .. tostring(at(40, L2 + 1, 16)))
+	t.say("level 3, the hall of guardians: " .. tostring(at(21, L3 + 1, 46)))
+	t.say("the endless passage: " .. tostring(at(40, L3 + 1, 70)))
+	t.say("the woman's jar (beside it): " .. tostring(at(36, L3 + 1, 60)))
+	t.say("the dais (before the sarcophagus): " .. tostring(at(81, L3 + 2, 42)))
 	t.say("the pyramid's chamber: " .. tostring(at(72, PF, 78)))
 	t.say("the rock tomb's chamber: " .. tostring(at(19, PG - 5, 81)))
 	t.say("tahna checks done")

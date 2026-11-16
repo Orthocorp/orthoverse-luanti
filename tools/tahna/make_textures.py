@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Paint the textures for the Tomb of Tahna (mods/orthoverse_tahna) and its
 monsters (mods/orthoverse_monsters: the mummy, the tomb guardian, scarabs,
-Tahna herself), and synthesise its sounds.
+the animated statue, the stone golem, the skeleton warrior, Tahna herself), and synthesise its sounds.
 
     python3 -m venv /tmp/venv && /tmp/venv/bin/pip install Pillow numpy
     /tmp/venv/bin/python tools/tahna/make_textures.py .
@@ -634,6 +634,88 @@ GUARD_FACE = ["kk....kk",
               "...gg..."]
 save(skin(guardian, GUARD_FACE, {"k": (20, 18, 20), "r": (230, 40, 30), "g": GOLD}, 73), "guardian", MON,
      "orthoverse_monsters_")
+
+
+# The animated statue: painted sandstone, a soldier of the old kingdom with a
+# striped headdress and a broad collar; it stands still until someone comes
+# close. Fine cracks in the stone.
+STATUE = (204, 176, 120)
+
+
+def statue(part, side, X, Y, u, v, w, hh):
+    crack = h(X, Y, 80) > 0.93
+    if part == "head" and (side in ("top", "back", "left", "right") or (side == "front" and v <= 1)):
+        return shade(LAPIS, 0.9) if (v + u) % 2 else GOLD
+    if part == "body" and v <= 2 and side in ("front", "back", "left", "right"):
+        return TURQ if (u + v) % 2 else GOLD
+    if part == "leg" and v <= 4 and side in ("front", "back", "left", "right"):
+        return jit((236, 228, 206), X, Y, 81, 6)          # the kilt, painted white
+    if part == "body" and v >= 9 and side in ("front", "back", "left", "right"):
+        return jit((236, 228, 206), X, Y, 82, 6)
+    if crack:
+        return shade(STATUE, 0.6)
+    return jit(STATUE, X, Y, 83, 9)
+
+
+STATUE_FACE = ["gbgbgbgb",
+               "bgbgbgbg",
+               "........",
+               ".kk..kk.",
+               ".kw..wk.",
+               "........",
+               "...rr...",
+               "........"]
+save(skin(statue, STATUE_FACE, {"g": GOLD, "b": LAPIS, "k": BLACK, "w": (240, 236, 220), "r": (150, 60, 40)}, 84),
+     "statue", MON, "orthoverse_monsters_")
+
+
+# The stone golem: rough grey blocks, seams of orange light between them,
+# eyes like coals
+def golem(part, side, X, Y, u, v, w, hh):
+    seam = (u % 4 == 0 and v % 2 == 1) or v % 4 == 0
+    if seam and h(X, Y, 90) > 0.82:
+        return jit((240, 120, 30), X, Y, 91, 20)
+    base = STONE if h(X // 2, Y // 2, 92) > 0.4 else STONE_D
+    return jit(base, X, Y, 93, 12)
+
+
+GOLEM_FACE = ["........",
+              "........",
+              "kkkkkkkk",
+              ".oo..oo.",
+              ".oo..oo.",
+              "........",
+              ".kkkkkk.",
+              "........"]
+save(skin(golem, GOLEM_FACE, {"k": (40, 38, 36), "o": (255, 150, 30)}, 94), "golem", MON, "orthoverse_monsters_")
+
+
+# The skeleton warrior: the old skeleton's bones under a striped headdress
+# and a linen kilt
+def skeleton_warrior():
+    img = Image.open(os.path.join(MON, "orthoverse_monsters_skeleton.png")).convert("RGBA")
+    for side in ("top", "back", "left", "right", "front"):
+        x, y, w, hh = HEAD[side]
+        for v in range(hh):
+            for u in range(w):
+                if side == "front" and v > 1:
+                    continue
+                if side in ("left", "right") and v > 6:
+                    continue
+                img.putpixel((x + u, y + v), (shade(LAPIS, 0.9) if (u + v) % 2 else GOLD) + (255,))
+    for side in ("front", "back", "left", "right"):
+        x, y, w, hh = LEG[side]
+        for v in range(4):
+            for u in range(w):
+                img.putpixel((x + u, y + v), jit((226, 214, 184), x + u, y + v, 95, 8))
+    x, y, w, hh = BODY["front"]
+    for u in range(w):
+        img.putpixel((x + u, y), GOLD + (255,))
+        img.putpixel((x + u, y + 1), (TURQ if u % 2 else GOLD) + (255,))
+    return img
+
+
+save(skeleton_warrior(), "skeleton_warrior", MON, "orthoverse_monsters_")
 
 
 # The scarab (a cube): a shining dark green shell

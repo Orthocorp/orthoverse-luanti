@@ -1876,6 +1876,71 @@ monster("guardian", {
 	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 20},
 })
 
+-- The skeleton warrior: the tomb's old soldiers, in striped headdress and
+-- kilt, quicker and harder than the common dead
+monster("skeleton_warrior", {
+	desc = S("Skeleton warrior"), level = 8, xp = 160, size = 1.0, hp = 34, ac = 14, damage = 6, windup = 0.55,
+	interval = 1.5, walk = 1.5, run = 3.2, weapon = "orthoverse_combat:broadsword_bronze_carried", alpha = true,
+	undead = true,
+	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 14},
+})
+
+-- The animated statue: painted sandstone, a soldier on guard. It stands as
+-- still as stone until someone comes within a few blocks of it (or strikes
+-- it), then it wakes and does not sleep again.
+local STATUE_WAKE = 3.5
+local function statue_wake(self)
+	if self._awake then return end
+	self._awake = true
+	local pos = self.object:get_pos()
+	if pos then
+		core.sound_play("orthoverse_tahna_grind", {pos = pos, gain = 0.7, max_hear_distance = 16}, true)
+		core.add_particlespawner({amount = 24, time = 0.6, pos = {min = vector.offset(pos, -0.4, 0, -0.4),
+			max = vector.offset(pos, 0.4, 1.8, 0.4)}, vel = {min = {x = -0.6, y = 0, z = -0.6}, max = {x = 0.6, y = 0.6, z = 0.6}},
+			acc = {x = 0, y = -2, z = 0}, exptime = {min = 0.6, max = 1.2}, size = {min = 1, max = 2},
+			texture = "orthoverse_tahna_dust.png"})
+	end
+	label(self, S("The statue moves!"), "#e8d8a8")
+end
+monster("statue", {
+	desc = S("Animated statue"), level = 10, xp = 300, size = 1.1, hp = 60, ac = 18, damage = 8, windup = 0.85,
+	interval = 2.0, walk = 1.0, run = 2.2, weapon = "orthoverse_combat:short_sword_bronze_carried", reach = 2.4,
+	heavy = true,
+	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 16},
+	on_struck = function(self) statue_wake(self) end,
+	do_custom = function(self)
+		if self._awake then return end
+		local pos = self.object:get_pos()
+		if not pos then return false end
+		for _, obj in ipairs(core.get_objects_inside_radius(pos, STATUE_WAKE)) do
+			if obj:is_player() and obj:get_hp() > 0 then statue_wake(self); return end
+		end
+		-- still as stone
+		local v = self.object:get_velocity()
+		self.object:set_velocity({x = 0, y = v and v.y or 0, z = 0})
+		self.attack, self.state, self._windup = nil, "stand", nil
+		self.object:set_animation({x = 0, y = 0}, 0, 0)
+		return false
+	end,
+})
+
+-- The stone golem: a hulk of stone with fire in its seams. Slow, very hard to
+-- hurt, and a blow from it throws a player across the room. Too big for the
+-- tomb's passages.
+monster("golem", {
+	desc = S("Stone golem"), level = 13, xp = 700, size = 1.75, hp = 150, ac = 17, damage = 11, windup = 1.15,
+	interval = 2.6, walk = 0.8, run = 1.7, reach = 3.2, view_range = 16, heavy = true, glow = 3,
+	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 24},
+	on_hit = function(self, target)
+		if not target:is_player() then return end
+		local away = vector.subtract(target:get_pos(), self.object:get_pos())
+		away.y = 0
+		away = vector.length(away) > 0.01 and vector.normalize(away) or {x = 0, y = 0, z = 1}
+		target:add_velocity({x = away.x * 9, y = 5, z = away.z * 9})
+		core.chat_send_player(target:get_player_name(), S("The golem's blow throws you back."))
+	end,
+})
+
 -- Tahna, the mummy queen: the boss of the tomb.
 --   * Struck down while any of her three canopic jars is whole, she falls to
 --     dust and rises again elsewhere in her chamber, whole. Each broken jar
@@ -2216,6 +2281,29 @@ local function spawn_at(pos, kind, count, run_id, key)
 end
 
 orthoverse.monsters.spawn_at = spawn_at
+
+-- Where a spawner's monsters appear: round the spawner, or, when its meta
+-- has "at" (an offset such as "(6,0,-3)"), round that spot instead. (So a
+-- spawner by a room's corner, woken from the passage outside, can fill the
+-- middle of the room.)
+local function spawn_spot(pos, meta)
+	local at = core.string_to_pos(meta:get_string("at"))
+	return at and vector.add(pos, at) or pos
+end
+
+-- How many a spawner brings: its count (1 to 6); when its meta has
+-- "per_player" (say 0.5), that many times as many again for each player in
+-- the run after the first, rounded up
+local function party_count(meta, run)
+	local n = math.max(1, math.min(6, meta:get_int("count")))
+	local per = tonumber(meta:get_string("per_player")) or 0
+	if per > 0 and run then
+		local players = 0
+		for _ in pairs(run.members) do players = players + 1 end
+		n = math.ceil(n * (1 + per * math.max(0, players - 1)) - 1e-9)
+	end
+	return n
+end
 -- Other mods hear when a spawner wakes (The Seed: its egg sacs burst)
 orthoverse.monsters.on_wake = {}
 
@@ -2265,7 +2353,7 @@ core.register_node(SPAWNER, {
 			if obj:is_player() and run.members[obj:get_player_name()] and (not stealth or not obj:get_player_control().sneak
 					or vector.distance(obj:get_pos(), pos) <= wake / 2) then
 				meta:set_string("run", id)
-				spawn_at(pos, meta:get_string("kind"), math.max(1, math.min(6, meta:get_int("count"))), id, key)
+				spawn_at(spawn_spot(pos, meta), meta:get_string("kind"), party_count(meta, run), id, key)
 				for _, f in ipairs(orthoverse.monsters.on_wake) do f(pos, meta:get_string("kind")) end
 				break
 			end
@@ -2292,7 +2380,7 @@ core.register_on_player_receive_fields(function(player, formname, fields)
 	meta:set_string("infotext", S("Monster spawner") .. ": " .. meta:get_int("count") .. " × " .. desc)
 	if fields.test then
 		local key = orthoverse.adventure and orthoverse.adventure.at(pos)
-		local n = spawn_at(pos, kind, math.max(1, math.min(6, meta:get_int("count"))), nil, key)
+		local n = spawn_at(spawn_spot(pos, meta), kind, math.max(1, math.min(6, meta:get_int("count"))), nil, key)
 		core.chat_send_player(name, n > 0 and ("Brought %d. /adventure reset clears them."):format(n)
 			or "There are enough monsters here already. /adventure reset clears them.")
 	end
