@@ -1838,6 +1838,287 @@ monster("wyrm", {
 })
 
 ------------------------------------------------------------------------------
+-- The Tomb of Tahna (mods/orthoverse_tahna). Ranks 8 to 15.
+
+local function tahna_mod() return orthoverse.tahna end
+
+-- The mummy: slow, strong, and its touch is a curse that drags at the limbs.
+-- One of the undead (holy water counts against it).
+monster("mummy", {
+	desc = S("Mummy"), level = 9, xp = 220, size = 1.05, hp = 46, ac = 13, damage = 7, windup = 0.8, interval = 2.0,
+	walk = 0.8, run = 1.9, reach = 2.1, undead = true,
+	sounds = {random = "orthoverse_monsters_mummy_groan", damage = "default_dig_crumbly",
+		death = "orthoverse_monsters_mummy_groan", distance = 16},
+	on_hit = function(self, target)
+		if math.random(2) == 1 then hamper(target, 0.4, 1.5, S("The mummy's curse drags at your limbs.")) end
+	end,
+})
+
+-- The scarab: a beetle the size of a fist, in swarms, quick
+monster("scarab", {
+	desc = S("Scarab"), level = 6, xp = 30, visual = "cube", size = 0.35, hp = 7, ac = 11, damage = 2, windup = 0.2,
+	interval = 0.8, walk = 2.6, run = 5.0, reach = 1.5,
+	textures = {"orthoverse_monsters_scarab_top.png", "orthoverse_monsters_scarab_side.png",
+		"orthoverse_monsters_scarab_side.png", "orthoverse_monsters_scarab_side.png",
+		"orthoverse_monsters_scarab_side.png", "orthoverse_monsters_scarab_front.png"},
+	collisionbox = {-0.2, -0.17, -0.2, 0.2, 0.17, 0.2},
+	sounds = {random = "orthoverse_monsters_scarab_click", attack = "orthoverse_monsters_scarab_click",
+		damage = "default_dig_crumbly", death = "default_dug_node", distance = 12},
+	mobs = {jump_height = 2, stepheight = 0.6},
+})
+
+-- The tomb guardian: a black statue with a jackal's face, come to life. Slow
+-- to wind up, hard to hurt, and its blows are terrible.
+monster("guardian", {
+	desc = S("Tomb guardian"), level = 11, xp = 420, size = 1.3, hp = 84, ac = 17, damage = 9, windup = 0.95,
+	interval = 2.3, walk = 1.0, run = 2.2, weapon = "orthoverse_combat:spear_bronze_carried", reach = 2.8,
+	view_range = 16, heavy = true,
+	sounds = {damage = "default_dig_cracky", death = "default_dug_node", distance = 20},
+})
+
+-- Tahna, the mummy queen: the boss of the tomb.
+--   * Struck down while any of her three canopic jars is whole, she falls to
+--     dust and rises again elsewhere in her chamber, whole. Each broken jar
+--     leaves her weaker (less health, softer blows); with all three broken
+--     she dies.
+--   * Now and then (and when pressed hard) she falls to dust of her own
+--     accord and gathers again a few blocks away.
+--   * She sends whirlwinds of sand along the floor: whoever one catches is
+--     flung into the air and hurt.
+--   * When she rises from the dust, and once at half her health, scarabs
+--     pour out of the floor round her.
+local TAHNA = {
+	hp = {260, 210, 160, 110},         -- by jars broken (0 to 3)
+	damage = {10, 9, 8, 7},
+	whirl = {every = 7, speed = 4.5, life = 6, damage = 6, fling = 9},
+	dust = {every = 17, gone = 1.6, near = 3, far = 9, hits = 3, within = 4},
+	scarabs = 4,
+}
+
+-- A whirlwind of sand: runs along the floor towards a player, swerving after
+-- them; anyone it reaches is flung up and hurt (once each)
+core.register_entity("orthoverse_monsters:whirlwind", {
+	initial_properties = {
+		visual = "sprite", textures = {"orthoverse_tahna_whirlwind.png"}, visual_size = {x = 1.6, y = 2.6},
+		physical = true, collide_with_objects = false, pointable = false, static_save = false,
+		collisionbox = {-0.3, 0, -0.3, 0.3, 1.0, 0.3}, stepheight = 1.1, use_texture_alpha = true,
+	},
+	on_activate = function(self)
+		self._born = now()
+		self._hit = {}
+		self.object:set_acceleration({x = 0, y = -10, z = 0})
+		core.sound_play("orthoverse_monsters_tahna_wind", {object = self.object, gain = 0.8, max_hear_distance = 20}, true)
+	end,
+	on_step = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos then return end
+		if now() - self._born > TAHNA.whirl.life then self.object:remove(); return end
+		self._tick = (self._tick or 0) + dtime
+		if self._tick > 0.25 then
+			self._tick = 0
+			core.add_particlespawner({amount = 6, time = 0.25, pos = {min = vector.offset(pos, -0.5, 0, -0.5),
+				max = vector.offset(pos, 0.5, 2, 0.5)}, vel = {min = {x = -2, y = 0.5, z = -2}, max = {x = 2, y = 2, z = 2}},
+				exptime = {min = 0.4, max = 0.9}, size = {min = 2, max = 5}, texture = "orthoverse_tahna_dust.png"})
+			-- swerve after its quarry
+			local q = self._quarry and core.get_player_by_name(self._quarry)
+			local qp = q and q:get_pos()
+			if qp then
+				local d = vector.subtract(qp, pos)
+				d.y = 0
+				if vector.length(d) > 0.1 then
+					local v = vector.multiply(vector.normalize(d), TAHNA.whirl.speed)
+					local old = self.object:get_velocity()
+					self.object:set_velocity({x = (old.x * 2 + v.x) / 3, y = old.y, z = (old.z * 2 + v.z) / 3})
+				end
+			end
+		end
+		for _, obj in ipairs(core.get_objects_inside_radius(vector.offset(pos, 0, 0.8, 0), 1.3)) do
+			if obj:is_player() and obj:get_hp() > 0 and not self._hit[obj:get_player_name()] then
+				self._hit[obj:get_player_name()] = true
+				local owner = self._owner and self._owner:get_pos() and self._owner or self.object
+				obj:punch(owner, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = TAHNA.whirl.damage}}, nil)
+				local away = vector.normalize(vector.subtract(obj:get_pos(), pos))
+				obj:add_velocity({x = away.x * 4, y = TAHNA.whirl.fling, z = away.z * 4})
+				core.chat_send_player(obj:get_player_name(), S("The whirlwind throws you into the air."))
+			end
+		end
+	end,
+})
+
+-- How many of her jars are broken, in this run (orthoverse_tahna counts)
+local function jars_broken(self)
+	local T = tahna_mod()
+	return T and T.jars_broken and T.jars_broken(self._adventure) or 0
+end
+
+-- Somewhere free to stand within `near` to `far` blocks of `around`
+local function free_spot(around, near, far)
+	for _ = 1, 30 do
+		local a, r = math.random() * 2 * math.pi, near + math.random() * (far - near)
+		local p = vector.round(vector.offset(around, math.cos(a) * r, 0, math.sin(a) * r))
+		for dy = 2, -3, -1 do
+			local f, b1, b2 = vector.offset(p, 0, dy - 1, 0), vector.offset(p, 0, dy, 0), vector.offset(p, 0, dy + 1, 0)
+			local nf, n1, n2 = core.registered_nodes[core.get_node(f).name], core.registered_nodes[core.get_node(b1).name],
+				core.registered_nodes[core.get_node(b2).name]
+			if nf and nf.walkable and n1 and not n1.walkable and n2 and not n2.walkable and n1.liquidtype == "none" then
+				if core.line_of_sight(vector.offset(around, 0, 1, 0), vector.offset(b1, 0, 0.5, 0)) then
+					return vector.offset(b1, 0, -0.45, 0)
+				end
+			end
+		end
+	end
+end
+
+local function scarabs_round(self, n)
+	local pos = self.object:get_pos()
+	if not pos then return end
+	local made = 0
+	for _ = 1, n * 4 do
+		if made >= n then break end
+		local p = free_spot(pos, 1.5, 4)
+		if p then
+			local obj = core.add_entity(vector.offset(p, 0, 0.2, 0), "orthoverse_monsters:scarab")
+			local e = obj and obj:get_luaentity()
+			if e then
+				e._adventure, e._run, e._free = self._adventure, self._run, self._free
+				made = made + 1
+				core.add_particlespawner({amount = 8, time = 0.2, pos = p, radius = 0.3,
+					vel = {min = {x = -1, y = 0.5, z = -1}, max = {x = 1, y = 2, z = 1}}, exptime = {min = 0.3, max = 0.7},
+					size = {min = 2, max = 3}, texture = "orthoverse_tahna_dust.png"})
+			end
+		end
+	end
+end
+
+-- To dust: gone (not to be struck) for a moment, then gathered again
+-- somewhere near her chamber's heart (`whole`: risen again, at full health)
+local function to_dust(self, whole)
+	local pos = self.object:get_pos()
+	if not pos or self._dust_until then return end
+	self._dust_until = now() + TAHNA.dust.gone
+	self._next_dust = now() + TAHNA.dust.every
+	self._hits = {}
+	core.sound_play("orthoverse_monsters_tahna_dust", {pos = pos, gain = 1, max_hear_distance = 24}, true)
+	core.add_particlespawner({amount = 60, time = 0.6, pos = {min = vector.offset(pos, -0.4, 0, -0.4),
+		max = vector.offset(pos, 0.4, 2, 0.4)}, vel = {min = {x = -2, y = 0, z = -2}, max = {x = 2, y = 2.5, z = 2}},
+		exptime = {min = 0.6, max = 1.4}, size = {min = 3, max = 7}, texture = "orthoverse_tahna_dust.png"})
+	self.object:set_properties({is_visible = false, pointable = false, physical = false})
+	if self._held then self._held:set_properties({is_visible = false}) end
+	self.object:set_velocity({x = 0, y = 0, z = 0})
+	self.object:set_acceleration({x = 0, y = 0, z = 0})
+	self._windup = nil
+	self._rise_whole = whole
+	local home = self._home or pos
+	self._dust_to = free_spot(whole and home or pos, whole and 0 or TAHNA.dust.near, whole and 6 or TAHNA.dust.far)
+		or home
+end
+
+local function from_dust(self)
+	self._dust_until = nil
+	local to = self._dust_to
+	if to then self.object:set_pos(to) end
+	self.object:set_properties({is_visible = true, pointable = true, physical = true})
+	if self._held then self._held:set_properties({is_visible = true}) end
+	self.object:set_acceleration({x = 0, y = -10, z = 0})
+	local pos = self.object:get_pos()
+	core.add_particlespawner({amount = 50, time = 0.5, pos = {min = vector.offset(pos, -1.5, 0, -1.5),
+		max = vector.offset(pos, 1.5, 2, 1.5)}, attract = {kind = "point", strength = 3, origin = vector.offset(pos, 0, 1, 0)},
+		exptime = {min = 0.5, max = 0.9}, size = {min = 3, max = 6}, texture = "orthoverse_tahna_dust.png"})
+	if self._rise_whole then
+		local broken = math.min(3, jars_broken(self))
+		self.health = TAHNA.hp[broken + 1]
+		self.hp_max = TAHNA.hp[broken + 1]
+		self.damage = TAHNA.damage[broken + 1]
+		self._half_called = nil
+		core.sound_play("orthoverse_monsters_tahna_wail", {pos = pos, gain = 1, max_hear_distance = 40}, true)
+		label(self, S("Tahna rises from the dust!"), "#f5c64a")
+		scarabs_round(self, TAHNA.scarabs)
+		local T = tahna_mod()
+		if T and T.risen then T.risen(self._adventure, 3 - broken) end
+	end
+	self._rise_whole = nil
+end
+
+-- A whirlwind at her target
+local function whirl_at(self, target)
+	local pos = self.object:get_pos()
+	if not (pos and target and target:get_pos()) then return end
+	local dir = vector.subtract(target:get_pos(), pos)
+	dir.y = 0
+	dir = vector.normalize(dir)
+	local obj = core.add_entity(vector.offset(pos, dir.x * 1.2, 0.1, dir.z * 1.2), "orthoverse_monsters:whirlwind")
+	local e = obj and obj:get_luaentity()
+	if not e then return end
+	e._owner, e._quarry = self.object, target:get_player_name()
+	obj:set_velocity(vector.multiply(dir, TAHNA.whirl.speed))
+	label(self, S("Tahna calls up the sand!"), "#e0c080")
+end
+
+monster("tahna", {
+	desc = S("Tahna, the mummy queen"), level = 15, xp = 2000, size = 1.15, hp = TAHNA.hp[1], ac = 16,
+	damage = TAHNA.damage[1], windup = 0.7, interval = 1.8, walk = 1.2, run = 2.6, reach = 2.4, view_range = 22,
+	heavy = true, undead = true, great = true, glow = 6,
+	weapon = "orthoverse_tahna:sceptre_carried",
+	sounds = {random = "orthoverse_monsters_tahna_wail", damage = "default_dig_crumbly",
+		death = "orthoverse_monsters_tahna_wail", distance = 40},
+	after_activate = function(self)
+		self._home = self._home or self.object:get_pos()
+		self._next_whirl = now() + 4
+		self._next_dust = now() + TAHNA.dust.every
+		local broken = math.min(3, jars_broken(self))
+		if (self.health or 0) > TAHNA.hp[broken + 1] then self.health = TAHNA.hp[broken + 1] end
+		self.hp_max = TAHNA.hp[broken + 1]
+		self.damage = TAHNA.damage[broken + 1]
+	end,
+	on_struck = function(self, blow)
+		if self._dust_until then return end
+		local broken = math.min(3, jars_broken(self))
+		-- struck down while a jar is whole: to dust, to rise again
+		if self.health <= 0 and broken < 3 then
+			self.health = 1
+			local T = tahna_mod()
+			if T and T.struck_down then T.struck_down(self._adventure, 3 - broken) end
+			to_dust(self, true)
+			return
+		end
+		-- the scarabs, once a life, at half health
+		if not self._half_called and self.health <= (self.hp_max or TAHNA.hp[1]) / 2 then
+			self._half_called = true
+			scarabs_round(self, TAHNA.scarabs)
+			label(self, S("Scarabs pour from the floor!"), "#80c090")
+		end
+		-- pressed hard: away into dust
+		local t = now()
+		self._hits = self._hits or {}
+		table.insert(self._hits, t)
+		local recent = 0
+		for _, ht in ipairs(self._hits) do if t - ht < TAHNA.dust.within then recent = recent + 1 end end
+		if recent >= TAHNA.dust.hits and self.health > 0 then to_dust(self, false) end
+	end,
+	mobs = {
+		on_die = function(self, pos)
+			local T = tahna_mod()
+			if T and T.slain then T.slain(self._adventure, pos) end
+		end,
+	},
+	do_custom = function(self, dtime)
+		local t = now()
+		if self._dust_until then
+			self.object:set_velocity({x = 0, y = 0, z = 0})
+			if t >= self._dust_until then from_dust(self) end
+			return false
+		end
+		if self.state == "attack" and self.attack and self.attack:get_pos() then
+			if t >= (self._next_whirl or 0) and sees(self, self.attack) then
+				self._next_whirl = t + TAHNA.whirl.every
+				whirl_at(self, self.attack)
+			end
+			if t >= (self._next_dust or 0) then to_dust(self, false) end
+		end
+	end,
+})
+
+------------------------------------------------------------------------------
 -- The monster spawner: a grate in the floor, set by the builder
 
 local SPAWNER = "orthoverse_monsters:spawner"
