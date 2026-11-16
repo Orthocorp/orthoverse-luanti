@@ -38,6 +38,7 @@ local AWAY_GRACE = 300      -- seconds a run's player may be away before leaving
 local PARTY_MAX = 6
 local LIMIT_MIN, LIMIT_MAX, LIMIT_DEFAULT = 30, 120, 60   -- run time limit, minutes
 local SLICE = 16            -- layers restored per server step
+local RESTORE_AGAIN = 3     -- seconds after the end of a run, restored once more
 local GUARD_EVERY = 1       -- seconds between checks of who is where
 
 local adventures = {}       -- land key -> definition (persisted in mod storage)
@@ -647,7 +648,29 @@ local function end_run(key, why)
 			if ent and ent.name == "__builtin:item" then obj:remove() end
 		end
 	end
-	restore(key, function() core.log("action", "[orthoverse_adventure] " .. key .. " restocked") end)
+	-- Restored twice: once now, and again a few seconds later, over anything
+	-- a mod was still doing to the dungeon as the run ended (the Seed's
+	-- withering, when the last player died as the Heart burst, outlived the
+	-- first restore). Nobody goes in, and a restart restores it again, until
+	-- the second is done.
+	restore(key, function(ok)
+		if not ok then
+			core.log("error", "[orthoverse_adventure] " .. key .. " could not be restocked")
+			return
+		end
+		restocking[key] = true
+		storage:set_string("dirty:" .. key, "1")
+		core.after(RESTORE_AGAIN, function()
+			if runs[key] or not adventures[key] then
+				restocking[key] = nil
+				return
+			end
+			restore(key, function(ok2)
+				core.log(ok2 and "action" or "error", "[orthoverse_adventure] " .. key ..
+					(ok2 and " restocked" or " could not be restocked"))
+			end)
+		end)
+	end)
 end
 
 local function start_or_join(name, key)
