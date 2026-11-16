@@ -305,6 +305,29 @@ end)
 
 local records = stored_json("records") or {}   -- key -> {["v"..n] = {list}}
 
+-- Test accounts: they play like anyone, but never go on the record tables
+-- (orthoverse_loot gives them their draughts)
+orthoverse.testers = orthoverse.testers or {Testman2 = true}
+
+-- Any completions from before a tester was a tester: taken off the tables
+do
+	local changed = false
+	for _, versions in pairs(records) do
+		for _, list in pairs(versions) do
+			for i = #list, 1, -1 do
+				local r = list[i]
+				local kept = {}
+				for _, n in ipairs(r.names or {}) do
+					if orthoverse.testers[n] then changed = true else kept[#kept + 1] = n end
+				end
+				r.names, r.size = kept, #kept
+				if #kept == 0 then table.remove(list, i) end
+			end
+		end
+	end
+	if changed then storage:set_string("records", core.write_json(records)) end
+end
+
 local function format_time(secs)
 	return ("%d:%02d"):format(math.floor(secs / 60), secs % 60)
 end
@@ -374,7 +397,9 @@ end
 local function record_completion(key, def, run, secs)
 	local names = {}
 	for name in pairs(run.members) do
-		if not orthoverse.wallets.is_guest(name) and not may_manage(name, key) then names[#names + 1] = name end
+		if not orthoverse.wallets.is_guest(name) and not may_manage(name, key) and not orthoverse.testers[name] then
+			names[#names + 1] = name
+		end
 	end
 	if #names == 0 then return nil end
 	table.sort(names)
@@ -776,13 +801,15 @@ local function finish(name, key)
 		core.chat_send_player(n, ("%s completed in %s. You have %s to look around before you are taken out."):format(
 			def.name, format_time(secs), AFTER_FINISH >= 120 and (math.floor(AFTER_FINISH / 60) .. " minutes") or (AFTER_FINISH .. " seconds")))
 	end
-	-- Members whose run is not recorded (the builder, the admin, guests)
+	-- Members whose run is not recorded (the builder, the admin, guests, test
+	-- accounts)
 	local counted = {}
 	for _, n in ipairs(names or {}) do counted[n] = true end
 	for n in pairs(run.members) do
 		if not counted[n] then
 			core.chat_send_player(n, orthoverse.wallets.is_guest(n)
 				and "Guests' runs are not recorded: make a character to get on the table."
+				or orthoverse.testers[n] and "Test accounts' runs are not recorded."
 				or "Your own runs on an adventure you build (and the admin's) are not recorded.")
 		end
 	end

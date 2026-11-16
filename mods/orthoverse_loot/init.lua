@@ -60,11 +60,11 @@ core.register_craftitem("orthoverse_loot:draught", {
 -- The test account: Testman2 always has 99 healing draughts in hotbar slot
 -- 8, for trying adventures out: put there on joining and on going into an
 -- adventure (whose kit takes the rest away), and put back once a minute
-local TESTERS = {Testman2 = true}
+orthoverse.testers = orthoverse.testers or {Testman2 = true}   -- (orthoverse_adventure's list)
 local TEST_SLOT, TEST_COUNT = 8, 99
 
 local function test_draughts(player)
-	if not (player and player:is_player() and TESTERS[player:get_player_name()]) then return end
+	if not (player and player:is_player() and orthoverse.testers[player:get_player_name()]) then return end
 	local inv = player:get_inventory()
 	local st = inv:get_stack("main", TEST_SLOT)
 	if st:get_name() ~= "orthoverse_loot:draught" or st:get_count() ~= TEST_COUNT then
@@ -78,7 +78,7 @@ core.register_globalstep(function(dtime)
 	test_timer = test_timer + dtime
 	if test_timer < 60 then return end
 	test_timer = 0
-	for name in pairs(TESTERS) do test_draughts(core.get_player_by_name(name)) end
+	for name in pairs(orthoverse.testers) do test_draughts(core.get_player_by_name(name)) end
 end)
 core.register_on_joinplayer(function(player) core.after(1, test_draughts, player) end)
 core.register_on_mods_loaded(function()
