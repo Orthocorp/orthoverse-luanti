@@ -20,6 +20,8 @@
 --       (the nearest "return" mark).
 --   Damage is set straight on health (armour does not help).
 -- * The endless passage: floor that quietly sets players back along it.
+-- * The drowning room: its buttons pressed together (one a player), its
+--   doorway shuts and it fills with water.
 -- * False walls: look like the wall beside them, and can be walked through.
 -- * The pyramid's trap: its empty sarcophagus, opened, seals the doorway
 --   with a slab and wakes two mummies; a lever opens the slab again.
@@ -611,6 +613,111 @@ local function flames(pos, key, run)
 		end
 	end
 end
+
+-- The drowning room: buttons on its far wall, one for each player there can
+-- be. A button pressed pops out again in a moment, too quickly for one
+-- player to press them all. When as many are in at once as there are
+-- players in the run (living), the slabs come down over the room's doorway
+-- (the slab marks round it) and it fills with water from the floor up, a
+-- layer at a time. There is no way out: whoever has water over their head
+-- takes 5 a second (on top of drowning). Its floor (flood_floor, like any
+-- flagged floor) marks out the room.
+local FLOOD = {layer = 1.5, damage = 5, every = 1, button = 0.6}
+block("flood_floor", S("Floor of the drowning room (marks out the room its buttons flood)"), {tiles = {tex("flag")}})
+
+local function flood(key, run, from)
+	local d = data(run)
+	if d.flooded then return end
+	local tiles = near(from, 16, {"orthoverse_tahna:flood_floor"})
+	if #tiles == 0 then return end
+	local at = tiles[1]
+	local x1, x2, z1, z2, fy = at.x, at.x, at.z, at.z, at.y
+	for _, t in ipairs(tiles) do
+		if t.y == fy then
+			x1, x2, z1, z2 = math.min(x1, t.x), math.max(x2, t.x), math.min(z1, t.z), math.max(z2, t.z)
+		end
+	end
+	d.flooded = true
+	-- the ceiling: the first solid block over the room's corner
+	local top = fy + 1
+	while top < fy + 12 and not (core.registered_nodes[core.get_node({x = x1, y = top + 1, z = z1}).name] or {}).walkable do
+		top = top + 1
+	end
+	local mid = vector.new((x1 + x2) / 2, fy + 2, (z1 + z2) / 2)
+	for _, p in ipairs(core.find_nodes_in_area(vector.new(x1 - 1, fy + 1, z1 - 1), vector.new(x2 + 1, top, z2 + 1),
+			{"orthoverse_tahna:slab_open"})) do
+		core.set_node(p, {name = "orthoverse_tahna:slab"})
+	end
+	sound("grind", mid, 1, 32)
+	tell(run, S("Stone grinds on stone, and the doorway is shut. In the walls, water begins to run."))
+	local y = fy + 1
+	local function rise()
+		if orthoverse.adventure.runs[key] ~= run then return end
+		for x = x1, x2 do
+			for z = z1, z2 do
+				local p = {x = x, y = y, z = z}
+				-- (air, and whatever does not fill its block: torches, bones)
+				local nd = core.registered_nodes[core.get_node(p).name]
+				if nd and not nd.walkable then core.set_node(p, {name = "default:water_source"}) end
+			end
+		end
+		y = y + 1
+		if y <= top then core.after(FLOOD.layer, rise) end
+	end
+	core.after(1, rise)
+	local function drown()
+		if orthoverse.adventure.runs[key] ~= run then return end
+		local anyone = false
+		for _, pl in ipairs(players_in(run, vector.new(x1, fy, z1), vector.new(x2, top + 1, z2))) do
+			if pl:get_hp() > 0 then
+				anyone = true
+				local head = vector.round(vector.offset(pl:get_pos(), 0, 1.5, 0))
+				if core.get_item_group(core.get_node(head).name, "water") > 0 then hurt(pl, FLOOD.damage, "drowning") end
+			end
+		end
+		if anyone or y <= top then core.after(FLOOD.every, drown) end
+	end
+	core.after(FLOOD.every, drown)
+end
+
+local BUTTON_BOX = {type = "fixed", fixed = {{-0.25, -0.25, 0.3, 0.25, 0.25, 0.5}}}
+local function press(pos, node, player)
+	local key, def, run = in_run(player, pos)
+	core.swap_node(pos, {name = "orthoverse_tahna:button_in", param2 = node.param2})
+	core.sound_play("default_place_node_hard", {pos = pos, gain = 0.6, max_hear_distance = 12}, true)
+	core.after(FLOOD.button, function()
+		if core.get_node(pos).name == "orthoverse_tahna:button_in" then
+			core.swap_node(pos, {name = "orthoverse_tahna:button", param2 = node.param2})
+		end
+	end)
+	if not run then return end
+	local d = data(run)
+	if d.flooded then return end
+	d.buttons = d.buttons or {}
+	d.buttons[core.pos_to_string(pos)] = now()
+	local pressed = 0
+	for _, t in pairs(d.buttons) do if now() - t <= FLOOD.button then pressed = pressed + 1 end end
+	local alive = 0
+	for n in pairs(run.members) do
+		local pl = core.get_player_by_name(n)
+		if pl and pl:get_hp() > 0 then alive = alive + 1 end
+	end
+	if pressed >= math.max(1, alive) then flood(key, run, pos) end
+end
+block("button", S("A button in the wall (the drowning room's: all pressed together, the trap is sprung)"), {
+	drawtype = "nodebox", paramtype = "light", paramtype2 = "facedir", node_box = BUTTON_BOX,
+	tiles = {tex("sandstone_block"), tex("sandstone_block"), tex("sandstone_block"), tex("sandstone_block"),
+		tex("sandstone_block"), tex("arch_eye")},
+	on_rightclick = press,
+	on_punch = press,
+})
+block("button_in", S("A button in the wall, pressed"), {
+	drawtype = "nodebox", paramtype = "light", paramtype2 = "facedir",
+	node_box = {type = "fixed", fixed = {{-0.25, -0.25, 0.44, 0.25, 0.25, 0.5}}},
+	tiles = {tex("sandstone_block"), tex("sandstone_block"), tex("sandstone_block"), tex("sandstone_block"),
+		tex("sandstone_block"), tex("arch_eye")},
+	groups = {cracky = 2, not_in_creative_inventory = 1},
+})
 
 local SPRUNG = {
 	["orthoverse_tahna:plate_crush"] = crush,

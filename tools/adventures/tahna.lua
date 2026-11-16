@@ -513,6 +513,20 @@ local function level1()
 	box(74, f + 4, 47, 74, f + 4, 49, T("arch_eye"), 3)
 	torch(63, f + 3, 44, "w"); torch(73, f + 3, 52, "e")
 	guards(f, {{63, 48, "mummy", 1, 68, 46}, {63, 47, "statue", 2, 69, 51}})
+	-- south: the queen's treasury, gold heaped in it, a chest, and on its
+	-- far wall four buttons. Pressed together (as many as there are players)
+	-- they drop the slab over its doorway, and it fills with water
+	corridor({{68, 41}, {68, 33}}, f)
+	room(62, 24, 74, 32, f, 5, T("glyphs"))
+	box(62, f, 24, 74, f, 32, T("flood_floor"))
+	box(67, f + 1, 33, 69, f + 3, 33, T("slab_open"))
+	for _, p in ipairs({{62, 30}, {63, 31}, {62, 31}, {74, 30}, {73, 31}, {74, 31}, {62, 27}, {74, 27}}) do
+		set(p[1], f + 1, p[2], GOLD)
+	end
+	set(62, f + 2, 31, GOLD); set(74, f + 2, 31, GOLD)
+	for _, x in ipairs({63, 66, 70, 73}) do set(x, f + 2, 24, T("button"), WALL.s) end
+	chest(68, f + 1, 26, "armour", 0)
+	torch(62, f + 3, 25, "w"); torch(74, f + 3, 25, "e")
 	-- the false wall north, to the first jar, turning west along E's wall
 	corridor({{68, 55}, {68, 59}, {61, 59}, {61, 62}}, f)
 	box(67, f + 1, 55, 69, f + 3, 55, T("false_cobble"))
@@ -751,6 +765,7 @@ function g.check_more(O, t)
 	local function at(x, y, z) return seen[key(vector.add(O, {x = x, y = y, z = z}))] == true end
 	t.say("the sphinx's door, walked to: " .. tostring(at(18, PF, 29)))
 	t.say("level 1, the entry hall: " .. tostring(at(22, L1 + 1, 52)))
+	t.say("the treasury: " .. tostring(at(68, L1 + 1, 28)))
 	t.say("the jackal's jar (beside it): " .. tostring(at(61, L1 + 1, 67)))
 	t.say("level 2, the guard room: " .. tostring(at(84, L2 + 1, 34)))
 	t.say("the spiral's middle: " .. tostring(at(26, L2 + 1, 33)))
