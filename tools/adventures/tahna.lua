@@ -371,6 +371,7 @@ local function rock_tomb()
 	local fy = PG - 6
 	air(15, fy + 1, 80, 23, fy + 4, 88)
 	box(14, fy, 79, 24, fy, 89, DSBLOCK)
+	box(15, fy, 80, 23, fy, 88, T("flag"))     -- (flagstones, like the false floor in its middle)
 	box(14, fy + 5, 79, 24, fy + 5, 89, DSBLOCK)
 	for x = 14, 24 do for z = 79, 89 do
 		if x == 14 or x == 24 or z == 89 then box(x, fy + 1, z, x, fy + 4, z, DSBLOCK) end
