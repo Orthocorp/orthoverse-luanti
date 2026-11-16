@@ -2409,6 +2409,10 @@ local function spawn_at(pos, kind, count, run_id, key)
 end
 
 orthoverse.monsters.spawn_at = spawn_at
+-- (how many monsters are near a place, and the most there may be: for mods
+-- that bring monsters of their own, as the ark's cryo pods)
+orthoverse.monsters.near_count = monsters_near
+orthoverse.monsters.NEAR_CAP = NEAR_CAP
 
 -- Where a spawner's monsters appear: round the spawner, or, when its meta
 -- has "at" (an offset such as "(6,0,-3)"), round that spot instead. (So a

@@ -376,8 +376,12 @@ local function try_seal(key, run, pos, id, crossed)
 	for _, pl in ipairs(living(run)) do
 		if not crossed[pl:get_player_name()] then return end
 	end
-	local marks = core.find_nodes_in_area(vector.offset(pos, -SEAL_REACH, -3, -SEAL_REACH),
-		vector.offset(pos, SEAL_REACH, 3, SEAL_REACH), {"orthoverse_ark:bulkhead_open"})
+	local marks = {}
+	for _, m in ipairs(core.find_nodes_in_area(vector.offset(pos, -SEAL_REACH, -3, -SEAL_REACH),
+			vector.offset(pos, SEAL_REACH, 3, SEAL_REACH), {"orthoverse_ark:bulkhead_open"})) do
+		-- (only this adventure's: never a neighbour's)
+		if adventure(m) == key then marks[#marks + 1] = m end
+	end
 	-- nobody standing in the doorway
 	for _, m in ipairs(marks) do
 		for _, obj in ipairs(core.get_objects_inside_radius(m, 0.9)) do
@@ -442,6 +446,11 @@ block("cryo_pod", S("Cryo pod (a sleeper inside; as a player passes it may open)
 		local n = 0
 		for _ in pairs(run.members) do n = n + 1 end
 		if math.random() >= POD_CHANCE[math.max(1, math.min(4, n))] then return true end
+		-- (no more than the spawners' limit of monsters near it, however many
+		-- pods a builder sets)
+		local ms = orthoverse.monsters
+		if not core.registered_entities["orthoverse_monsters:sleeper"] or
+				(ms and ms.near_count and ms.near_count(pos) >= (ms.NEAR_CAP or 30)) then return true end
 		-- it opens: the lid lifts, the sleeper steps out in front
 		local node = core.get_node(pos)
 		local top = vector.offset(pos, 0, 1, 0)

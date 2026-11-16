@@ -144,6 +144,9 @@ function newGamePassword() {
 
 const NAME_RE = /^[A-Za-z0-9_-]{3,19}$/;
 const GUEST_RE = /^guest/i;
+// Test accounts (the game gives them draughts; they are on no ranking or
+// record): OV_TESTERS, comma-separated, as the game's orthoverse.testers
+const TESTERS = new Set(String(env.OV_TESTERS ?? 'Testman2').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
 
 mkdirSync(DATA_DIR, { recursive: true });
 const REGISTRY_FILE = join(DATA_DIR, 'registry.json');
@@ -617,6 +620,9 @@ function nameProblem(name) {
 	if (env.OV_ADMIN && name.toLowerCase() === String(env.OV_ADMIN).toLowerCase() && env.OV_ADMIN_OPEN !== '1') {
 		return 'That name is kept for the admin.';
 	}
+	// Test accounts (OV_TESTERS) are given draughts in the game: kept too, the
+	// same way
+	if (TESTERS.has(name.toLowerCase()) && env.OV_ADMIN_OPEN !== '1') return 'That name is kept for the admin.';
 	if (entryOf(name.toLowerCase()) || accountExists(name)) {
 		return 'That name is taken (perhaps with different capitals). Choose another.';
 	}
@@ -756,10 +762,19 @@ function readBody(req) {
 
 // A land's castle level now: read from the contract after an upgrade on the
 // lands page, else the chain index, else lands.json
+// (the chain index, read again only when the file has changed: the
+// Rankings ask for every land's level at once)
+let tokensCache = { mtime: -1, data: null };
+function tokensNow() {
+	let m = 0;
+	try { m = statSync(CHAIN_TOKENS).mtimeMs; } catch (e) { return null; }
+	if (m !== tokensCache.mtime) tokensCache = { mtime: m, data: readJson(CHAIN_TOKENS, null) };
+	return tokensCache.data;
+}
 function levelOf(land) {
 	const fresh = freshLevels.levels[land.key];
 	if (fresh) return fresh.level;
-	const data = readJson(CHAIN_TOKENS, null);
+	const data = tokensNow();
 	const t = data && data.tokens && data.tokens[land.token];
 	return t && Number.isInteger(t.level) ? t.level : land.level;
 }
@@ -860,7 +875,6 @@ function me(who) {
 // the world. Guests have no entry; test accounts (OV_TESTERS, Testman2) and
 // the admin are left off every table.
 
-const TESTERS = new Set(String(env.OV_TESTERS ?? 'Testman2').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
 const RANKED = 10, PODIUM = 3;
 
 // Weekly: each character's experience when the week began (Monday, 00:00

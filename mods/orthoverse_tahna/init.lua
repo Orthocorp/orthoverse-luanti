@@ -628,7 +628,11 @@ block("flood_floor", S("Floor of the drowning room (marks out the room its butto
 local function flood(key, run, from)
 	local d = data(run)
 	if d.flooded then return end
-	local tiles = near(from, 16, {"orthoverse_tahna:flood_floor"})
+	local tiles = {}
+	for _, t in ipairs(near(from, 16, {"orthoverse_tahna:flood_floor"})) do
+		-- (only this adventure's floor: the water never reaches a neighbour's)
+		if adventure(t) == key then tiles[#tiles + 1] = t end
+	end
 	if #tiles == 0 then return end
 	local at = tiles[1]
 	local x1, x2, z1, z2, fy = at.x, at.x, at.z, at.z, at.y
@@ -774,7 +778,15 @@ core.register_globalstep(function(dtime)
 				if fire and once(run, fn, feet) then fire(feet, key, run) end
 				-- the endless passage: back along it, without a sign
 				local shift = core.registered_nodes[fn] and core.registered_nodes[fn]._tahna_shift
-				if shift then pl:set_pos(vector.offset(p, shift, 0, 0)) end
+				if shift then
+					-- (only to room to stand in, in the same adventure)
+					local to = vector.offset(p, shift, 0, 0)
+					local function open(q)
+						local d = core.registered_nodes[core.get_node(vector.round(q)).name]
+						return d and not d.walkable
+					end
+					if adventure(to) == key and open(to) and open(vector.offset(to, 0, 1, 0)) then pl:set_pos(to) end
+				end
 				-- the archway: back to the nearest return mark
 				local body = vector.round(vector.offset(p, 0, 0.6, 0))
 				if (core.get_node(body).name == "orthoverse_tahna:arch" or core.get_node(vector.round(p)).name == "orthoverse_tahna:arch")
@@ -784,7 +796,8 @@ core.register_globalstep(function(dtime)
 					local best, bd
 					for _, m in ipairs(marks) do
 						local d = vector.distance(m, body)
-						if not bd or d < bd then best, bd = m, d end
+						-- (only this adventure's marks)
+						if (not bd or d < bd) and adventure(m) == key then best, bd = m, d end
 					end
 					if best then
 						last_teleport[n] = now()
