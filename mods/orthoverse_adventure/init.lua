@@ -1599,7 +1599,8 @@ local function place_template(tname, at, by, done, turned)
 			rank_min = tonumber(info.rank_min), rank_max = tonumber(info.rank_max),
 			footprint = {min = vector.new(p1.x, ground, p1.z), max = p2},
 			kit = type(info.kit) == "table" and info.kit or nil, party_max = tonumber(info.party_max),
-				tags = clean_tags(info.tags),
+			tags = clean_tags(info.tags),
+			finish_xp = tonumber(info.finish_xp),
 		}
 		save_def(key)
 		write_public()
@@ -2173,6 +2174,12 @@ core.register_on_mods_loaded(function()
 			local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. def.template .. ".json") or "", nil)
 			def.tags = info and clean_tags(info.tags)
 			if def.tags then save_def(key); changed = true end
+		end
+		-- (placing used to drop a template's own finishing experience)
+		if def.template and def.finish_xp == nil then
+			local info = core.parse_json(read_file(TEMPLATES_DIR .. "/" .. def.template .. ".json") or "", nil)
+			def.finish_xp = type(info) == "table" and tonumber(info.finish_xp) or nil
+			if def.finish_xp then save_def(key) end
 		end
 	end
 	if changed then write_public() end
