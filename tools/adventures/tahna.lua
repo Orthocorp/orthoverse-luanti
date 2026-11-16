@@ -51,7 +51,7 @@ g.info = {
 	limit = 90,
 	tags = {"combat", "puzzle", "explore"},   -- for the Adventures page (at most three)
 	-- (the Adventures page, beside the cover picture: about 35 words, no answers)
-	blurb = "Under the dunes lies the tomb of Tahna, the mummy queen, three levels deep. Traps, false doors and the walking dead guard her rest, and she does not stay dead easily. Her sceptre waits for whoever can.",
+	blurb = "You meet a traveller from an antique land, who says, \"A tomb lies far off in the desert. Enter its darkness, ye mighty, and despair.\" Of course you cannot resist such a challenge.",
 	rank_min = 8, rank_max = 15,
 	party_max = 4,
 	finish_xp = 500,
