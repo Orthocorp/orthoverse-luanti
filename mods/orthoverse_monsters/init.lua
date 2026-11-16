@@ -1033,7 +1033,7 @@ core.register_entity("orthoverse_monsters:bolt", {
 				local c = vector.add(from, vector.multiply(seg, k))
 				if math.abs(c.x - p.x) < 0.45 and math.abs(c.z - p.z) < 0.45 and c.y > p.y - 0.1 and c.y < p.y + 1.9 then
 					obj:punch(self._owner and self._owner:get_pos() and self._owner or self.object, 1.0,
-						{full_punch_interval = 1.0, damage_groups = {fleshy = TURRET.damage}}, nil)
+						{full_punch_interval = 1.0, damage_groups = {fleshy = self._damage or TURRET.damage}}, nil)
 					return self.object:remove()
 				end
 			end
@@ -1042,19 +1042,14 @@ core.register_entity("orthoverse_monsters:bolt", {
 	end,
 })
 
-monster("turret", {
-	desc = S("Sentry turret"), level = 5, xp = 90, visual = "cube", size = 0.8, hp = 18, ac = 15, damage = 0,
-	textures = {"orthoverse_monsters_turret_top.png", "orthoverse_monsters_turret_top.png",
-		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_side.png",
-		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_front.png"},
-	collisionbox = {-0.4, -0.4, -0.4, 0.4, 0.4, 0.4}, walk = 0, run = 0, view_range = TURRET.view,
-	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, attack_type = "dogfight"},
-	sounds = {damage = "default_dig_metal", death = "default_dug_metal", distance = 16},
-	do_custom = function(self, dtime)
+-- A turret's mind: turn to the nearest player it can see, fire a bolt every
+-- so often (cfg: view, every, speed, damage)
+local function turret_think(cfg)
+	return function(self, dtime)
 		local pos = self.object:get_pos()
 		if not pos or self.state == "die" then return false end
 		self.object:set_velocity({x = 0, y = math.min(0, (self.object:get_velocity() or {y = 0}).y), z = 0})
-		self._cool = (self._cool or TURRET.every) - dtime
+		self._cool = (self._cool or cfg.every) - dtime
 		self._look = (self._look or 0) - dtime
 		if self._look > 0 then return false end
 		self._look = 0.25
@@ -1062,7 +1057,7 @@ monster("turret", {
 		for _, player in ipairs(core.get_connected_players()) do
 			local pp = player:get_pos()
 			local d = vector.distance(pos, pp)
-			if d <= TURRET.view and player:get_hp() > 0 and (not bd or d < bd)
+			if d <= cfg.view and player:get_hp() > 0 and (not bd or d < bd)
 					and core.line_of_sight(pos, vector.add(pp, {x = 0, y = 1.4, z = 0})) then
 				best, bd = player, d
 			end
@@ -1073,17 +1068,150 @@ monster("turret", {
 		local dir = vector.direction(pos, aim)
 		self.object:set_yaw(math.atan2(-dir.x, dir.z))
 		if self._cool <= 0 then
-			self._cool = TURRET.every
+			self._cool = cfg.every
 			local from = vector.add(pos, vector.multiply(dir, 0.6))
 			local bolt = core.add_entity(from, "orthoverse_monsters:bolt")
 			if bolt then
-				bolt:set_velocity(vector.multiply(dir, TURRET.speed))
+				bolt:set_velocity(vector.multiply(dir, cfg.speed))
 				bolt:get_luaentity()._owner = self.object
+				bolt:get_luaentity()._damage = cfg.damage
 				core.sound_play("orthoverse_monsters_bolt", {pos = pos, gain = 0.7, max_hear_distance = 24}, true)
 			end
 		end
 		return false
+	end
+end
+
+monster("turret", {
+	desc = S("Sentry turret"), level = 5, xp = 90, visual = "cube", size = 0.8, hp = 18, ac = 15, damage = 0,
+	textures = {"orthoverse_monsters_turret_top.png", "orthoverse_monsters_turret_top.png",
+		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_side.png",
+		"orthoverse_monsters_turret_side.png", "orthoverse_monsters_turret_front.png"},
+	collisionbox = {-0.4, -0.4, -0.4, 0.4, 0.4, 0.4}, walk = 0, run = 0, view_range = TURRET.view,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, attack_type = "dogfight"},
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", distance = 16},
+	do_custom = turret_think(TURRET),
+})
+
+------------------------------------------------------------------------------
+-- The Silent Ark (mods/orthoverse_ark). Ranks 10 to 16: the Fallen Star's
+-- robots in tougher forms, the ark's sleepers, and its Custodian.
+
+-- (flying ones fly in the ark's vacuum and low gravity too)
+local FLY_IN = {"air", "orthoverse_ark:vacuum", "orthoverse_ark:lowg", "orthoverse_ark:vacuum_lowg"}
+
+-- A hunter drone: a drone built to hunt, quick, a red eye and a cutting arm
+monster("hunter_drone", {
+	desc = S("Hunter drone"), level = 9, xp = 200, visual = "sprite", size = 0.8, hp = 34, ac = 15, damage = 6,
+	windup = 0.35, interval = 1.1, glow = 8, collisionbox = {-0.3, -0.3, -0.3, 0.3, 0.3, 0.3}, walk = 2.2, run = 4.6,
+	reach = 1.9,
+	mobs = {fly = true, fly_in = FLY_IN, keep_flying = true, fall_damage = false, jump = false, fear_height = 0,
+		stand_chance = 0},
+	sounds = {random = "orthoverse_monsters_wisp_hum", damage = "default_dig_metal", death = "default_dug_metal",
+		distance = 16},
+	after_activate = function(self)
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+		self._bob = math.random() * 6
 	end,
+	do_custom = function(self, dtime)
+		local pos = self.object:get_pos()
+		if not pos or self.state == "die" then return end
+		self._bob = (self._bob or 0) + dtime
+		local want
+		local target = self.attack and self.attack:get_pos()
+		if target then
+			want = target.y + 1.2
+		else
+			local g = ground_below(pos, 8)
+			want = (g or pos.y) + 1.6 + math.sin(self._bob * 2.6) * 0.25
+		end
+		local v = self.object:get_velocity() or {x = 0, y = 0, z = 0}
+		self.object:set_velocity({x = v.x, y = math.max(-3, math.min(3, (want - pos.y) * 2.5)), z = v.z})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end,
+})
+
+-- An enforcer: the security robot rebuilt for a ship's long dark, plated
+-- and heavy; its baton's charge numbs (a blow that lands slows a player)
+monster("enforcer", {
+	desc = S("Enforcer"), level = 11, xp = 420, size = 1.15, hp = 62, ac = 16, damage = 8, windup = 0.6,
+	interval = 1.6, walk = 1.5, run = 3.3, weapon = "orthoverse_combat:mace_steel_carried", reach = 2.4,
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", attack = "orthoverse_monsters_bolt",
+		distance = 16},
+	on_hit = function(self, target)
+		if math.random(3) == 1 then hamper(target, 0.5, 1.5, S("The baton's charge numbs your legs.")) end
+	end,
+})
+
+-- A heavy turret: as the sentry, but it fires faster and harder, and takes
+-- more to break
+local HEAVY_TURRET = {view = 22, every = 1.6, speed = 15, damage = 7}
+monster("heavy_turret", {
+	desc = S("Heavy turret"), level = 10, xp = 260, visual = "cube", size = 0.9, hp = 44, ac = 17, damage = 0,
+	textures = {"orthoverse_monsters_heavy_turret_top.png", "orthoverse_monsters_heavy_turret_top.png",
+		"orthoverse_monsters_heavy_turret_side.png", "orthoverse_monsters_heavy_turret_side.png",
+		"orthoverse_monsters_heavy_turret_side.png", "orthoverse_monsters_heavy_turret_front.png"},
+	collisionbox = {-0.45, -0.45, -0.45, 0.45, 0.45, 0.45}, walk = 0, run = 0, view_range = HEAVY_TURRET.view,
+	mobs = {jump = false, fear_height = 0, stand_chance = 100, walk_chance = 0, attack_type = "dogfight"},
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", distance = 18},
+	do_custom = turret_think(HEAVY_TURRET),
+})
+
+-- A sleeper: a colonist woken wrong from the cryo pods, frost still on it.
+-- Slow at first, quicker as it thaws; its cold touch numbs.
+local SLEEPER = {thaw = 20, walk = {0.6, 1.5}, run = {1.2, 3.1}}
+monster("sleeper", {
+	desc = S("Sleeper"), level = 10, xp = 260, size = 1.0, hp = 46, ac = 13, damage = 7, windup = 0.7,
+	interval = 1.7, walk = SLEEPER.walk[1], run = SLEEPER.run[1], reach = 2.1,
+	sounds = {random = "orthoverse_monsters_sleeper_moan", damage = "default_dig_crumbly",
+		death = "orthoverse_monsters_sleeper_moan", distance = 16},
+	on_hit = function(self, target)
+		if math.random(2) == 1 then hamper(target, 0.5, 1.2, S("Its frozen hands numb you.")) end
+	end,
+	do_custom = function(self, dtime)
+		self._thawed = math.min(SLEEPER.thaw, (self._thawed or 0) + dtime)
+		local k = self._thawed / SLEEPER.thaw
+		if not self._speeds then   -- (a leg blow's slowing keeps its own speeds)
+			self.walk_velocity = SLEEPER.walk[1] + (SLEEPER.walk[2] - SLEEPER.walk[1]) * k
+			self.run_velocity = SLEEPER.run[1] + (SLEEPER.run[2] - SLEEPER.run[1]) * k
+		end
+	end,
+})
+
+local CUSTODIAN_HP = 280
+-- The Custodian: the ark's great maintenance machine, the ship's mind's
+-- keeper on the bridge, the boss of The Silent Ark. Its blows throw a player
+-- back; at half its health it calls two hunter drones, once.
+monster("custodian", {
+	desc = S("The Custodian"), level = 15, xp = 1400, size = 1.8, hp = CUSTODIAN_HP, ac = 17, damage = 12, windup = 1.0,
+	interval = 2.2, walk = 1.2, run = 2.6, weapon = "orthoverse_combat:war_hammer_steel_carried", reach = 3.3,
+	view_range = 22, heavy = true, great = true, glow = 3,
+	sounds = {damage = "default_dig_metal", death = "default_dug_metal", attack = "orthoverse_monsters_bolt",
+		distance = 32},
+	on_hit = function(self, target)
+		if not target:is_player() then return end
+		local away = vector.subtract(target:get_pos(), self.object:get_pos())
+		away.y = 0
+		away = vector.length(away) > 0.01 and vector.normalize(away) or {x = 0, y = 0, z = 1}
+		target:add_velocity({x = away.x * 8, y = 4, z = away.z * 8})
+	end,
+	on_struck = function(self)
+		if self._called or self.health > CUSTODIAN_HP / 2 then return end
+		self._called = true
+		local pos = self.object:get_pos()
+		for _ = 1, 2 do
+			local obj = core.add_entity(vector.offset(pos, math.random(-2, 2), 2, math.random(-2, 2)),
+				"orthoverse_monsters:hunter_drone")
+			local e = obj and obj:get_luaentity()
+			if e then e._adventure, e._run, e._spawner = self._adventure, self._run, self._spawner end
+		end
+		label(self, S("calls for help"), "#ff8a5a")
+	end,
+	mobs = {
+		on_die = function(self, pos)
+			if orthoverse.ark and orthoverse.ark.custodian_down then orthoverse.ark.custodian_down(pos) end
+		end,
+	},
 })
 
 ------------------------------------------------------------------------------
