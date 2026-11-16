@@ -1414,6 +1414,33 @@ function adminRow(p, logins, sheets) {
 	};
 }
 
+// A character's sheet for the admin: rank, experience, stamina and stats
+// (from the game's character sheets), prestige (from the chain), and the
+// adventures finished, by name where the adventure is still there. Null if
+// the game has no sheet for them yet (not in the world since sheets began)
+function sheetFor(p) {
+	const c = ((charactersNow() || {}).characters || {})[p.name.toLowerCase()];
+	if (!c) return null;
+	const num = (v, d) => (Number.isFinite(v) ? v : d);
+	let names = {};
+	try {
+		const data = JSON.parse(readFileSync(ADVENTURES_FILE, 'utf8'));
+		for (const a of data.adventures || []) if (a && a.key) names[a.key] = a.name || a.key;
+	} catch (e) { names = {}; }
+	const pr = prestigeOf(p.address);
+	return {
+		rank: num(c.rank, 1), xp: num(c.xp, 0), next: Number.isFinite(c.next) ? c.next : null,
+		hp: num(c.hp, 20), hp_max: num(c.hp_max, 20),
+		insight: num(c.insight, 0), agility: num(c.agility, 0), prowess: num(c.prowess, 0),
+		prestige: pr.lands + pr.levels,
+		// (none finished: the game writes null; no field at all: a sheet from
+		// before it listed them)
+		done: !('done' in c) ? null : (Array.isArray(c.done) ? c.done : []).filter(k => typeof k === 'string')
+			.map(k => (names[k] ? `${names[k]} (${k})` : `${k} (gone)`)),
+		at: typeof c.at === 'string' ? c.at : null,
+	};
+}
+
 const adminCommands = {
 	list({ text }) {
 		const logins = lastLogins();
@@ -1438,6 +1465,7 @@ const adminCommands = {
 			lastEntry: p.issued ? when(p.issued) : null,
 			visit: visits.visits[p.name.toLowerCase()] || null,
 			admin: !!(ADMIN && p.name === ADMIN),
+			sheet: sheetFor(p),
 		};
 	},
 	lock({ name, why }) {

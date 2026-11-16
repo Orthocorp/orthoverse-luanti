@@ -10,7 +10,9 @@
 #                                        first), time (most first), locked
 #   ./characters.sh show <name>          one character in full, with the time they
 #                                        have spent in the world (counted from patch
-#                                        1158), and in this visit if there now
+#                                        1158), and in this visit if there now; their
+#                                        rank, experience, stats and the adventures
+#                                        they have finished
 #   ./characters.sh lock <name> [reason] keep them out: signed out on the website,
 #                                        put out of the game, until unlocked
 #   ./characters.sh unlock <name>
@@ -175,4 +177,22 @@ else:
         elif isinstance(v, dict): v = json.dumps(v)
         elif v is None: v = "-"
         print("%-26s %s" % (label + ":", v))
+    sh = r.get("sheet")
+    if not sh:
+        print("%-26s %s" % ("Character sheet:", "none yet (not in the world since sheets began)"))
+    else:
+        nxt = (" (rank %d at %d)" % (sh["rank"] + 1, sh["next"])) if sh.get("next") else " (the highest rank)"
+        rows = [("Rank", str(sh["rank"])), ("Experience", "%d%s" % (sh["xp"], nxt)),
+            ("Stamina", "%d / %d" % (sh["hp"], sh["hp_max"])),
+            ("Insight, Agility, Prowess", "%d, %d, %d" % (sh["insight"], sh["agility"], sh["prowess"])),
+            ("Prestige", str(sh["prestige"])), ("Sheet as of", (sh.get("at") or "-").replace("T", " ")[:16])]
+        for label, v in rows:
+            print("%-26s %s" % (label + ":", v))
+        done = sh.get("done")
+        if done is None:
+            print("%-26s %s" % ("Adventures finished:", "not on the sheet yet (comes the next time they are in the world)"))
+        else:
+            print("%-26s %s" % ("Adventures finished:", "%d" % len(done) if done else "none"))
+            for d in done:
+                print("  " + d)
 '

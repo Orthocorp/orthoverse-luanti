@@ -380,12 +380,21 @@ local function sheet_of(player)
 	local s = {rank = rank, xp = xp, next = NEEDS[rank + 1], hp = player:get_hp(),
 		hp_max = player:get_properties().hp_max or rank_api.hp_max(rank), at = os.date("!%Y-%m-%dT%H:%M:%SZ")}
 	for _, k in ipairs(STATS) do s[k] = meta:get_int("orthoverse_stats:" .. k) end
+	-- the adventures finished (their land keys: orthoverse_adventure marks
+	-- each the first time, and from the records for older finishes)
+	local done = {}
+	for k in pairs(meta:to_table().fields) do
+		local key = k:match("^orthoverse_stats:done:(.+)$")
+		if key then done[#done + 1] = key end
+	end
+	table.sort(done)
+	s.done = done
 	bank_time(player)
 	s.played = meta:get_int(PLAYED)
 	s.online = joined_at[name] and os.time() - joined_at[name] or nil
 	local old = sheets[name:lower()]
 	sheets[name:lower()] = s
-	if not old or old.played ~= s.played or old.online ~= s.online or old.xp ~= s.xp or old.hp ~= s.hp or old.hp_max ~= s.hp_max or old.insight ~= s.insight
+	if not old or #(old.done or {}) ~= #done or old.played ~= s.played or old.online ~= s.online or old.xp ~= s.xp or old.hp ~= s.hp or old.hp_max ~= s.hp_max or old.insight ~= s.insight
 			or old.agility ~= s.agility or old.prowess ~= s.prowess then
 		sheets_dirty = true
 	end
