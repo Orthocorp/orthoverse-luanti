@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rankings · The Orthoverse</title>
+<meta name="description" content="The Orthoverse's best: the most experienced characters, this week's climbers, the great adventurers, the grandest holders, and the state of the world.">
+<link rel="icon" type="image/png" href="/img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<style>
+  * { box-sizing: border-box; }
+  html { background: var(--night); }
+  body { margin: 0; color: var(--parchment); font: 17px/1.6 var(--body-font); }
+  a { color: var(--gold); }
+  h1, h2, h3 { font-family: "Midnight", monospace; font-weight: normal; -webkit-font-smoothing: none; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  main { padding: 40px 16px 64px; }
+  h1 { font-size: 32px; line-height: 40px; margin: 0 0 8px; color: var(--gold); text-shadow: 3px 3px 0 var(--bronze); }
+  h2 { font-size: 20px; line-height: 28px; margin: 0 0 12px; color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); }
+  p { margin: 0 0 16px; max-width: 44em; }
+  .quiet { color: var(--quiet); }
+  .panel { background: var(--night-2); border: 3px solid var(--outline); padding: 20px;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .tabs { display: flex; gap: 8px; margin: 28px 0 0; border-bottom: 3px solid var(--outline); flex-wrap: wrap; }
+  .tab { font: 16px/16px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--quiet); cursor: pointer;
+    background: var(--night-2); border: 3px solid var(--outline); border-bottom: 0; padding: 14px 18px 12px;
+    margin-bottom: -3px; }
+  .tab:hover { color: var(--parchment); }
+  .tab[aria-selected="true"] { color: var(--gold); background: var(--night-3); border-bottom: 3px solid var(--night-3);
+    text-shadow: 2px 2px 0 var(--bronze); }
+  .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .tabpanel { padding-top: 24px; }
+  .tabpanel:focus-visible { outline: none; }
+
+  /* The top three */
+  .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: end; }
+  .place { background: var(--night-2); border: 3px solid var(--outline); padding: 16px 14px 18px; text-align: center;
+    box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.06), 6px 6px 0 rgba(0, 0, 0, 0.35); }
+  .place.p1 { order: 2; border-color: var(--gold); padding-top: 26px; }
+  .place.p2 { order: 1; } .place.p3 { order: 3; }
+  .place .no { font: 16px/16px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--quiet); }
+  .place.p1 .no { color: var(--gold); text-shadow: 2px 2px 0 var(--bronze); font-size: 20px; line-height: 20px; }
+  .figure { display: block; margin: 12px auto 10px; width: 80px; height: 160px; image-rendering: pixelated; }
+  .place.p1 .figure { width: 100px; height: 200px; }
+  .nofig { margin: 12px auto 10px; width: 80px; height: 160px; display: grid; place-items: center; font-size: 13px;
+    color: var(--quiet); border: 2px dashed var(--line); }
+  .place .who { font: 16px/22px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--parchment); word-break: break-all; }
+  .place .score { font: 24px/30px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--gold);
+    text-shadow: 2px 2px 0 var(--bronze); margin: 6px 0 4px; }
+  .place .unit { font: 13px/18px var(--body-font); color: var(--quiet); }
+  .place ul { list-style: none; margin: 10px 0 0; padding: 0; font-size: 14px; line-height: 1.5; color: var(--quiet); }
+  .place li.firsts { color: var(--good); }
+
+  /* Fourth to tenth */
+  .rest { list-style: none; margin: 20px 0 0; padding: 0; }
+  .rest li { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: baseline; padding: 10px 14px;
+    background: var(--night-2); border: 2px solid var(--line); margin-top: 6px; }
+  .rest .n { font: 14px/14px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--quiet); }
+  .rest .name { word-break: break-all; }
+  .rest .name small { color: var(--quiet); margin-left: 8px; }
+  .rest .v { font: 15px/15px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--gold); }
+  .empty { color: var(--quiet); }
+
+  /* The world */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .big { font: 32px/40px "Midnight", monospace; -webkit-font-smoothing: none; color: var(--gold);
+    text-shadow: 2px 2px 0 var(--bronze); }
+  .stats .panel p { margin: 4px 0 0; font-size: 15px; }
+  .realms { margin-top: 16px; }
+  .bar { display: flex; height: 22px; border: 3px solid var(--outline); margin: 8px 0 6px; }
+  .bar .fan { background: #3f8f4a; } .bar .fut { background: #4aa8d8; }
+  .legend { display: flex; justify-content: space-between; font-size: 15px; }
+  .levels { width: 100%; max-width: 560px; border-collapse: collapse; margin-top: 12px; font-size: 15px; }
+  .levels th, .levels td { text-align: right; padding: 6px 12px; border-bottom: 2px solid var(--line); }
+  .levels th:first-child, .levels td:first-child { text-align: left; }
+  .levels th { font-weight: 700; color: var(--quiet); }
+  .updated { margin-top: 24px; font-size: 14px; }
+
+  @media (max-width: 700px) {
+    .podium { grid-template-columns: 1fr; }
+    .place.p1, .place.p2, .place.p3 { order: 0; }
+  }
+  @media (max-width: 640px) { .tab { padding: 12px 10px 10px; font-size: 14px; } }
+</style>
+<script src="/js/site.js"></script>
+</head>
+<body>
+<div id="ov-header"></div>
+
+<main class="wrap">
+  <h1>Rankings</h1>
+  <p class="quiet">The best in the Orthoverse, and the state of the world. Guests and test characters are not ranked.</p>
+
+  <div class="tabs" role="tablist" aria-label="Rankings">
+    <button class="tab" role="tab" type="button" id="tab-experience" aria-controls="panel-experience">Experience</button>
+    <button class="tab" role="tab" type="button" id="tab-weekly" aria-controls="panel-weekly">Weekly</button>
+    <button class="tab" role="tab" type="button" id="tab-adventurers" aria-controls="panel-adventurers">Adventurers</button>
+    <button class="tab" role="tab" type="button" id="tab-prestige" aria-controls="panel-prestige">Prestige</button>
+    <button class="tab" role="tab" type="button" id="tab-stats" aria-controls="panel-stats">Stats</button>
+  </div>
+
+  <div class="tabpanel" role="tabpanel" id="panel-experience" aria-labelledby="tab-experience" tabindex="0">
+    <p class="quiet">Experience from monsters fought and adventures finished, since each character began.</p>
+    <div class="board" data-table="experience"></div>
+  </div>
+  <div class="tabpanel" role="tabpanel" id="panel-weekly" aria-labelledby="tab-weekly" tabindex="0" hidden>
+    <p class="quiet" id="week-note">Experience gained this week. It starts again every Monday, so anyone can top it.</p>
+    <div class="board" data-table="weekly"></div>
+  </div>
+  <div class="tabpanel" role="tabpanel" id="panel-adventurers" aria-labelledby="tab-adventurers" tabindex="0" hidden>
+    <p class="quiet">Adventures finished. Being the first to finish one breaks a tie.</p>
+    <div class="board" data-table="adventurers"></div>
+  </div>
+  <div class="tabpanel" role="tabpanel" id="panel-prestige" aria-labelledby="tab-prestige" tabindex="0" hidden>
+    <p class="quiet">Prestige: every land a character's wallet holds, plus all their castle levels.</p>
+    <div class="board" data-table="prestige"></div>
+  </div>
+  <div class="tabpanel" role="tabpanel" id="panel-stats" aria-labelledby="tab-stats" tabindex="0" hidden>
+    <div id="stats"></div>
+  </div>
+
+  <p class="quiet updated" id="updated"></p>
+</main>
+
+<div id="ov-footer"></div>
+
+<script type="module">
+  import { allParts, checkDesign, paint, toGame } from '/skin/skin.js';
+
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v == null) continue;
+      if (k === 'class') e.className = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null && k !== false) e.append(k);
+    return e;
+  };
+  const fmt = n => Number(n).toLocaleString('en-GB');
+  const plural = (n, one, many) => fmt(n) + ' ' + (n === 1 ? one : many);
+
+  // The tabs: Experience first (#experience, #weekly, ...)
+  const TABS = ['experience', 'weekly', 'adventurers', 'prestige', 'stats'];
+  const showTab = (name, focus) => {
+    for (const t of TABS) {
+      const on = t === name;
+      const tab = $('tab-' + t);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.tabIndex = on ? 0 : -1;
+      $('panel-' + t).hidden = !on;
+      if (on && focus) tab.focus();
+    }
+  };
+  for (const t of TABS) {
+    $('tab-' + t).addEventListener('click', () => { showTab(t); history.replaceState(null, '', '#' + t); });
+    $('tab-' + t).addEventListener('keydown', e => {
+      const i = TABS.indexOf(t), n = TABS.length;
+      const to = e.key === 'ArrowRight' ? TABS[(i + 1) % n] : e.key === 'ArrowLeft' ? TABS[(i + n - 1) % n]
+        : e.key === 'Home' ? TABS[0] : e.key === 'End' ? TABS[n - 1] : null;
+      if (!to) return;
+      e.preventDefault();
+      showTab(to, true);
+      history.replaceState(null, '', '#' + to);
+    });
+  }
+  const fromHash = () => showTab(TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'experience');
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // A character's look, as a figure seen from the front (from the game's skin)
+  let parts = null;
+  async function loadParts() {
+    if (parts) return parts;
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    const out = new Map();
+    await Promise.all(allParts().map(f => new Promise((ok, bad) => {
+      const img = new Image();
+      img.onload = () => ok([f, img]);
+      img.onerror = () => bad(new Error('could not load ' + f));
+      img.src = '/skin/parts/' + f + '.png';
+    }).then(([f, img]) => {
+      g.clearRect(0, 0, 64, 64);
+      g.drawImage(img, 0, 0);
+      out.set(f, g.getImageData(0, 0, 64, 64).data.slice());
+    })));
+    parts = out;
+    return parts;
+  }
+  function figure(design) {
+    let d = null;
+    try { d = design ? checkDesign(design, 7) : null; } catch (e) { d = null; }
+    if (!d || !parts) return el('div', { class: 'nofig' }, 'No look yet');
+    const src = document.createElement('canvas');
+    src.width = 64; src.height = 32;
+    src.getContext('2d').putImageData(new ImageData(toGame(paint(d, f => parts.get(f))), 64, 32), 0, 0);
+    const c = el('canvas', { class: 'figure', width: '16', height: '32', role: 'img', 'aria-label': 'Their look' });
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const part = (sx, sy, w, h, dx, dy, mirror) => {
+      if (!mirror) return g.drawImage(src, sx, sy, w, h, dx, dy, w, h);
+      g.save(); g.translate(dx + w, dy); g.scale(-1, 1); g.drawImage(src, sx, sy, w, h, 0, 0, w, h); g.restore();
+    };
+    part(8, 8, 8, 8, 4, 0);          // the head
+    part(40, 8, 8, 8, 4, 0);         // what is worn over it
+    part(20, 20, 8, 12, 4, 8);       // the body
+    part(44, 20, 4, 12, 0, 8);       // the right arm (on our left)
+    part(44, 20, 4, 12, 12, 8, true);
+    part(4, 20, 4, 12, 4, 20);       // the legs
+    part(4, 20, 4, 12, 8, 20, true);
+    return c;
+  }
+
+  // One table: the top three on the podium, then fourth to tenth
+  const UNITS = { experience: 'experience', weekly: 'experience this week', adventurers: 'adventures finished', prestige: 'prestige' };
+  function details(table, r) {
+    const lines = [el('li', {}, 'Rank ' + r.rank)];
+    const firsts = (r.firsts || []);
+    if (table === 'experience') lines.push(el('li', {}, plural(r.done || 0, 'adventure finished', 'adventures finished')));
+    if (table === 'weekly') lines.push(el('li', {}, fmt(r.xp || 0) + ' experience in all'));
+    if (table === 'prestige') {
+      lines.push(el('li', {}, plural(r.lands || 0, 'land', 'lands') + ', ' + plural(r.levels || 0, 'castle level', 'castle levels')));
+      if (r.top) lines.push(el('li', {}, 'Highest castle: level ' + r.top));
+    }
+    if ((table === 'experience' || table === 'adventurers') && firsts.length) {
+      lines.push(el('li', { class: 'firsts' }, 'First to finish ' + firsts.slice(0, 2).join(' and ') +
+        (firsts.length > 2 ? ' and ' + (firsts.length - 2) + ' more' : '')));
+    }
+    return el('ul', {}, ...lines);
+  }
+  function board(table, rows) {
+    const box = document.querySelector(`.board[data-table="${table}"]`);
+    box.innerHTML = '';
+    if (!rows.length) {
+      box.append(el('p', { class: 'empty' }, table === 'weekly' ? 'Nobody has gained any experience this week yet.' : 'Nobody here yet.'));
+      return;
+    }
+    const podium = el('div', { class: 'podium' });
+    rows.slice(0, 3).forEach((r, i) => podium.append(el('div', { class: 'place p' + (i + 1) },
+      el('div', { class: 'no' }, ['1st', '2nd', '3rd'][i]),
+      figure(r.design),
+      el('div', { class: 'who' }, r.name),
+      el('div', { class: 'score' }, fmt(r.value)),
+      el('div', { class: 'unit' }, UNITS[table]),
+      details(table, r))));
+    box.append(podium);
+    if (rows.length > 3) {
+      box.append(el('ol', { class: 'rest', start: '4' }, ...rows.slice(3).map((r, i) => el('li', {},
+        el('span', { class: 'n' }, String(i + 4)),
+        el('span', { class: 'name' }, r.name, el('small', {}, 'rank ' + r.rank)),
+        el('span', { class: 'v' }, fmt(r.value))))));
+    }
+  }
+
+  // The world as it is now
+  function stats(s) {
+    const box = $('stats');
+    box.innerHTML = '';
+    const fan = s.realms.fantasy.reduce((a, b) => a + b, 0), fut = s.realms.futuristic.reduce((a, b) => a + b, 0);
+    const card = (big, title, note) => el('div', { class: 'panel' }, el('div', { class: 'big' }, fmt(big)), el('h2', {}, title),
+      note ? el('p', { class: 'quiet' }, note) : null);
+    box.append(el('div', { class: 'stats' },
+      card(s.lands, 'Lands revealed', plural(s.holders, 'holder', 'holders') + ' between them'),
+      card(s.characters, 'Characters', plural(s.wallets, 'with a wallet', 'with a wallet')),
+      card(s.adventures, 'Adventures', fmt(s.open) + ' open to play')));
+    const total = Math.max(1, fan + fut);
+    const rows = [];
+    for (let lv = 7; lv >= 0; lv--) {
+      rows.push(el('tr', {}, el('td', {}, 'Castle level ' + lv), el('td', {}, fmt(s.realms.fantasy[lv])),
+        el('td', {}, fmt(s.realms.futuristic[lv])), el('td', {}, fmt(s.realms.fantasy[lv] + s.realms.futuristic[lv]))));
+    }
+    box.append(el('div', { class: 'panel realms' },
+      el('h2', {}, 'The realms'),
+      el('div', { class: 'bar', role: 'img', 'aria-label': `${fan} fantasy lands, ${fut} futuristic lands` },
+        el('div', { class: 'fan', style: `width:${(fan / total * 100).toFixed(2)}%` }),
+        el('div', { class: 'fut', style: `width:${(fut / total * 100).toFixed(2)}%` })),
+      el('div', { class: 'legend' }, el('span', {}, 'Fantasy: ' + fmt(fan)), el('span', {}, 'Futuristic: ' + fmt(fut))),
+      el('table', { class: 'levels' },
+        el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Fantasy'), el('th', {}, 'Futuristic'), el('th', {}, 'In all'))),
+        el('tbody', {}, ...rows))));
+  }
+
+  let data = null;
+  try { data = await (await fetch('/api/rankings', { cache: 'no-store' })).json(); } catch (e) { data = null; }
+  if (!data || !data.tables) {
+    for (const b of document.querySelectorAll('.board')) b.append(el('p', { class: 'empty' }, 'The rankings could not be loaded. Try again in a minute.'));
+  } else {
+    try { await loadParts(); } catch (e) { parts = null; }
+    for (const t of ['experience', 'weekly', 'adventurers', 'prestige']) board(t, data.tables[t] || []);
+    if (data.stats) stats(data.stats);
+    if (data.week) {
+      const d = new Date(data.week + 'T00:00:00Z');
+      $('week-note').textContent = 'Experience gained since Monday ' +
+        d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }) +
+        '. It starts again every Monday, so anyone can top it.';
+    }
+    if (data.updated) $('updated').textContent = 'As of ' + new Date(data.updated).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + '.';
+  }
+</script>
+</body>
+</html>

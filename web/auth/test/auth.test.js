@@ -110,6 +110,7 @@ const svcEnv = {
 	OV_TURNSTILE_URL: `http://127.0.0.1:${turnstile.address().port}/`,
 	OV_REGISTER_PER_DAY: '4',
 	OV_ADVENTURES: join(dir, 'adventures.json'),
+	OV_CHARACTERS: join(dir, 'characters.json'),
 	OV_ADMIN: 'Bossy',
 	OV_SKIN_EVERY_MS: '0',
 	NODE_NO_WARNINGS: '1',
@@ -466,6 +467,30 @@ try {
 	for (let i = 0; i < 10; i++) await call('POST', '/auth/login', { name: 'Quin', password: 'nope nope' + i });
 	r = await call('POST', '/auth/login', { name: 'Quin', password: 'quin password' });
 	check(r.status === 429, 'login: after 10 wrong passwords the name rests, even for the right one');
+
+	// The Rankings page: the top of each table, and the state of the world
+	writeFileSync(join(dir, 'characters.json'), JSON.stringify({ characters: {
+		alice_1: { rank: 3, xp: 900, done: ['1:2', '3:4'] },
+		quin: { rank: 2, xp: 300, done: ['1:2'] },
+	} }));
+	writeFileSync(join(dir, 'adventures.json'), JSON.stringify({ adventures: [
+		{ key: '1:2', name: 'First Steps', open: true, first: { names: ['Alice_1'], secs: 60 } },
+		{ key: '3:4', name: 'Second Wind', open: false },
+	] }));
+	r = await call('GET', '/api/rankings');
+	const rk = r.body;
+	check(r.status === 200 && rk.tables.experience[0].name === 'Alice_1' && rk.tables.experience[0].value === 900 &&
+		rk.tables.experience[1].name === 'Quin', 'rankings: experience, highest first');
+	check(rk.tables.experience[0].firsts.length === 1 && rk.tables.experience[0].firsts[0] === 'First Steps' &&
+		rk.tables.experience[0].done === 2, 'rankings: the top three with their first completions and adventures');
+	check(rk.tables.adventurers[0].name === 'Alice_1' && rk.tables.adventurers[0].value === 2, 'rankings: adventurers');
+	check(Array.isArray(rk.tables.weekly) && rk.tables.weekly.length === 0 && /^\d{4}-\d\d-\d\d$/.test(rk.week),
+		'rankings: this week begins with what everyone has now (nobody on it yet)');
+	check(rk.tables.prestige.some(x => x.name === 'Alice_1'), 'rankings: prestige (the lands Alice holds)');
+	const realmLands = [...rk.stats.realms.fantasy, ...rk.stats.realms.futuristic].reduce((a, b) => a + b, 0);
+	check(rk.stats.lands >= 4 && realmLands === rk.stats.lands && rk.stats.open === 1 && rk.stats.adventures === 2 &&
+		rk.stats.characters >= 2, 'rankings: the state of the world');
+	check(!JSON.stringify(rk).includes('Bossy'), 'rankings: the admin is on no table');
 
 	// Managing characters from the terminal (characters.sh runs admin.js)
 	const admin = (...args) => {

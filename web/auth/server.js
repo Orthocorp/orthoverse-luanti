@@ -855,6 +855,107 @@ function me(who) {
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Rankings (the Rankings page): the top ten of four tables, and the state of
+// the world. Guests have no entry; test accounts (OV_TESTERS, Testman2) and
+// the admin are left off every table.
+
+const TESTERS = new Set(String(env.OV_TESTERS ?? 'Testman2').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+const RANKED = 10, PODIUM = 3;
+
+// Weekly: each character's experience when the week began (Monday, 00:00
+// UTC), noted once a minute and kept in weekly.json, so this week's is what
+// it has more now
+const WEEKLY_FILE = join(DATA_DIR, 'weekly.json');
+let weekly = readJson(WEEKLY_FILE, { week: null, base: {} });
+function weekOf(d = new Date()) {
+	const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+	t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+	return t.toISOString().slice(0, 10);
+}
+function weeklyBase() {
+	const w = weekOf();
+	if (weekly.week !== w) {
+		const base = {};
+		for (const [k, c] of Object.entries((charactersNow() || {}).characters || {})) {
+			if (c && Number.isFinite(c.xp)) base[k] = c.xp;
+		}
+		weekly = { week: w, base };
+		writeJsonAtomic(WEEKLY_FILE, weekly);
+		log('rankings: the week of', w, 'begins');
+	}
+	return weekly;
+}
+setInterval(() => { try { weeklyBase(); } catch (e) { log('rankings: ' + e.message); } }, 60e3).unref();
+
+let rankingsCache = { at: 0, data: null };
+function rankings() {
+	if (rankingsCache.data && Date.now() - rankingsCache.at < 60e3) return rankingsCache.data;
+	addNewLands();
+	const sheets = (charactersNow() || {}).characters || {};
+	const base = weeklyBase().base;
+	let advs = [];
+	try { advs = JSON.parse(readFileSync(ADVENTURES_FILE, 'utf8')).adventures || []; } catch (e) { advs = []; }
+	// first completions (of each adventure's current version), by character
+	const firsts = new Map();
+	for (const a of advs) {
+		for (const n of (a && a.first && Array.isArray(a.first.names)) ? a.first.names : []) {
+			const k = String(n).toLowerCase();
+			if (!firsts.has(k)) firsts.set(k, []);
+			firsts.get(k).push(a.name || a.key);
+		}
+	}
+	const num = (v, d) => (Number.isFinite(v) ? v : d);
+	const people = [];
+	for (const p of Object.values(registry.players)) {
+		if (!p || !p.name) continue;
+		const k = p.name.toLowerCase();
+		if (TESTERS.has(k) || (ADMIN && p.name === ADMIN)) continue;
+		const c = sheets[k] || {};
+		const pr = prestigeOf(p.address);
+		let top = 0;
+		if (p.address && owners) {
+			const a = p.address.toLowerCase();
+			for (const l of lands) if (owners.owners[l.token] === a) top = Math.max(top, levelOf(l) % 8);
+		}
+		const xp = num(c.xp, 0);
+		people.push({
+			name: p.name, design: p.skin ? p.skin.d : null, rank: Math.min(20, Math.max(1, num(c.rank, 1))), xp,
+			week: Math.max(0, xp - num(base[k], 0)), done: Array.isArray(c.done) ? c.done.length : 0,
+			firsts: firsts.get(k) || [], prestige: pr.lands + pr.levels, lands: pr.lands, levels: pr.levels, top,
+		});
+	}
+	const table = (value, order, extra) => people.filter(x => value(x) > 0).sort(order).slice(0, RANKED)
+		.map((x, i) => ({ name: x.name, value: value(x), rank: x.rank, ...(i < PODIUM ? { design: x.design, ...extra(x) } : {}) }));
+	const byName = (a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+	const tables = {
+		experience: table(x => x.xp, (a, b) => b.xp - a.xp || byName(a, b),
+			x => ({ done: x.done, firsts: x.firsts })),
+		weekly: table(x => x.week, (a, b) => b.week - a.week || b.xp - a.xp || byName(a, b),
+			x => ({ xp: x.xp })),
+		adventurers: table(x => x.done, (a, b) => b.done - a.done || b.firsts.length - a.firsts.length || b.xp - a.xp || byName(a, b),
+			x => ({ firsts: x.firsts })),
+		prestige: table(x => x.prestige, (a, b) => b.prestige - a.prestige || b.levels - a.levels || byName(a, b),
+			x => ({ lands: x.lands, levels: x.levels, top: x.top })),
+	};
+	// The world as it is now
+	const realms = { fantasy: [0, 0, 0, 0, 0, 0, 0, 0], futuristic: [0, 0, 0, 0, 0, 0, 0, 0] };
+	for (const l of lands) {
+		const lv = levelOf(l);
+		realms[lv >= 8 ? 'futuristic' : 'fantasy'][Math.min(7, Math.max(0, lv % 8))]++;
+	}
+	const holders = new Set();
+	if (owners) for (const l of lands) { const h = owners.owners[l.token]; if (h) holders.add(h); }
+	const players = Object.values(registry.players).filter(p => p && p.name && !TESTERS.has(p.name.toLowerCase()));
+	const stats = {
+		lands: lands.length, holders: holders.size, realms,
+		characters: players.length, wallets: players.filter(p => p.address).length,
+		adventures: advs.length, open: advs.filter(a => a && a.open).length,
+	};
+	rankingsCache = { at: Date.now(), data: { updated: new Date().toISOString(), week: weekly.week, tables, stats } };
+	return rankingsCache.data;
+}
+
 const routes = {
 	// A sign-in message for this address, to be signed by the wallet
 	'GET /auth/nonce': async (req, res, url) => {
@@ -1204,6 +1305,11 @@ const routes = {
 	},
 
 	// Whether the land of the token with this ID (an address) has been placed
+	// The Rankings page: the top ten of each table, and the state of the world
+	'GET /api/rankings': async (req, res) => {
+		send(res, 200, rankings(), { 'cache-control': 'public, max-age=60' });
+	},
+
 	// The adventures and their records, as the game writes them
 	'GET /api/adventures': async (req, res) => {
 		let data;

@@ -2,7 +2,7 @@
 // put <div id="ov-header"></div> (class "over" to lie over a picture) and
 // <div id="ov-footer"></div> where they belong, and it draws:
 //
-//   - the header: the logo (home), Map, Adventures, Account, Play, and the sign-in
+//   - the header: the logo (home), Map, Adventures, Account, Rankings, Play, and the sign-in
 //     control (Sign in, or your player name with a menu);
 //   - the footer;
 //   - the sign-in panel: a name and password, or a wallet (choose an
@@ -496,6 +496,7 @@
     bar.append(
       el('a', { class: 'ov-logo', href: '/' }, el('img', { src: '/img/logo.png', width: '498', height: '105', alt: 'The Orthoverse, home' })),
       el('nav', { 'aria-label': 'Site' }, link('/map/', 'Map'), link('/adventures/', 'Adventures'), link('/account/', 'Account'),
+        link('/rankings/', 'Rankings'),
         el('a', { class: 'ov-btn', href: '/play/', 'aria-current': here.startsWith('/play/') ? 'page' : false }, 'Play')),
       burger, who);
     slot.replaceWith(bar);
@@ -546,7 +547,7 @@
   function drawFooter(slot) {
     const foot = el('footer', { class: 'ov-foot' }, el('div', { class: 'ov-foot-in' },
       el('nav', { 'aria-label': 'Footer' }, el('a', { href: '/' }, 'Home'), el('a', { href: '/map/' }, 'Map'), el('a', { href: '/adventures/' }, 'Adventures'),
-        el('a', { href: '/account/' }, 'Account'), el('a', { href: '/play/' }, 'Play')),
+        el('a', { href: '/account/' }, 'Account'), el('a', { href: '/rankings/' }, 'Rankings'), el('a', { href: '/play/' }, 'Play')),
       el('p', { style: 'margin:0' }, 'Runs on ', el('a', { href: 'https://www.luanti.org' }, 'Luanti'),
         ', the open-source block game engine, with Minetest Game. Lands are tokens of the ',
         el('a', { href: 'https://etherscan.io/address/' + CONTRACT }, 'Orthoverse contract'), ' on Ethereum.'),
