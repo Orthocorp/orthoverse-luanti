@@ -4,6 +4,8 @@
 -- (geometry in orthoverse_lands/henges.lua). Walking into one takes you to the
 -- centre of the next henge in that direction, facing onwards; at the edge of the
 -- 3 x 3 grid it wraps round to the far side, as the old Orthoverse did.
+-- A horse (or anything else) you are riding goes through with you, and so do
+-- animals you are leading on a lasso.
 
 local C = orthoverse.coords
 local HG = orthoverse.henge_gates
@@ -16,6 +18,7 @@ local floor, min, max, pi = math.floor, math.min, math.max, math.pi
 local YAW = {north = 0, west = pi / 2, south = pi, east = 3 * pi / 2}
 local ARRIVE_OFFSET = 4      -- nodes from the centre, in the direction of travel
 local COOLDOWN_US = 2000000  -- no second jump within 2 s of arriving
+local LEAD_REACH = 16        -- nodes within which animals on your lasso come too
 local CHECK_EVERY = 0.2      -- seconds between gateway checks
 
 local function henge_coords(key)
@@ -115,9 +118,32 @@ local function go_through(player, lx, lz, gate_name, g)
 	local dest = vector.new(x, G + 1, z)
 	-- Load the arrival area first, so the player lands on solid ground
 	core.load_area(vector.offset(dest, -16, -4, -16), vector.offset(dest, 16, 8, 16))
-	player:set_pos(orthoverse.bodies and orthoverse.bodies.place(player, dest) or dest)
-	player:set_look_horizontal(YAW[gate_name])
 	local name = player:get_player_name()
+	-- Animals on this player's lasso (Animalia keeps the holder's name), from
+	-- before the move: they arrive just behind, and the rope follows the player
+	local here = player:get_pos()
+	local led = {}
+	for _, obj in ipairs(core.get_objects_inside_radius(here, LEAD_REACH)) do
+		local e = not obj:is_player() and obj:get_luaentity()
+		if e and e._lassod_to == name then led[#led + 1] = obj end
+	end
+	-- Riding: an attached player cannot be moved, so the mount is (and the
+	-- rider goes with it); on foot, the player
+	local mount = player:get_attach()
+	if mount and not mount:is_player() and mount:get_luaentity() then
+		mount:set_velocity(vector.zero())
+		mount:set_pos(dest)
+		mount:set_yaw(YAW[gate_name])
+	else
+		player:set_pos(orthoverse.bodies and orthoverse.bodies.place(player, dest) or dest)
+	end
+	player:set_look_horizontal(YAW[gate_name])
+	for i, obj in ipairs(led) do
+		obj:set_velocity(vector.zero())
+		local back = ARRIVE_OFFSET - 2 - i     -- (in land coordinates, like dest)
+		local lx2, lz2 = C.world_xz(tx, tz, 47.5 + g.dx * back, 47.5 + g.dz * back)
+		obj:set_pos(vector.new(lx2, G + 1, lz2))
+	end
 	arrived[name] = core.get_us_time() + COOLDOWN_US
 	core.chat_send_player(name, "You pass through the henge to " .. target.name .. ".")
 	core.log("action", ("[orthoverse_henges] %s went %s from %s to %s"):format(
