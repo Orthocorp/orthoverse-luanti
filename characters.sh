@@ -22,6 +22,10 @@
 #   ./characters.sh delete <name>        delete the character for good (asks first):
 #                                        the website forgets it and the game removes
 #                                        its account, what it carries and where it is
+#   ./characters.sh where <name>         the land they are on (or logged out on), and
+#                                        the place, ready for /teleport: from the game's
+#                                        last save, so a few moments behind for someone
+#                                        playing now
 #
 # Keeping someone out by their address (a guest, who has no character to
 # lock): everyone reaches the game through the web proxy, so the game sees
@@ -44,9 +48,30 @@ cmd=$1
 [ -n "$cmd" ] || usage
 case "$cmd" in
 	list|bans) ;;
-	show|lock|unlock|recovery|delete|who|ban|unban) [ -n "$2" ] || usage ;;
+	show|lock|unlock|recovery|delete|who|where|ban|unban) [ -n "$2" ] || usage ;;
 	*) usage ;;
 esac
+
+# Where a character is: the game's player database (positions in tenths of a
+# block), and the land there from the lands file (96 blocks a side)
+if [ "$cmd" = where ]; then
+	case "$2" in *[!A-Za-z0-9_-]*) echo "That is not a player name." >&2; exit 2 ;; esac
+	at=$(docker compose exec -T luanti sqlite3 -readonly -separator ' ' /world/players.sqlite \
+		"SELECT name, posX/10.0, posY/10.0, posZ/10.0 FROM player WHERE lower(name) = lower('$2')" 2>&1)
+	status=$?
+	if [ $status -ne 0 ]; then echo "Could not read the game's players (is it running? docker compose ps): $at" >&2; exit 1; fi
+	if [ -z "$at" ]; then echo "The game has no character called $2."; exit 1; fi
+	printf '%s\n' "$at" | python3 -c '
+import json, math, sys
+name, x, y, z = sys.stdin.read().split()
+x, y, z = float(x), float(y), float(z)
+key = "%d:%d" % (math.floor((x + 48) / 96), -math.floor((z + 48) / 96))
+d = json.load(open("mods/orthoverse_lands/data/lands.json"))
+land = d["lands"].get(key) or d["henges"].get(key)
+print("%s is on %s (%s), at %d,%d,%d" % (name, land["name"] if land else "the open sea or the rim", key,
+	math.floor(x), math.floor(y + 0.5), math.floor(z)))'
+	exit $?
+fi
 
 # The proxy's list of addresses kept out: OV_DATA/proxy/blocked.txt
 if [ "$cmd" = who ]; then
