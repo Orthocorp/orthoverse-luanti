@@ -243,7 +243,8 @@ end)
 --   orthoverse_time_speed = 72        -- the average speed (the engine's
 --                                        time_speed, 72: a 20 minute day)
 --   orthoverse_day_share = 0.667      -- of real time, the share that is day
--- Night here is 18:43 to 05:17 (the dark, and most of dusk and dawn).
+-- Night here (for the clock's pace) is 18:43 to 05:17; the dark itself is
+-- from about 21:00 to 04:00 (below).
 
 local NIGHT_FROM, NIGHT_TO = 0.78, 0.22            -- time of day
 local BASE = tonumber(core.settings:get("orthoverse_time_speed")) or 72
@@ -267,12 +268,62 @@ local function pace()
 		core.settings:set("time_speed", tostring(speed))
 	end
 end
+
+-- The light: the engine's own curve (dark until 04:37, full day from 06:07,
+-- dusk from 17:52, dark from 19:22), moved so that it is dark only from about
+-- 21:00 to 04:00 on the clock: the evening an hour and 38 minutes later, the
+-- morning 37 minutes earlier. The sun still sets at its usual hour, so the
+-- evening has a long light dusk after it. Sent to each player as an override
+-- of the day-night ratio (the light of the land, the sky and things in it),
+-- only when it has changed enough to see.
+local EVENING_LATER = (21 - (19 + 22 / 60)) / 24   -- of a day
+local MORNING_EARLIER = ((4 + 37 / 60) - 4) / 24
+local CURVE = {   -- the engine's (daynightratio.h): time in thousandths of a day x 24, ratio
+	{4375, 175}, {4625, 175}, {4875, 250}, {5125, 350}, {5375, 500},
+	{5625, 675}, {5875, 875}, {6125, 1000}, {6375, 1000},
+}
+local function engine_ratio(t)     -- t: time of day, 0 to 1
+	local tt = t * 24000
+	if tt > 12000 then tt = 24000 - tt end
+	if tt <= 4625 then return 175 end
+	if tt >= 6125 then return 1000 end
+	for i = 2, #CURVE do
+		local a, b = CURVE[i - 1], CURVE[i]
+		if tt < b[1] then
+			local f = (tt - a[1]) / (b[1] - a[1])
+			return a[2] + f * (b[2] - a[2])
+		end
+	end
+	return 1000
+end
+local function light_at(t)
+	local te = t < 0.5 and t + MORNING_EARLIER or t - EVENING_LATER
+	return engine_ratio(te % 1) / 1000
+end
+orthoverse.light_at = light_at
+
+local sent = {}    -- player name -> the ratio last sent
+local function light_all()
+	local t = core.get_timeofday()
+	if not t then return end
+	local r = light_at(t)
+	for _, player in ipairs(core.get_connected_players()) do
+		local name = player:get_player_name()
+		if not sent[name] or math.abs(sent[name] - r) >= 0.005 then
+			sent[name] = r
+			player:override_day_night_ratio(r)
+		end
+	end
+end
+core.register_on_leaveplayer(function(player) sent[player:get_player_name()] = nil end)
+
 local since = 0
 core.register_globalstep(function(dtime)
 	since = since + dtime
 	if since < 2 then return end
 	since = 0
 	pace()
+	light_all()
 end)
 core.after(0, pace)
 
