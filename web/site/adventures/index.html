@@ -233,12 +233,15 @@
     return t;
   }
 
-  // The featured adventure: of those open and within the character's rank
-  // (any rank, signed out), the one opened most recently (else the least
-  // known), so a new one gets seen. None if there is nothing to play.
+  // The featured adventure: the one the admin chose, if it is open and within
+  // the character's rank (any rank, signed out); else of those, the one opened
+  // most recently (else the least known), so a new one gets seen. None if
+  // there is nothing to play.
   function featured() {
     const open = adventures.filter(a => a.open && reach(a) === 0);
     if (!open.length) return null;
+    const chosen = open.find(a => a.featured === true);
+    if (chosen) return chosen;
     return open.slice().sort((x, y) => ((y.opened || 0) - (x.opened || 0)) ||
       ((x.completions || 0) - (y.completions || 0)) || (x.name || '').localeCompare(y.name || ''))[0];
   }

@@ -387,7 +387,9 @@ local function write_public()
 			rank_min = def.rank_min or RANK_MIN_DEFAULT, rank_max = def.rank_max or RANK_MAX_DEFAULT,
 			first = vrec[1], best = best, records = vrec, tags = def.tags,
 			-- (ready-made: its cover picture is named after the template)
-			template = def.template, blurb = blurb_of(def.template), opened = def.opened}
+			template = def.template, blurb = blurb_of(def.template), opened = def.opened,
+			-- (shown first on the Adventures page, set by the admin)
+			featured = storage:get_string("featured") == key or nil}
 	end
 	table.sort(list, function(a, b) return (a.name or "") < (b.name or "") end)
 	core.safe_file_write(DIR .. "/adventures.json", core.write_json({updated = os.date("!%Y-%m-%dT%H:%M:%SZ"),
@@ -1849,6 +1851,8 @@ local HELP = table.concat({
 	"/adventure replace <name>   (Admin) Put the newer copy of a ready-made adventure in place of this one, saved as its next version (records kept)",
 	"/adventure template <name>   (Admin) Say which ready-made adventure this is (or none), for its tags,",
 	"   blurb and cover picture on the Adventures page.",
+	"/adventure feature [none]   (Admin) Show this adventure first on the Adventures page, to those whose",
+	"   rank may enter it (none: the page chooses, the newest open one first).",
 	"",
 	"While it is open, nobody has creative mode in the dungeon, you included. Runs by the",
 	"builder, the admin and guests are not recorded: test it with another character to",
@@ -1870,7 +1874,7 @@ local function status(key, def)
 end
 
 core.register_chatcommand("adventure", {
-	params = "[go [<name>] | leave | place <name> [north] [here] | replace <name> | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
+	params = "[go [<name>] | leave | place <name> [north] [here] | replace <name> | feature [none] | create <name> | name <text> | line <text> | corner1 | corner2 | start | arrival | limit <minutes> | ranks <lowest> <highest> | save | open | close | reset | delete]",
 	description = "Make and run an adventure on your land",
 	func = function(name, param)
 		local player = core.get_player_by_name(name)
@@ -1969,6 +1973,22 @@ core.register_chatcommand("adventure", {
 			write_public()
 			return true, def.template and (def.name .. " is now shown as the ready-made " .. def.template .. ".")
 				or (def.name .. " is now shown as built by a player.")
+		end
+		-- The adventure shown first on the Adventures page (one at most; to
+		-- those whose rank lets them in, else the page's own choice)
+		if cmd == "feature" then
+			if not is_admin(name) then return false, "Choosing the featured adventure is for the admin." end
+			if rest == "none" then
+				storage:set_string("featured", "")
+				write_public()
+				return true, "No adventure is featured: the Adventures page shows the newest open one first."
+			end
+			if rest ~= "" then return false, "Stand on the land of the adventure: /adventure feature (or none)." end
+			if not def then return false, "Stand on the land of the adventure to feature." end
+			storage:set_string("featured", key)
+			write_public()
+			return true, def.name .. " is now featured on the Adventures page" ..
+				(def.open and "." or ", once it is open.")
 		end
 		-- Putting a newer copy of a ready-made adventure where the old one is
 		-- (its records are kept); then /adventure save and open, as after placing
@@ -2128,6 +2148,7 @@ core.register_chatcommand("adventure", {
 		elseif cmd == "delete" then
 			if run_active then end_run(key, def.name .. " has been removed.") end
 			adventures[key] = nil
+			if storage:get_string("featured") == key then storage:set_string("featured", "") end
 			save_def(key)
 			write_public()
 			return true, "The adventure is removed. Its records and saved dungeons are kept."
