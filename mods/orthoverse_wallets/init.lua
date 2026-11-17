@@ -523,16 +523,23 @@ end)
 -- /home: to one of your own lands (any holder; no privilege needed). This
 -- takes the place of Minetest Game's /home (sethome), which needs a privilege
 -- players here do not have.
+-- With no land to go home to (a guest, a character without a wallet, or a
+-- wallet holding none), /home goes to the Orthohenge in the middle of the
+-- world, where newcomers arrive: so nobody can be stuck anywhere.
+local HOME_HENGE = "0:0"
+local function to_henge(name, why)
+	orthoverse.teleport_to_land(name, HOME_HENGE, "the Orthohenge")
+	return true, why .. " Going to the Orthohenge..."
+end
+
 local home_command = {
 	params = "[land name]",
 	privs = {},
-	description = "Go to one of the lands your wallet holds",
+	description = "Go to one of the lands your wallet holds (or to the Orthohenge)",
 	func = function(name, param)
-		if is_guest(name) then
-			return false, "Guests hold no lands. Sign in with a wallet at " .. PLAY_URL .. "."
-		end
+		if is_guest(name) then return to_henge(name, "Guests hold no lands.") end
 		local wallet = wallet_of(name)
-		if not wallet then return false, "Your name is not linked to a wallet." end
+		if not wallet then return to_henge(name, "Your character has no wallet, so no land of its own.") end
 		if not owners then return false, "Who owns which land is still being checked. Try again in a few minutes." end
 		local mine = {}
 		for key, land in pairs(LANDS) do
@@ -540,7 +547,7 @@ local home_command = {
 		end
 		table.sort(mine, function(a, b) return a.name < b.name end)
 		if #mine == 0 then
-			return false, "Your wallet " .. short(wallet) .. " holds no Orthoverse lands."
+			return to_henge(name, "Your wallet " .. short(wallet) .. " holds no Orthoverse lands.")
 		end
 		local q = param:lower():match("^%s*(.-)%s*$")
 		local pick = {}
