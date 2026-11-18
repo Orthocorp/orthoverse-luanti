@@ -410,8 +410,15 @@ core.register_on_leaveplayer(function(player) close_share(player:get_player_name
 
 ------------------------------------------------------------------------------
 -- Recipes for the weapons: the metal (an ingot, a mese crystal or a diamond)
--- and sticks, a different shape for each kind (none clashes with Minetest
--- Game's tools)
+-- and sticks, a different shape for each kind. The steel dagger's (an ingot
+-- over a stick) was Minetest Game's screwdriver too, which now has the ingot
+-- with the stick to its right instead.
+
+if core.registered_items["screwdriver:screwdriver"] then
+	core.clear_craft({output = "screwdriver:screwdriver"})
+	core.register_craft({output = "screwdriver:screwdriver",
+		recipe = {{"default:steel_ingot", "group:stick"}}})
+end
 
 local MATERIAL_ITEM = {steel = "default:steel_ingot", bronze = "default:bronze_ingot",
 	mese = "default:mese_crystal", diamond = "default:diamond"}
