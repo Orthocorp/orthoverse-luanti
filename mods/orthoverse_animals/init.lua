@@ -70,3 +70,20 @@ core.register_on_mods_loaded(function()
 	core.log("action", "[orthoverse_animals] forest animals spawn in the woods" ..
 		(BEARS and ", bears included" or "; bears off"))
 end)
+
+------------------------------------------------------------------------------
+-- Shears without leather: Animalia's need a piece of it, which only comes
+-- from killing cows, and nobody can harm an animal here. Two steel ingots
+-- and a stick instead, in the same shape (a blade, the handle under it and
+-- the other blade beside). That was the recipe of the monsters' mod's own
+-- shears, which shear nothing here (Animalia's sheep want Animalia's), so
+-- it makes these now.
+
+if core.registered_items["animalia:shears"] and core.registered_items["default:steel_ingot"] then
+	core.clear_craft({output = "animalia:shears"})
+	core.clear_craft({output = "mobs:shears"})
+	core.register_craft({output = "animalia:shears", recipe = {
+		{"", "default:steel_ingot", ""},
+		{"", "group:stick", "default:steel_ingot"},
+	}})
+end
